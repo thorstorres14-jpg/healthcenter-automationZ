@@ -25,6 +25,8 @@ h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;let
 .empty{color:var(--mu);font-size:clamp(18px,2.2vw,28px)}
 #snd{position:fixed;inset:0;background:rgba(18,50,74,.88);display:flex;align-items:center;justify-content:center;z-index:9}
 #snd button{font-size:28px;padding:22px 40px;border:0;border-radius:16px;background:var(--hd2);color:#fff;cursor:pointer}
+#ann{display:none;background:#fff3cd;border-top:4px solid var(--next);padding:16px 32px;font-size:clamp(22px,3.4vw,46px);font-weight:700;color:#5c3d00;text-align:center}
+#ann small{display:block;font-size:.45em;letter-spacing:.1em;text-transform:uppercase;opacity:.8;margin-bottom:4px}
 #st{position:fixed;right:12px;bottom:8px;font-size:13px;color:var(--mu)}
 </style></head><body>
 <div id="snd"><button onclick="enableSound()">Tap to turn on sound and start display</button></div>
@@ -33,11 +35,12 @@ h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;let
   <section><h2>Now serving</h2><div class="now" id="now"></div></section>
   <section><h2>Waiting</h2><div class="wait" id="wait"></div></section>
 </main>
+<div id="ann"></div>
 <div id="st">connecting...</div>
 <script type="module">
 import{firebaseConfig as C}from'./firebase-config.js';
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import{getFirestore,collection,query,where,onSnapshot}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import{getFirestore,collection,query,where,onSnapshot,doc}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 const db=getFirestore(initializeApp(C));
 const $=id=>document.getElementById(id);
 const day=()=>new Date().toLocaleDateString('en-CA');
@@ -82,6 +85,9 @@ onSnapshot(query(collection(db,'queueDisplay'),where('day','==',startDay)),snap=
   });
   first=false;render()
 },()=>{$('st').textContent='connection problem - retrying...'});
-function tick(){const n=new Date();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==startDay)location.reload()}
+let annData=null;
+function showAnn(){const a=$('ann'),ok=annData&&annData.text&&(!annData.until||annData.until>Date.now());if(ok){const h='<small>Announcement</small>'+annData.text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));if(a.innerHTML!==h)a.innerHTML=h;a.style.display='block'}else a.style.display='none'}
+onSnapshot(doc(db,'announcement','current'),s=>{annData=s.exists()?s.data():null;showAnn()},()=>{});
+function tick(){showAnn();const n=new Date();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==startDay)location.reload()}
 tick();setInterval(tick,1000);
 </script></body></html>
