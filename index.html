@@ -220,7 +220,7 @@ function hhd(){
 /* ---------- Queue ---------- */
 async function fetchQ(){try{const s=await getDocs(query(collection(db,'queue'),where('day','==',today())));Q=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.num||0)-(b.num||0));qmsg=''}catch(e){Q=[];qmsg='Could not load the queue. Check your connection.'}}
 const refreshQ=()=>{const a=$('qt'),c=$('cl');if(a)a.innerHTML=qTable();if(c)c.innerHTML=consList()};
-const ST={waiting:['wa','Waiting'],'in-consult':['ok','With provider'],done:['ok','Done'],cancelled:['wa','Cancelled']};
+const ST={waiting:['wa','Waiting'],'in-consult':['ok','In consultation'],done:['ok','Done'],cancelled:['wa','Cancelled']};
 function qTable(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   if(!Q.length)return '<p style="color:var(--mu)">No one in the queue yet today.</p>';
