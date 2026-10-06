@@ -57,13 +57,13 @@ onAuthStateChanged(auth,async u=>{
 });
 function R(){$('root').innerHTML=mode==='boot'?'<div class="lg">Loading...</div>':mode==='app'?shell():mode==='orphan'?orphan():authForm(mode==='setup')}
 const orphan=()=>`<div class="lg"><div class="cd"><h3 style="margin-top:0">Account not active</h3><p>Your account has no access yet, or it was deactivated. Ask the administrator for help.</p><button class="bt" onclick="out()">Sign out</button></div></div>`;
-const authForm=s=>`<div class="lg"><div class="cd"><h2 style="margin-top:0">RHU Health Center System</h2><p style="color:var(--mu);margin-top:-8px">${s?'First-time setup: create the administrator account.':'Sign in with your staff account.'}</p>${msg?`<div class="tg wa" style="display:block;margin-bottom:10px">${E(msg)}</div>`:''}${s?'<label>Full name</label><input id="nm">':''}<label style="margin-top:10px">Email</label><input id="em" type="email" autocomplete="username"><label style="margin-top:10px">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="er2" id="le"></div><button class="bt" style="width:100%;margin-top:12px" onclick="${s?'doSetup()':'doLogin()'}">${s?'Create administrator':'Sign in'}</button></div></div>`;
+const authForm=s=>`<div class="lg"><div class="cd"><h2 style="margin-top:0">RHU Health Center System</h2><p style="color:var(--mu);margin-top:-8px">${s?'First-time setup: create the administrator account.':'Sign in with your staff account.'}</p>${msg?`<div class="tg wa" style="display:block;margin-bottom:10px">${E(msg)}</div>`:''}${s?'<label>Last name</label><input id="nl" autocomplete="family-name"><label style="margin-top:10px">First name</label><input id="nf" autocomplete="given-name"><label style="margin-top:10px">Middle name (optional)</label><input id="nmid" autocomplete="additional-name">':''}<label style="margin-top:10px">Email</label><input id="em" type="email" autocomplete="username"><label style="margin-top:10px">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="er2" id="le"></div><button class="bt" style="width:100%;margin-top:12px" onclick="${s?'doSetup()':'doLogin()'}">${s?'Create administrator':'Sign in'}</button></div></div>`;
 async function doLogin(){const e=$('le');e.textContent='';try{await signInWithEmailAndPassword(auth,$('em').value.trim(),$('pw').value)}catch(x){e.textContent=x.code==='auth/network-request-failed'?'No internet connection.':'Invalid email or password.'}}
 async function doSetup(){
-  const e=$('le'),n=$('nm').value.trim(),m=$('em').value.trim(),p=$('pw').value;
-  if(!n||!m||p.length<8){e.textContent='Enter your name, an email, and a password of at least 8 characters.';return}
+  const e=$('le'),ln=$('nl').value.trim(),fn=$('nf').value.trim(),mn=$('nmid').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('em').value.trim(),p=$('pw').value;
+  if(!ln||!fn||!m||p.length<8){e.textContent='Enter your last and first name, an email, and a password of at least 8 characters.';return}
   setting=true;
-  try{const c=await createUserWithEmailAndPassword(auth,m,p),b=writeBatch(db);b.set(doc(db,'users',c.user.uid),{name:n,email:m,role:'admin',active:true});b.set(doc(db,'meta','setup'),{at:serverTimestamp()});await b.commit();location.reload()}
+  try{const c=await createUserWithEmailAndPassword(auth,m,p),b=writeBatch(db);b.set(doc(db,'users',c.user.uid),{name:n,ln,fn,mn,email:m,role:'admin',active:true});b.set(doc(db,'meta','setup'),{at:serverTimestamp()});await b.commit();location.reload()}
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
@@ -108,18 +108,18 @@ async function save(){
     P.push(np);await lg('Registered '+np.id);view(np.id);
   }catch(x){$('sv').disabled=false;e(x.code==='permission-denied'?'You do not have permission to register patients.':'Could not save. Registration needs an internet connection.')}
 }
-const usr=()=>`<h2 style="margin-top:0">Users</h2><div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Full name</label><input id="u1"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>Role</label><select id="u4">${ROLES.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
+const usr=()=>`<h2 style="margin-top:0">Users</h2><div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Last name</label><input id="u1a"></div><div><label>First name</label><input id="u1b"></div><div><label>Middle name (optional)</label><input id="u1c"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>Role</label><select id="u4">${ROLES.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
 async function loadUsers(){
   try{const s=await getDocs(collection(db,'users'));$('ul').innerHTML=`<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${s.docs.map(d=>{const u=d.data(),on=u.active!==false;return `<tr><td>${E(u.name)}</td><td>${E(u.email)}</td><td>${E(RN[u.role]||u.role)}</td><td><span class="tg ${on?'ok':'wa'}">${on?'Active':'Inactive'}</span></td><td>${d.id===U.uid?'':`<button class="bt g" onclick="setActive('${d.id}',${!on})">${on?'Deactivate':'Activate'}</button>`}</td></tr>`}).join('')}</tbody></table>`}catch(e){$('ul').textContent='Could not load users.'}
 }
 async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);loadUsers()}
 async function addStaff(){
-  const e=$('ue'),n=$('u1').value.trim(),m=$('u2').value.trim(),p=$('u3').value,r=$('u4').value;
-  if(!n||!m||p.length<8){e.textContent='Enter a name, an email, and a password of at least 8 characters.';return}
+  const e=$('ue'),ln=$('u1a').value.trim(),fn=$('u1b').value.trim(),mn=$('u1c').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('u2').value.trim(),p=$('u3').value,r=$('u4').value;
+  if(!ln||!fn||!m||p.length<8){e.textContent='Enter the last and first name, an email, and a password of at least 8 characters.';return}
   $('ub').disabled=true;e.textContent='';
   try{
     const sec=initializeApp(C,'sec'+Date.now()),a2=getAuth(sec),c=await createUserWithEmailAndPassword(a2,m,p);
-    await signOut(a2);await setDoc(doc(db,'users',c.user.uid),{name:n,email:m,role:r,active:true});
+    await signOut(a2);await setDoc(doc(db,'users',c.user.uid),{name:n,ln,fn,mn,email:m,role:r,active:true});
     await lg('Created account '+m+' ('+r+')');go('users');
   }catch(x){$('ub').disabled=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Could not create the account ('+(x.code||x.message)+').'}
 }
@@ -128,7 +128,7 @@ async function loadAudit(){
   try{const s=await getDocs(query(collection(db,'audit'),orderBy('at','desc'),limit(100)));$('al').innerHTML=`<table><thead><tr><th>Time</th><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>${s.docs.map(d=>{const a=d.data();return `<tr><td>${a.at?a.at.toDate().toLocaleString():''}</td><td>${E(a.name)}</td><td>${E(RN[a.role]||a.role)}</td><td>${E(a.action)}</td></tr>`}).join('')||'<tr><td colspan="4">No activity yet.</td></tr>'}</tbody></table>`}catch(e){$('al').textContent='Could not load the audit log.'}
 }
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
-addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nm')?doSetup:doLogin)()});
+addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{if(U&&Date.now()-t>IDLE){await lg('Signed out (inactivity)');msg='Signed out after 10 minutes of inactivity.';signOut(auth)}},15000);
 Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive});
 </script></body></html>
