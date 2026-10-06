@@ -234,7 +234,7 @@ function qTable(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   if(!Q.length)return '<p style="color:var(--mu)">No one in the queue yet today.</p>';
   return `<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Vitals</th><th>Status</th><th></th></tr></thead><tbody>${Q.map(x=>{const st=ST[x.status]||['wa',x.status],open=x.status==='waiting'||x.status==='in-consult';
-    return `<tr><td>${x.num}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a></td><td>${E(x.reason||'')}</td><td>${E(vsum(x.vitals))||'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span></td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${open&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}`}).join('')}</tbody></table>`}
+    return `<tr><td>${x.num}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a></td><td>${E(x.reason||'')}</td><td>${E(vsum(x.vitals))||'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}</td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${open&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='in-consult'&&CROLES.includes(U.role)?`<button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}`}).join('')}</tbody></table>`}
 const qpg=()=>`<h2 style="margin-top:0">Queue</h2><p style="color:var(--mu);margin-top:-6px">${new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>${canReg()?`<div class="cd"><h3 style="margin-top:0">Add patient to queue</h3><input id="qsrch" placeholder="Search patient by name or ID" oninput="qSearch(this.value)" autocomplete="off"><div id="qres" style="margin-top:8px"></div><div class="er2" id="qe"></div></div>`:''}<div class="cd ov"><div id="qt">${qTable()}</div></div>`;
 function qSearch(v){
   const s=v.trim().toLowerCase(),r=$('qres');if(!s){r.innerHTML='';return}
@@ -291,28 +291,54 @@ async function qCancel(id){
   try{await updateDoc(doc(db,'queue',id),{status:'cancelled'});await lg('Cancelled queue '+id);await fetchQ();refreshQ()}
   catch(x){alert('Could not update the queue ('+(x.code||x.message)+').')}
 }
+const qWho=x=>x.status==='in-consult'&&x.byName?`<br><small style="color:var(--mu)">with ${E(x.byName)}</small>`:'';
+async function claimQ(id){
+  const r=doc(db,'queue',id);
+  return runTransaction(db,async t=>{
+    const s=await t.get(r);if(!s.exists())throw{code:'gone'};const d=s.data();
+    if(!['waiting','in-consult'].includes(d.status))throw{code:'closed'};
+    if(d.status==='in-consult'&&d.by&&d.by!==U.uid)throw{code:'taken',who:d.byName};
+    if(d.status!=='in-consult'||d.by!==U.uid)t.update(r,{status:'in-consult',by:U.uid,byName:U.name,startedAt:serverTimestamp()})
+  })
+}
+async function claimUI(id){
+  try{await claimQ(id);return true}
+  catch(e){alert(e.code==='taken'?'This patient is already being seen by '+(e.who||'another staff member')+'.':(e.code==='closed'||e.code==='gone')?'This patient is no longer waiting in the queue.':'Could not start the consultation. Check your connection.');await fetchQ();refreshQ();return false}
+}
+const busyMine=id=>Q.filter(e=>e.status==='in-consult'&&e.by===U.uid&&e.id!==id);
+const busyOk=id=>{const m=busyMine(id);return !m.length||confirm('You are already seeing '+m.map(e=>e.name).join(', ')+'. Start another patient at the same time?')};
 async function startQ(id){
-  const x=Q.find(e=>e.id===id);if(!x)return;
-  try{if(x.status==='waiting')await updateDoc(doc(db,'queue',id),{status:'in-consult'})}catch(e){alert('Could not start the consultation. Check your connection.');return}
+  await fetchQ();const x=Q.find(e=>e.id===id);if(!x)return;
+  if(!busyOk(id))return;
+  if(!await claimUI(id))return;
   cp=x.pid;cq=id;pg='consult';R();scrollTo(0,0)
 }
 async function startC(id){
   await fetchQ();const x=Q.find(e=>e.pid===id&&['waiting','in-consult'].includes(e.status));
-  try{if(x&&x.status==='waiting')await updateDoc(doc(db,'queue',x.id),{status:'in-consult'})}catch(e){}
+  if(x){if(!busyOk(x.id))return;if(!await claimUI(x.id))return}
   cp=id;cq=x?x.id:null;pg='consult';R();scrollTo(0,0)
+}
+async function releaseQ(id){
+  await fetchQ();const x=Q.find(e=>e.id===id);if(!x||x.status!=='in-consult'){refreshQ();if(cq===id){cp=null;cq=null;R()}return}
+  const o=x.by&&x.by!==U.uid;
+  if(!confirm(o?x.name+' is being seen by '+(x.byName||'another staff member')+'. Return to the waiting list anyway?':'Return '+x.name+' to the waiting list?'))return;
+  try{await updateDoc(doc(db,'queue',id),{status:'waiting',by:null,byName:null});await lg('Returned to waiting '+id)}
+  catch(e){alert('Could not update the queue ('+(e.code||e.message)+').');return}
+  await fetchQ();if(cq===id){cp=null;cq=null;R();scrollTo(0,0)}else refreshQ()
 }
 /* ---------- Consultation ---------- */
 function consList(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   const l=Q.filter(x=>['waiting','in-consult'].includes(x.status));
-  return l.length?`<table><thead><tr><th>No.</th><th>Patient</th><th>Age / sex</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${x.num}</td><td>${E(x.name)}</td><td>${E(x.age||'')} / ${E(x.sex||'')}</td><td>${E(x.reason||'')}</td><td><span class="tg ${(ST[x.status]||['wa'])[0]}">${(ST[x.status]||['',x.status])[1]}</span></td><td><button class="bt" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start':'Continue'}</button></td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No patients waiting.</p>'}
+  return l.length?`<table><thead><tr><th>No.</th><th>Patient</th><th>Age / sex</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${x.num}</td><td>${E(x.name)}</td><td>${E(x.age||'')} / ${E(x.sex||'')}</td><td>${E(x.reason||'')}</td><td><span class="tg ${(ST[x.status]||['wa'])[0]}">${(ST[x.status]||['',x.status])[1]}</span>${qWho(x)}</td><td><button class="bt" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start':'Continue'}</button>${x.status==='in-consult'?` <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No patients waiting.</p>'}
 const cons=()=>cp?consForm():`<h2 style="margin-top:0">Consultation</h2><div class="cd ov"><h3 style="margin-top:0">Waiting today</h3><div id="cl">${consList()}</div></div><div class="cd"><h3 style="margin-top:0">See a patient who is not in the queue</h3><input placeholder="Search patient by name or ID" oninput="cSearch(this.value)" autocomplete="off"><div id="cres" style="margin-top:8px"></div></div>`;
 function cSearch(v){
   const s=v.trim().toLowerCase(),r=$('cres');if(!s){r.innerHTML='';return}
   const l=P.filter(p=>(pn(p)+' '+p.id).toLowerCase().includes(s)).slice(0,6);
   r.innerHTML=l.length?`<div class="ov"><table><tbody>${l.map(p=>`<tr><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td><td><button class="bt" onclick="startC('${p.id}')">Consult</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">No match.</p>'}
-const rxRow=()=>`<div class="rxr fm" style="margin-bottom:8px"><input class="rd" placeholder="Medicine"><input class="ro" placeholder="Dose (e.g. 500 mg)"><input class="rfq" placeholder="Frequency (e.g. 3x a day)"><input class="ru" placeholder="Duration (e.g. 7 days)"><input class="rq" type="number" min="1" placeholder="Qty"></div>`;
+const rxRow=()=>`<div class="rxr fm" style="margin-bottom:8px"><input class="rd" placeholder="Medicine"><input class="ro" placeholder="Dose (e.g. 500 mg)"><input class="rfq" placeholder="Frequency (e.g. 3x a day)"><input class="ru" placeholder="Duration (e.g. 7 days)"><input class="rq" type="number" min="1" placeholder="Qty"><button type="button" class="bt g" title="Remove this medicine" onclick="rmRx(this)">Remove</button></div>`;
 const addRx=()=>$('rxs').insertAdjacentHTML('beforeend',rxRow());
+const rmRx=b=>{const r=b.closest('.rxr');if(document.querySelectorAll('#rxs .rxr').length>1)r.remove();else r.querySelectorAll('input').forEach(i=>i.value='')};
 function consForm(){
   const p=P.find(x=>x.id===cp),qv=((Q.find(e=>e.id===cq)||{}).vitals)||{},VK={v1:'bps',v2:'bpd',v3:'t',v4:'pr',v5:'rr',v6:'o2',v7:'wt',v8:'ht'},f=(id,l,ph)=>`<div><label>${l}</label><input id="${id}" type="number" step="any" inputmode="decimal" placeholder="${ph}" value="${qv[VK[id]]??''}"></div>`;
   return `<button class="bt g" onclick="cancelC()">Back</button><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'} | ${E(p.pu+', '+p.br)}</div></div>
@@ -321,7 +347,7 @@ function consForm(){
 <div class="cd"><h3 style="margin-top:0">Lab tests (optional)</h3><input id="lt" list="ltl" placeholder="e.g. CBC, Urinalysis (separate with commas)"><datalist id="ltl">${labList().map(t=>`<option value="${E(t)}">`).join('')}</datalist></div>
 <div class="cd"><h3 style="margin-top:0">Prescription</h3><div id="rxs">${rxRow()}</div><button class="bt g" style="margin-top:4px" onclick="addRx()">Add medicine</button></div>
 <div class="cd"><label style="display:flex;gap:8px;align-items:center"><input id="rf" type="checkbox" style="width:auto" onchange="$('rfb').style.display=this.checked?'grid':'none'"><span>Refer this patient to another facility</span></label><div class="fm" id="rfb" style="display:none;margin-top:10px"><div><label>Refer to</label><input id="rf1" placeholder="e.g. Provincial Hospital"></div><div><label>Reason</label><input id="rf2"></div><div><label>Urgency</label><select id="rf3"><option>Routine</option><option>Urgent</option><option>Emergency</option></select></div></div></div>
-<div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button></div>`}
+<div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button>${cq?`<button class="bt g" onclick="releaseQ('${cq}')">Return to waiting list</button>`:''}</div>`}
 function cancelC(){go('consult')}
 async function saveC(){
   const e=t=>{$('ce').textContent=t},g=i=>$(i).value.trim(),p=P.find(x=>x.id===cp);
@@ -472,5 +498,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
