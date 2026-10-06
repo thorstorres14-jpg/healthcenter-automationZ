@@ -7,6 +7,9 @@
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
 header{display:flex;justify-content:space-between;align-items:center;padding:18px 32px;background:linear-gradient(90deg,var(--hd),var(--hd2));color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+header .brand{display:flex;align-items:center;gap:18px}
+header .brand img{height:clamp(44px,7vw,90px);width:auto;max-width:140px;object-fit:contain;background:#fff;border-radius:12px;padding:4px}
+header .sub{font-size:clamp(13px,1.6vw,20px);opacity:.9;letter-spacing:.12em;text-transform:uppercase}
 header h1{margin:0;font-size:clamp(20px,3vw,38px)}
 #clock{font-size:clamp(18px,2.6vw,32px);font-variant-numeric:tabular-nums;text-align:right;line-height:1.2}
 #clock small{display:block;font-size:.6em;opacity:.9}
@@ -30,7 +33,7 @@ h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;let
 #st{position:fixed;right:12px;bottom:8px;font-size:13px;color:var(--mu)}
 </style></head><body>
 <div id="snd" style="display:none"><button onclick="enableSound()">Tap to turn on sound and start display</button></div>
-<header><h1>RHU Health Center - Queue</h1><div id="clock"></div></header>
+<header><div class="brand"><img id="lgo" alt="" style="display:none"><div><h1 id="fn">RHU Health Center</h1><div class="sub">Patient Queue</div></div></div><div id="clock"></div></header>
 <main>
   <section><h2>Now serving</h2><div class="now" id="now"></div></section>
   <section><h2>Waiting</h2><div class="wait" id="wait"></div></section>
@@ -91,7 +94,7 @@ unsub=onSnapshot(query(collection(db,'queueDisplay'),where('day','==',curDay)),s
 },()=>{$('st').textContent='connection problem - retrying...'});
 }
 sub();
-onSnapshot(doc(db,'displayConfig','main'),s=>{soundCfg=s.exists()&&s.data().sound===false?false:true;if(!soundCfg){soundOn=false;$('snd').style.display='none'}else if(!soundOn)$('snd').style.display='flex'},()=>{$('snd').style.display='flex'});
+onSnapshot(doc(db,'displayConfig','main'),s=>{const c=s.exists()?s.data():{};if(c.name){$('fn').textContent=c.name;document.title=c.name+' - Queue'}const lg=$('lgo');if(c.logo){lg.src=c.logo;lg.style.display='block'}else lg.style.display='none';soundCfg=s.exists()&&s.data().sound===false?false:true;if(!soundCfg){soundOn=false;$('snd').style.display='none'}else if(!soundOn)$('snd').style.display='flex'},()=>{$('snd').style.display='flex'});
 
 let annData=null;
 function showAnn(){const a=$('ann'),ok=annData&&annData.text&&(!annData.until||annData.until>Date.now());if(ok){const h='<small>Announcement</small>'+annData.text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));if(a.innerHTML!==h)a.innerHTML=h;a.style.display='block'}else a.style.display='none'}
