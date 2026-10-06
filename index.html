@@ -45,7 +45,7 @@ const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;
 const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)'],['midwife','Midwife / Nurse'],['pharmacist','Pharmacist'],['medtech','Medical technologist'],['bhw','BHW'],['frontdesk','Front desk']];
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['imm','Immunization',1],['pharm','Pharmacy',1,['pharmacist']],['lab','Lab',1,['medtech']],['users','Users',0,['admin','developer']],['audit','Audit log',0,['admin','developer']]];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['imm','Immunization',1],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',1,['medtech']],['users','Users',0,['admin','developer']],['audit','Audit log',0,['admin','developer']]];
 let Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
 let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false;
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -77,16 +77,16 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k){pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k){pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm')loadPh();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&canVitals())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><h1>RHU Health Center</h1>${nav}</nav><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div><button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals())||(pg==='consult'&&!CROLES.includes(U.role))))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['pat','u5','sr','today'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
-const DNOTE={developer:'You control what admins are allowed to do. Use the Users page to manage permissions.',admin:'You manage staff accounts and can review the audit log.',doctor:'Open the Queue or Consultation page to see who is waiting.',midwife:'Open the Queue or Consultation page to see who is waiting.',frontdesk:'Register walk-in patients and add them to today\'s queue.',bhw:'Households and patients in your area. Immunization due lists will appear here later.',pharmacist:'Prescriptions to dispense will appear here once Consultation and Pharmacy are added.',medtech:'Lab requests will appear here once the Lab module is added.'};
+const DNOTE={developer:'You control what admins are allowed to do. Use the Users page to manage permissions.',admin:'You manage staff accounts and can review the audit log.',doctor:'Open the Queue or Consultation page to see who is waiting.',midwife:'Open the Queue or Consultation page to see who is waiting.',frontdesk:'Register walk-in patients and add them to today\'s queue.',bhw:'Households and patients in your area. Immunization due lists will appear here later.',pharmacist:'Open Pharmacy to dispense prescriptions and update stock.',medtech:'Lab requests will appear here once the Lab module is added.'};
 function dash(){
   const hh=new Set(P.map(x=>x.hh)).size,today=new Date().toLocaleDateString('en-CA'),rec=P.slice(-5).reverse(),brg={};
   P.forEach(x=>{brg[x.br]=(brg[x.br]||0)+1});
@@ -334,6 +334,44 @@ async function saveC(){
     await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;view(p.id)
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
 }
+/* ---------- Pharmacy ---------- */
+let RX=[],SK={};
+const skey=n=>String(n).trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const phg=()=>`<h2 style="margin-top:0">Pharmacy</h2><div class="cd ov"><h3 style="margin-top:0">Prescriptions to dispense</h3><div id="phl">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Stock</h3><div class="fm"><div><label>Medicine</label><input id="sn"></div><div><label>Quantity on hand</label><input id="sq" type="number" min="0"></div></div><div class="er2" id="se"></div><button class="bt" style="margin-top:10px" onclick="stSave()">Save stock</button><div class="ov" id="stl" style="margin-top:12px"></div></div>`;
+function phRender(){
+  const l=$('phl'),s=$('stl');if(!l)return;
+  l.innerHTML=RX.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Medicines</th><th></th></tr></thead><tbody>${RX.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${(r.items||[]).map(i=>{const k=SK[skey(i.drug||'')];return E(i.drug+' '+i.dose+', '+i.freq+(i.dur?', '+i.dur:'')+(i.qty?' (#'+i.qty+')':''))+(k?` <small style="color:var(--mu)">stock: ${k.qty}</small>`:'')}).join('<br>')}</td><td><button class="bt" onclick="dispense('${r.id}')">Mark as dispensed</button></td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No prescriptions waiting.</p>';
+  const k=Object.entries(SK).sort((a,b)=>a[1].name.localeCompare(b[1].name));
+  s.innerHTML=k.length?`<table><thead><tr><th>Medicine</th><th>On hand</th><th></th></tr></thead><tbody>${k.map(([id,v])=>`<tr><td>${E(v.name)}</td><td>${v.qty}</td><td><button class="bt g" onclick="stFill('${id}')">Edit</button></td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No stock recorded yet.</p>'
+}
+async function loadPh(){
+  try{
+    const[a,b]=await Promise.all([getDocs(query(collection(db,'prescriptions'),where('status','==','pending'))),getDocs(collection(db,'stock'))]);
+    RX=a.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(x.d||'').localeCompare(y.d||''));SK={};b.docs.forEach(d=>{SK[d.id]=d.data()});phRender()
+  }catch(e){const l=$('phl');if(l)l.textContent='Could not load. Check your connection.'}
+}
+async function stSave(){
+  const n=$('sn').value.trim(),v=$('sq').value,q=Number(v),er=$('se'),k=skey(n);
+  if(!k){er.textContent='Enter the medicine name.';return}
+  if(v===''||!isFinite(q)||q<0){er.textContent='Enter a valid quantity.';return}
+  try{await setDoc(doc(db,'stock',k),{name:n,qty:q,at:serverTimestamp()});await lg('Stock '+n+' = '+q);SK[k]={name:n,qty:q};phRender();$('sn').value='';$('sq').value='';er.textContent=''}
+  catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to update stock.':'Could not save. Check your connection.'}
+}
+function stFill(k){$('sn').value=SK[k].name;$('sq').value=SK[k].qty;scrollTo(0,0)}
+async function dispense(id){
+  const r=RX.find(x=>x.id===id);if(!r)return;
+  const need={};(r.items||[]).forEach(i=>{const n=Number(i.qty);if(i.drug&&n>0){const k=skey(i.drug);need[k]=(need[k]||0)+n}});
+  const low=Object.entries(need).filter(([k,n])=>SK[k]&&SK[k].qty<n).map(([k])=>SK[k].name);
+  if(low.length&&!confirm('Not enough stock for: '+low.join(', ')+'. Dispense anyway?'))return;
+  try{
+    await runTransaction(db,async tx=>{
+      const ks=Object.keys(need).filter(k=>SK[k]),sn=await Promise.all(ks.map(k=>tx.get(doc(db,'stock',k))));
+      ks.forEach((k,i)=>{if(sn[i].exists())tx.update(doc(db,'stock',k),{qty:Math.max(0,(sn[i].data().qty||0)-need[k]),at:serverTimestamp()})});
+      tx.update(doc(db,'prescriptions',id),{status:'dispensed',dispensedBy:U.name,dispensedAt:serverTimestamp()})
+    });
+    await lg('Dispensed '+id);await loadPh()
+  }catch(x){alert(x.code==='permission-denied'?'You do not have permission to dispense.':'Could not update. Check your connection.')}
+}
 async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);loadUsers()}
 async function addStaff(){
   const e=$('ue'),ln=$('u1a').value.trim(),fn=$('u1b').value.trim(),mn=$('u1c').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('u2').value.trim(),p=$('u3').value,r=$('u4').value;
@@ -352,5 +390,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{if(U&&Date.now()-t>IDLE){await lg('Signed out (inactivity)');msg='Signed out after 10 minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setVitalsRole,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
 </script></body></html>
