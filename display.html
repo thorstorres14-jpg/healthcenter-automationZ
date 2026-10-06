@@ -29,7 +29,7 @@ h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;let
 #ann small{display:block;font-size:.45em;letter-spacing:.1em;text-transform:uppercase;opacity:.8;margin-bottom:4px}
 #st{position:fixed;right:12px;bottom:8px;font-size:13px;color:var(--mu)}
 </style></head><body>
-<div id="snd"><button onclick="enableSound()">Tap to turn on sound and start display</button></div>
+<div id="snd" style="display:none"><button onclick="enableSound()">Tap to turn on sound and start display</button></div>
 <header><h1>RHU Health Center - Queue</h1><div id="clock"></div></header>
 <main>
   <section><h2>Now serving</h2><div class="now" id="now"></div></section>
@@ -42,14 +42,17 @@ import{firebaseConfig as C}from'./firebase-config.js';
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import{getFirestore,collection,query,where,onSnapshot,doc}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 const db=getFirestore(initializeApp(C));
+const qn=n=>'P'+String(n||0).padStart(3,'0');
+const W=['zero','one','two','three','four','five','six','seven','eight','nine'];
+const spoken=n=>'P '+String(n||0).padStart(3,'0').split('').map(c=>W[+c]).join(' ');
 const $=id=>document.getElementById(id);
 const day=()=>new Date().toLocaleDateString('en-CA');
 const LANG=new URLSearchParams(location.search).get('lang')==='tl'?'tl':'en';
-const startDay=day();
-let ready=false,soundOn=false,first=true,docs=[];const last={},flash={};
+let curDay=day(),unsub=null,soundCfg=null;
+let soundOn=false,first=true,docs=[];const last={},flash={};
 let ac=null;
 window.enableSound=()=>{
-  soundOn=true;$('snd').remove();
+  soundOn=true;$('snd').style.display='none';
   try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}
   try{speechSynthesis.speak(new SpeechSynthesisUtterance(''))}catch(e){}
 };
@@ -65,17 +68,18 @@ function say(text){
 }
 let chain=Promise.resolve();
 function announce(num,room){
-  const txt=LANG==='tl'?`Pasyente bilang ${num}, pumunta po sa Consultation ${room}.`:`Patient number ${num}, please proceed to Consultation ${room}.`;
+  const txt=LANG==='tl'?`Pasyente ${spoken(num)}, pumunta po sa Consultation ${room}.`:`Patient ${spoken(num)}, please proceed to Consultation ${room}.`;
   chain=chain.then(async()=>{if(!soundOn)return;await chime();await say(txt)})
 }
 function render(){
   const now=docs.filter(d=>d.status==='in-consult'&&d.room).sort((a,b)=>a.room-b.room||a.num-b.num);
   const wait=docs.filter(d=>d.status==='waiting').sort((a,b)=>a.num-b.num);
-  $('now').innerHTML=now.length?now.map(d=>`<div class="card ${flash[d.id]>Date.now()?'flash':''}"><div class="rm">Consultation ${d.room}</div><div class="n">#${d.num}</div></div>`).join(''):'<div class="empty">No patient is being called right now.</div>';
+  $('now').innerHTML=now.length?now.map(d=>`<div class="card ${flash[d.id]>Date.now()?'flash':''}"><div class="rm">Consultation ${d.room}</div><div class="n">${qn(d.num)}</div></div>`).join(''):'<div class="empty">No patient is being called right now.</div>';
   const shown=wait.slice(0,24);
-  $('wait').innerHTML=wait.length?shown.map((d,i)=>`<div class="chip ${i===0?'next':''}">#${d.num}</div>`).join('')+(wait.length>shown.length?`<div class="chip">+${wait.length-shown.length}</div>`:''):'<div class="empty">No one is waiting.</div>'
+  $('wait').innerHTML=wait.length?shown.map((d,i)=>`<div class="chip ${i===0?'next':''}">${qn(d.num)}</div>`).join('')+(wait.length>shown.length?`<div class="chip">+${wait.length-shown.length}</div>`:''):'<div class="empty">No one is waiting.</div>'
 }
-onSnapshot(query(collection(db,'queueDisplay'),where('day','==',startDay)),snap=>{
+function sub(){
+unsub=onSnapshot(query(collection(db,'queueDisplay'),where('day','==',curDay)),snap=>{
   $('st').textContent='';
   docs=snap.docs.map(d=>({id:d.id,...d.data()}));
   docs.forEach(d=>{
@@ -85,9 +89,13 @@ onSnapshot(query(collection(db,'queueDisplay'),where('day','==',startDay)),snap=
   });
   first=false;render()
 },()=>{$('st').textContent='connection problem - retrying...'});
+}
+sub();
+onSnapshot(doc(db,'displayConfig','main'),s=>{soundCfg=s.exists()&&s.data().sound===false?false:true;if(!soundCfg){soundOn=false;$('snd').style.display='none'}else if(!soundOn)$('snd').style.display='flex'},()=>{$('snd').style.display='flex'});
+
 let annData=null;
 function showAnn(){const a=$('ann'),ok=annData&&annData.text&&(!annData.until||annData.until>Date.now());if(ok){const h='<small>Announcement</small>'+annData.text.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));if(a.innerHTML!==h)a.innerHTML=h;a.style.display='block'}else a.style.display='none'}
 onSnapshot(doc(db,'announcement','current'),s=>{annData=s.exists()?s.data():null;showAnn()},()=>{});
-function tick(){showAnn();const n=new Date();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==startDay)location.reload()}
+function tick(){showAnn();const n=new Date();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==curDay){curDay=day();if(unsub)unsub();first=true;docs=[];Object.keys(last).forEach(k=>delete last[k]);render();sub()}}
 tick();setInterval(tick,1000);
 </script></body></html>
