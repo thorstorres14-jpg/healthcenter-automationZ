@@ -32,7 +32,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid #14807f55;border-color
 .dgh{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;margin-bottom:16px}.dgh .cd{margin:0}
 .dg3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}.dg2{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;margin-bottom:16px}.dg3 .cd,.dg2 .cd{margin:0}
 @media(max-width:1000px){.dg3,.dg2{grid-template-columns:1fr}}
-.dn{width:130px;height:130px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center}.dn i{width:86px;height:86px;border-radius:50%;background:var(--cd);display:flex;flex-direction:column;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:24px;line-height:1.1}.dn i small{font-size:11px;color:var(--mu);font-weight:400}
+.dnut{width:130px;height:130px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center}.dnut i{width:86px;height:86px;border-radius:50%;background:var(--cd);display:flex;flex-direction:column;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:24px;line-height:1.1}.dnut i small{font-size:11px;color:var(--mu);font-weight:400}
 .dlg{flex:1;min-width:150px;font-size:14px}.dlg div{display:flex;align-items:center;gap:8px;padding:4px 0}.dlg em{width:10px;height:10px;border-radius:50%;flex:none}.dlg span{margin-left:auto;font-weight:600}
 .dqs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}.dqs div{background:var(--bg);border-radius:8px;padding:8px;text-align:center}.dqs b{display:block;font-size:22px}.dqs small{color:var(--mu);font-size:12px}
 .dqr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--bd);font-size:14px}
@@ -56,7 +56,7 @@ input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--bd);bor
 label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
 .fm{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
 .tg{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px}.ok{background:var(--ob);color:var(--ok)}.wa{background:var(--wb);color:var(--wa)}
-.er2{color:var(--er);font-size:13px;margin-top:6px}
+.er2{color:var(--er);font-size:13px;margin-top:6px}.er2.ok2{color:var(--ok)}
 .lg{max-width:440px;margin:0 auto;padding:24px 14px}
 .hm{display:none}
 @media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;width:75%;z-index:5;display:none}.sb.open{display:flex}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px}}
@@ -289,7 +289,7 @@ function dxRender(){
   const sel=dxSel?cnt[dxSel]:null;let ageH='<p style="color:var(--mu)">Select a disease to see the ages.</p>';
   if(sel){const ages=sel.filter(a=>a!==null).sort((a,b)=>a-b),G=[['Under 5',a=>a<5,'var(--pr)'],['5 to 17',a=>a>=5&&a<18,'var(--wa)'],['18 to 59',a=>a>=18&&a<60,'var(--ok)'],['60 and above',a=>a>=60,'var(--mu)']],gc=G.map(([l,f,c])=>[l,ages.filter(f).length,c]),big=gc.slice().sort((a,b)=>b[1]-a[1])[0];
     let acc=0;const stops=ages.length?gc.map(([,n,c])=>{const x=acc/ages.length*100;acc+=n;return c+' '+x+'% '+(acc/ages.length*100)+'%'}).join(','):'var(--bd) 0% 100%';
-    ageH=`<div style="font-weight:600;margin-bottom:8px">${E(dxSel)} <span style="color:var(--mu);font-weight:400">(${sel.length} case${sel.length===1?'':'s'})</span></div><div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap"><div class="dn" style="background:conic-gradient(${stops})"><i>${ages.length}<small>with age</small></i></div><div class="dlg">${gc.map(([l,n,c])=>`<div><em style="background:${c}"></em>${l}<span>${n}</span></div>`).join('')}</div></div><p style="color:var(--mu);font-size:13px;margin:10px 0 0">${ages.length?`Ages ${ages[0]} to ${ages[ages.length-1]}, middle age ${ages[Math.floor(ages.length/2)]}. Most cases: ${big[0]}.`:'Ages are not available.'}</p>`}
+    ageH=`<div style="font-weight:600;margin-bottom:8px">${E(dxSel)} <span style="color:var(--mu);font-weight:400">(${sel.length} case${sel.length===1?'':'s'})</span></div><div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap"><div class="dnut" style="background:conic-gradient(${stops})"><i>${ages.length}<small>with age</small></i></div><div class="dlg">${gc.map(([l,n,c])=>`<div><em style="background:${c}"></em>${l}<span>${n}</span></div>`).join('')}</div></div><p style="color:var(--mu);font-size:13px;margin:10px 0 0">${ages.length?`Ages ${ages[0]} to ${ages[ages.length-1]}, middle age ${ages[Math.floor(ages.length/2)]}. Most cases: ${big[0]}.`:'Ages are not available.'}</p>`}
   const al=[],ws=7;
   const names=[...new Set(VXD.flatMap(v=>v.k.map(x=>x[0])))],pid1=Object.fromEntries(DXT.map(x=>[x[0],x[2]]));
   names.forEach(n=>{
@@ -880,11 +880,11 @@ async function addDev(){
   const e=$('dae'),ln=$('da1').value.trim(),fn=$('da2').value.trim(),mn=$('da3').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('da4').value.trim(),p=$('da5').value;
   if(!ln||!fn||!m||p.length<8){e.textContent='Enter the last and first name, an email, and a password of at least 8 characters.';return}
   if(!confirm('Give '+n+' full developer access?'))return;
-  $('dab').disabled=true;e.textContent='';
+  $('dab').disabled=true;e.className='er2';e.textContent='';
   try{
     const sec=initializeApp(C,'sec'+Date.now()),a2=getAuth(sec),c=await createUserWithEmailAndPassword(a2,m,p);
     await signOut(a2);await setDoc(doc(db,'users',c.user.uid),{name:n,ln,fn,mn,email:m,role:'developer',active:true});
-    await lg('Created developer account '+m);['da1','da2','da3','da4','da5'].forEach(i=>$(i).value='');$('dab').disabled=false;e.textContent='Developer account created.';loadDevs();
+    await lg('Created developer account '+m);['da1','da2','da3','da4','da5'].forEach(i=>$(i).value='');$('dab').disabled=false;e.className='er2 ok2';e.textContent='Developer account created.';loadDevs();
   }catch(x){$('dab').disabled=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Could not create the account ('+(x.code||x.message)+').'}
 }
 async function removeDev(id){
