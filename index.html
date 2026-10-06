@@ -73,10 +73,16 @@ function shell(){
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><h1>RHU Health Center</h1>${nav}</nav><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div><button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${page()}</div></div></div>`}
 function page(){if((['users','audit'].includes(pg)&&U.role!=='admin')||(pg==='reg'&&!REG.includes(U.role)))pg='dash';return({dash,patients:pats,prof,reg,users:usr,audit:aud}[pg]||dash)()}
+const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
+const DASH={admin:['pat','hh','today','brg'],doctor:['pat','u5','sr','today'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
+const DNOTE={admin:'You manage staff accounts and can review the audit log.',doctor:'Your consultation queue will appear here once Queue and Consultation are added.',midwife:'Your queue and immunization due list will appear here once those modules are added.',frontdesk:'Register walk-in patients and check that household details are complete.',bhw:'Households and patients in your area. Immunization due lists will appear here later.',pharmacist:'Prescriptions to dispense will appear here once Consultation and Pharmacy are added.',medtech:'Lab requests will appear here once the Lab module is added.'};
 function dash(){
-  const hh=new Set(P.map(x=>x.hh)).size,today=new Date().toLocaleDateString('en-CA'),rec=P.slice(-5).reverse();
-  const cards=[[P.length,'Registered patients'],[hh,'Households'],[P.filter(x=>x.createdDay===today).length,'Registered today']];
-  return `<h2 style="margin-top:0">Dashboard</h2><div class="gr">${cards.map(c=>`<div class="cd st"><b>${c[0]}</b><span>${c[1]}</span></div>`).join('')}</div><div class="cd"><h3 style="margin-top:0">Recently registered</h3><div class="ov"><table><tbody>${rec.map(p=>`<tr class="cl" onclick="view('${p.id}')"><td>${p.id}</td><td>${E(p.fn+' '+p.ln)}</td><td>${E(p.br)}</td></tr>`).join('')||'<tr><td>No patients yet. Register the first patient from the Patients page.</td></tr>'}</tbody></table></div></div>`}
+  const hh=new Set(P.map(x=>x.hh)).size,today=new Date().toLocaleDateString('en-CA'),rec=P.slice(-5).reverse(),brg={};
+  P.forEach(x=>{brg[x.br]=(brg[x.br]||0)+1});
+  const M={pat:[P.length,'Registered patients'],hh:[hh,'Households'],today:[P.filter(x=>x.createdDay===today).length,'Registered today'],u5:[P.filter(x=>ageY(x.dob)<5).length,'Children under 5'],sr:[P.filter(x=>ageY(x.dob)>=60).length,'Seniors 60+'],brg:[Object.keys(brg).length,'Barangays covered']};
+  const cards=(DASH[U.role]||['pat']).map(k=>M[k]);
+  const showB=['admin','bhw'].includes(U.role)&&P.length;
+  return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Dashboard</h2>${REG.includes(U.role)?`<button class="bt" onclick="go('reg')">Register patient</button>`:''}</div><p style="color:var(--mu)">${DNOTE[U.role]||''}</p><div class="gr">${cards.map(c=>`<div class="cd st"><b>${c[0]}</b><span>${c[1]}</span></div>`).join('')}</div>${showB?`<div class="cd"><h3 style="margin-top:0">Patients by barangay</h3><div class="ov"><table><tbody>${Object.entries(brg).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${E(k)}</td><td>${v}</td></tr>`).join('')}</tbody></table></div></div>`:''}<div class="cd"><h3 style="margin-top:0">Recently registered</h3><div class="ov"><table><tbody>${rec.map(p=>`<tr class="cl" onclick="view('${p.id}')"><td>${p.id}</td><td>${E(p.fn+' '+p.ln)}</td><td>${E(p.br)}</td></tr>`).join('')||'<tr><td>No patients yet.</td></tr>'}</tbody></table></div></div>`}
 function rows(){const s=q.toLowerCase(),l=P.filter(p=>(p.fn+' '+p.ln+' '+p.id+' '+p.br+' '+p.tel).toLowerCase().includes(s));return l.length?l.map(p=>`<tr class="cl" onclick="view('${p.id}')"><td>${p.id}</td><td>${E(p.fn+' '+p.ln)}</td><td>${age(p.dob)} / ${p.sex}</td><td>${E(p.br)}</td></tr>`).join(''):'<tr><td colspan="4">No matching patients. Try another name or ID.</td></tr>'}
 function pats(){return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Patients</h2>${REG.includes(U.role)?`<button class="bt" onclick="go('reg')">Register patient</button>`:''}</div><div class="cd"><input placeholder="Search by name, patient ID, barangay or contact" value="${E(q)}" oninput="q=this.value;$('tbl').innerHTML=rows()"><div class="ov"><table style="margin-top:10px"><thead><tr><th>Patient ID</th><th>Name</th><th>Age / sex</th><th>Barangay</th></tr></thead><tbody id="tbl">${rows()}</tbody></table></div></div>`}
 function prof(){
@@ -108,9 +114,55 @@ async function save(){
     P.push(np);await lg('Registered '+np.id);view(np.id);
   }catch(x){$('sv').disabled=false;e(x.code==='permission-denied'?'You do not have permission to register patients.':'Could not save. Registration needs an internet connection.')}
 }
-const usr=()=>`<h2 style="margin-top:0">Users</h2><div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Last name</label><input id="u1a"></div><div><label>First name</label><input id="u1b"></div><div><label>Middle name (optional)</label><input id="u1c"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>Role</label><select id="u4">${ROLES.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
+const usr=()=>`<h2 style="margin-top:0">Users</h2><div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Last name</label><input id="u1a"></div><div><label>First name</label><input id="u1b"></div><div><label>Middle name (optional)</label><input id="u1c"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>Role</label><select id="u4">${ROLES.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd"><h3 style="margin-top:0">Demo data (for testing only)</h3><p style="color:var(--mu);margin-top:0">Creates 6 demo staff accounts (doctor, midwife, pharmacist, medtech, BHW, front desk) and 20 made-up patients in 7 households. Emails look like <b>demo.doctor@example.com</b>. Do not use real patient data here.</p><div class="fm"><div><label>Password for the demo accounts (8+ characters)</label><input id="dp" type="text" autocomplete="off"></div></div><div class="er2" id="de"></div><button class="bt" id="db" style="margin-top:12px" onclick="loadDemo()">Load demo data</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
 async function loadUsers(){
   try{const s=await getDocs(collection(db,'users'));$('ul').innerHTML=`<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${s.docs.map(d=>{const u=d.data(),on=u.active!==false;return `<tr><td>${E(u.name)}</td><td>${E(u.email)}</td><td>${E(RN[u.role]||u.role)}</td><td><span class="tg ${on?'ok':'wa'}">${on?'Active':'Inactive'}</span></td><td>${d.id===U.uid?'':`<button class="bt g" onclick="setActive('${d.id}',${!on})">${on?'Deactivate':'Activate'}</button>`}</td></tr>`}).join('')}</tbody></table>`}catch(e){$('ul').textContent='Could not load users.'}
+}
+const DSTAFF=[['doctor','Reyes','Antonio','Cruz'],['pharmacist','Navarro','Paolo','Reyes'],['medtech','Aquino','Liza','Tan'],['bhw','Ramos','Elena','Santos'],['frontdesk','Flores','Mark','Dizon'],['midwife','Bautista','Grace','Lim']];
+const DHH=[
+['San Isidro','Purok 1',[['Ramon','Dela Cruz','M',42,0],['Maria','Dela Cruz','F',39,0],['Jerome','Dela Cruz','M',9,0],['Althea','Dela Cruz','F',0,4]]],
+['San Isidro','Purok 2',[['Eduardo','Santos','M',67,0],['Lourdes','Santos','F',64,0]]],
+['Poblacion','Purok 3',[['Carlo','Reyes','M',35,0],['Jenny','Reyes','F',33,0],['Mika','Reyes','F',5,0],['Luis','Reyes','M',1,2]]],
+['Poblacion','Purok 1',[['Rosa','Garcia','F',71,0]]],
+['Bagong Silang','Purok 4',[['Arnel','Mendoza','M',29,0],['Cherry','Mendoza','F',27,0],['Zion','Mendoza','M',0,2]]],
+['Bagong Silang','Purok 2',[['Teresita','Villanueva','F',55,0],['Noel','Villanueva','M',58,0],['Angela','Villanueva','F',16,0],['Paolo','Villanueva','M',12,0]]],
+['San Isidro','Purok 3',[['Liza','Bautista','F',24,0],['Kyle','Bautista','M',3,0]]]];
+const dobAgo=(y,m)=>{const d=new Date();d.setDate(15);d.setMonth(d.getMonth()-m);d.setFullYear(d.getFullYear()-y);return d.toLocaleDateString('en-CA')};
+async function loadDemo(){
+  const e=$('de'),b=$('db'),pw=$('dp').value;
+  if(pw.length<8){e.textContent='Enter a password of at least 8 characters for the demo accounts.';return}
+  if(P.some(x=>x.demo)){e.textContent='Demo data is already loaded.';return}
+  b.disabled=true;e.textContent='Working... please wait.';
+  try{
+    const sec=initializeApp(C,'demo'+Date.now()),a2=getAuth(sec),db2=initializeFirestore(sec,{});
+    let made=[];
+    for(const [r,ln,fn,mn] of DSTAFF){
+      const m='demo.'+r+'@example.com';let uid;
+      try{uid=(await createUserWithEmailAndPassword(a2,m,pw)).user.uid}
+      catch(x){if(x.code!=='auth/email-already-in-use')throw x;uid=(await signInWithEmailAndPassword(a2,m,pw)).user.uid}
+      await setDoc(doc(db,'users',uid),{name:fn+' '+mn+' '+ln,ln,fn,mn,email:m,role:r,active:true,demo:true});
+      if(r==='midwife'){
+        e.textContent='Adding demo patients...';
+        const today=new Date().toLocaleDateString('en-CA');
+        await runTransaction(db2,async tx=>{
+          const rf=doc(db2,'meta','counters'),c=await tx.get(rf),d=c.exists()?c.data():{};
+          let n=d.patients||0,hn=d.households||0;made=[];
+          for(const [br,pu,mem] of DHH){
+            hn++;const h='HH-'+(1000+hn);
+            for(const [fn2,ln2,sx,y,mo] of mem){
+              n++;const np={id:'RHU-'+String(n).padStart(6,'0'),fn:fn2,ln:ln2,sex:sx,dob:dobAgo(y,mo),br,pu,tel:'',hh:h,consent:true,consentBy:'Demo data',createdDay:today,demo:true};
+              tx.set(doc(db2,'patients',np.id),{...np,createdAt:serverTimestamp()});made.push(np);
+            }
+          }
+          tx.set(rf,{patients:n,households:hn},{merge:true});
+        });
+      }
+    }
+    await signOut(a2);
+    P.push(...made);
+    await lg('Loaded demo data ('+made.length+' patients)');
+    msg='';go('users');
+  }catch(x){b.disabled=false;e.textContent='Could not load demo data ('+(x.code||x.message)+').'}
 }
 async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);loadUsers()}
 async function addStaff(){
@@ -130,5 +182,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{if(U&&Date.now()-t>IDLE){await lg('Signed out (inactivity)');msg='Signed out after 10 minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo});
 </script></body></html>
