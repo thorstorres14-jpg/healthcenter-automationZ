@@ -95,6 +95,40 @@ async function doSetup(){
 }
 async function out(){await lg('Signed out');await signOut(auth)}
 function go(k,keep){if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm')loadPh();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+let VH=[];
+function printDoc(html,size){
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  const w=f.contentWindow,d=w.document;d.open();
+  d.write('<!doctype html><html><head><meta charset="utf-8"><title>Print</title><style>@page{size:'+size+';margin:14mm}body{font-family:Georgia,"Times New Roman",serif;color:#000;font-size:14px;margin:0}.hd{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:14px}.hd h1{margin:0;font-size:22px}.hd div{font-size:13px;letter-spacing:.1em;text-transform:uppercase}.row{display:flex;justify-content:space-between;gap:12px;margin:4px 0}.rx{font-size:36px;font-weight:bold;margin:14px 0 6px}ol{margin:0;padding-left:24px}li{margin-bottom:10px;font-size:15px}.sig{margin-top:70px;text-align:right}.sig div{display:inline-block;min-width:230px;text-align:center}.sig .ln{border-top:1px solid #000;padding-top:4px}h2{text-align:center;letter-spacing:.2em;margin:22px 0}p{line-height:1.8;text-align:justify;font-size:15px}.ft{margin-top:30px;font-size:11px;color:#444}</style></head><body>'+html+'</body></html>');
+  d.close();
+  w.onafterprint=()=>f.remove();setTimeout(()=>{try{w.focus();w.print()}catch(e){alert('Could not open the print dialog.')}},300);setTimeout(()=>f.remove(),120000)
+}
+const longD=d=>new Date(d+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'});
+function printRx(i){
+  const v=VH[i],p=P.find(x=>x.id===pid);if(!v||!p)return;
+  const items=(v.rx||'').split('; ').map(x=>x.trim()).filter(Boolean);
+  if(!items.length)return alert('No medicines were prescribed in this visit.');
+  lg('Printed prescription '+p.id+' '+v.d);
+  printDoc(`<div class="hd"><h1>RHU Health Center</h1><div>Prescription</div></div><div class="row"><span><b>Patient:</b> ${E(pn(p))}</span><span><b>Date:</b> ${E(longD(v.d))}</span></div><div class="row"><span><b>Age / Sex:</b> ${E(age(p.dob))} / ${p.sex==='M'?'Male':'Female'}</span><span><b>Patient ID:</b> ${E(p.id)}</span></div><div class="row"><span><b>Address:</b> ${E(p.pu+', '+p.br)}</span></div><div class="rx">&#8478;</div><ol>${items.map(t=>`<li>${E(t)}</li>`).join('')}</ol><div class="sig"><div class="ln">${E(v.byName||'')}<br><small>Lic. No.: ____________</small></div></div>`,'A5 portrait')
+}
+function certOpen(i){
+  const v=VH[i];if(!v)return;
+  const d=document.createElement('div');d.id='cmod';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px;z-index:50';
+  d.innerHTML=`<div class="cd" style="max-width:560px;width:100%;margin:auto"><h3 style="margin-top:0">Medical certificate</h3><label>Diagnosis / impression</label><input id="cm1" value="${E(v.dx||'')}"><label style="margin-top:10px">Recommendation</label><select id="cm2" onchange="$('cm3w').style.display=this.value==='rest'?'block':'none'"><option value="rest">Advised rest</option><option value="fit">Fit to return to work / school</option><option value="none">No recommendation</option></select><div id="cm3w" style="margin-top:10px"><label>Number of days of rest</label><input id="cm3" type="number" min="1" max="60" value="1"></div><label style="margin-top:10px">Purpose (optional)</label><input id="cm4" placeholder="e.g. work, school, leave of absence"><div class="er2" id="cme"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="bt" onclick="certGo(${i})">Print</button><button class="bt g" onclick="$('cmod').remove()">Cancel</button></div></div>`;
+  document.body.appendChild(d)
+}
+function certGo(i){
+  const v=VH[i],p=P.find(x=>x.id===pid),er=$('cme'),dx=$('cm1').value.trim(),rc=$('cm2').value,n=parseInt($('cm3').value),pu=$('cm4').value.trim();
+  if(!dx){er.textContent='Enter the diagnosis or impression.';return}
+  if(rc==='rest'&&!(n>=1&&n<=60)){er.textContent='Enter the days of rest (1 to 60).';return}
+  const t=p.sex==='M'?'Mr.':'Ms.',pr=p.sex==='M'?'He':'She';
+  let rec='';
+  if(rc==='rest'){const e=new Date(v.d+'T00:00:00');e.setDate(e.getDate()+n-1);rec=`${pr} is advised rest for <b>${n} day${n>1?'s':''}</b>${n>1?`, from ${E(longD(v.d))} to ${E(longD(e.toLocaleDateString('en-CA')))}`:`, on ${E(longD(v.d))}`}.`}
+  else if(rc==='fit')rec=`${pr} is <b>fit to return</b> to work / school.`;
+  $('cmod').remove();
+  lg('Printed medical certificate '+p.id+' '+v.d);
+  printDoc(`<div class="hd"><h1>RHU Health Center</h1><div>Office of the Municipal Health Officer</div></div><h2>MEDICAL CERTIFICATE</h2><div class="row"><span></span><span><b>Date:</b> ${E(longD(new Date().toLocaleDateString('en-CA')))}</span></div><p><b>TO WHOM IT MAY CONCERN:</b></p><p style="text-indent:40px">This is to certify that <b>${t} ${E(pn(p))}</b>, ${E(String(age(p.dob)).replace(/ y$/,' years old').replace(/ mo$/,' months old'))}, ${p.sex==='M'?'male':'female'}, a resident of ${E(p.pu+', '+p.br)}, was seen and examined at this health center on <b>${E(longD(v.d))}</b> with the following diagnosis / impression: <b>${E(dx)}</b>.</p>${rec?`<p style="text-indent:40px">${rec}</p>`:''}<p style="text-indent:40px">This certificate is issued upon the request of the patient${pu?` for <b>${E(pu)}</b> purposes`:''}.</p><div class="sig"><div class="ln">${E(U.name)}<br><small>${E(RN[U.role]||U.role)}<br>Lic. No.: ____________</small></div></div><div class="ft">Not valid without the signature of the attending physician.</div>`,'A4 portrait')
+}
 function navPush(){if(pg==='reg'||pg==='edit')return;bk.push({pg,pid,hhSel});history.pushState({bk:1},'')}
 function goBack(def){if(bk.length)history.back();else go(def)}
 function backLbl(def){const e=bk[bk.length-1];if(!e)return def;if(e.pg==='prof')return'previous patient';if(e.pg==='hhd')return'household '+e.hhSel;const n=NAV.find(x=>x[0]===e.pg);return n?n[1]:def}
@@ -123,11 +157,11 @@ function prof(){
 async function view(id,np){
   if(!np&&(pg!=='prof'||pid!==id))navPush();
   pid=id;pg='prof';lg('Viewed '+id);R();scrollTo(0,0);
-  const lv=LV[U.role]||'basic',h=$('hist');if(lv==='basic')return;if(lv==='full')loadLabH(id);
+  const lv=LV[U.role]||'basic',h=$('hist'),PR=lv==='full'&&CROLES.includes(U.role);if(lv==='basic')return;if(lv==='full')loadLabH(id);
   try{
-    const s=await getDocs(query(collection(db,lv==='full'?'visits':'prescriptions'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||((b.at?.seconds||0)-(a.at?.seconds||0)));
+    const s=await getDocs(query(collection(db,lv==='full'?'visits':'prescriptions'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||((b.at?.seconds||0)-(a.at?.seconds||0)));VH=l;
     const vt=v=>{const a=v.vitals||{},o=[];if(a.bps!=null&&a.bpd!=null)o.push('BP '+a.bps+'/'+a.bpd);if(a.t!=null)o.push('T '+a.t+'°C');if(a.pr!=null)o.push('PR '+a.pr);if(a.rr!=null)o.push('RR '+a.rr);if(a.o2!=null)o.push('SpO2 '+a.o2+'%');if(a.wt!=null)o.push(a.wt+' kg');if(a.ht!=null)o.push(a.ht+' cm');return o.join(', ')};
-    h.innerHTML=l.length?`<table><thead><tr><th>Date</th>${lv==='full'?'<th>Vitals</th><th>Complaint</th><th>Diagnosis</th>':''}<th>Prescription</th>${lv==='full'?'<th>Referral</th>':'<th>Status</th>'}</tr></thead><tbody>${l.map(v=>`<tr><td>${E(v.d)}</td>${lv==='full'?`<td>${E(vt(v))}</td><td>${E(v.cc)}</td><td>${E(v.dx)}${v.tx?`<br><small style="color:var(--mu)">${E(v.tx)}</small>`:''}</td>`:''}<td>${E(v.rx||'')}</td>${lv==='full'?`<td>${v.referral?E(v.referral.to+' ('+v.referral.urg+'): '+v.referral.why):''}</td>`:`<td>${E(v.status||'')}</td>`}</tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No records yet. Consultations will appear here once they are recorded.</p>';
+    h.innerHTML=l.length?`<table><thead><tr><th>Date</th>${lv==='full'?'<th>Vitals</th><th>Complaint</th><th>Diagnosis</th>':''}<th>Prescription</th>${lv==='full'?'<th>Referral</th>':'<th>Status</th>'}${PR?'<th></th>':''}</tr></thead><tbody>${l.map((v,vi)=>`<tr><td>${E(v.d)}</td>${lv==='full'?`<td>${E(vt(v))}</td><td>${E(v.cc)}</td><td>${E(v.dx)}${v.tx?`<br><small style="color:var(--mu)">${E(v.tx)}</small>`:''}</td>`:''}<td>${E(v.rx||'')}</td>${lv==='full'?`<td>${v.referral?E(v.referral.to+' ('+v.referral.urg+'): '+v.referral.why):''}</td>`:`<td>${E(v.status||'')}</td>`}${PR?`<td style="white-space:nowrap">${v.rx?`<button class="bt g" onclick="printRx(${vi})">Print Rx</button> `:''}${U.role==='doctor'?`<button class="bt g" onclick="certOpen(${vi})">Med. certificate</button>`:''}</td>`:''}</tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No records yet. Consultations will appear here once they are recorded.</p>';
   }catch(e){h.textContent='Could not load records. Check your connection.'}
 }
 function reg(){const hs=[...new Set(P.map(x=>x.hh))],hm=P.find(x=>x.hh===regHH)||{};return `<h2 style="margin-top:0">Register patient</h2><div class="cd"><div class="fm"><div><label>Last name</label><input id="f2"></div><div><label>First name</label><input id="f1"></div><div><label>Middle name (optional)</label><input id="f9"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date"></div><div><label>Barangay</label><input id="f5" value="${E(hm.br||'')}"></div><div><label>Purok</label><input id="f6" value="${E(hm.pu||'')}"></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option ${h===regHH?'selected':''}>${h}</option>`).join('')}</select></div></div><label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label><div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="save()">Save patient</button><button class="bt" id="sv2" onclick="save(true)">Register and add to queue</button><button class="bt g" onclick="go('patients')">Cancel</button></div></div>`}
@@ -561,5 +595,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
