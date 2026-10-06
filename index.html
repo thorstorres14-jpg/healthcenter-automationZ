@@ -45,7 +45,8 @@ const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;
 const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)'],['midwife','Midwife / Nurse'],['pharmacist','Pharmacist'],['medtech','Medical technologist'],['bhw','BHW'],['frontdesk','Front desk']];
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['imm','Immunization',1],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['audit','Audit log',0,['admin','developer']]];
+const IMR=['doctor','midwife','bhw','admin','developer'];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['audit','Audit log',0,['admin','developer']]];
 let Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
 let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false;
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -78,16 +79,16 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k){pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm')loadPh();if(k==='lab')loadLab();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k){pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm')loadPh();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><h1>RHU Health Center</h1>${nav}</nav><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div><button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='lab'&&U.role!=='medtech')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,dev:dvp}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,dev:dvp}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['pat','u5','sr','today'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
-const DNOTE={developer:'You control what admins are allowed to do. Use the Users page to manage permissions.',admin:'You manage staff accounts and can review the audit log.',doctor:'Open the Queue or Consultation page to see who is waiting.',midwife:'Open the Queue or Consultation page to see who is waiting.',frontdesk:'Register walk-in patients and add them to today\'s queue.',bhw:'Households and patients in your area. Immunization due lists will appear here later.',pharmacist:'Open Pharmacy to dispense prescriptions and update stock.',medtech:'Open Lab to enter results for requested tests.'};
+const DNOTE={developer:'You control what admins are allowed to do. Use the Users page to manage permissions.',admin:'You manage staff accounts and can review the audit log.',doctor:'Open the Queue or Consultation page to see who is waiting.',midwife:'Open the Queue or Consultation page to see who is waiting.',frontdesk:'Register walk-in patients and add them to today\'s queue.',bhw:'Households and patients in your area. Open Immunization to see children with vaccines due.',pharmacist:'Open Pharmacy to dispense prescriptions and update stock.',medtech:'Open Lab to enter results for requested tests.'};
 function dash(){
   const hh=new Set(P.map(x=>x.hh)).size,today=new Date().toLocaleDateString('en-CA'),rec=P.slice(-5).reverse(),brg={};
   P.forEach(x=>{brg[x.br]=(brg[x.br]||0)+1});
@@ -416,6 +417,28 @@ async function setLabTests(){
   try{await setDoc(doc(db,'meta','settings'),{labTests:l,by:U.name,at:serverTimestamp()},{merge:true});S.labTests=l;await lg('Lab test list updated');er.textContent='Saved.'}
   catch(x){er.textContent='Could not save the list. Check your connection.'}
 }
+/* ---------- Immunization ---------- */
+const VAX=[['bcg','BCG',0],['hepb','Hep B (birth)',0],['penta1','Penta 1',42],['opv1','OPV 1',42],['pcv1','PCV 1',42],['penta2','Penta 2',70],['opv2','OPV 2',70],['pcv2','PCV 2',70],['penta3','Penta 3',98],['opv3','OPV 3',98],['pcv3','PCV 3',98],['ipv1','IPV 1',98],['ipv2','IPV 2',274],['mmr1','MMR 1',274],['mmr2','MMR 2',365]];
+let IM={},imb='';
+const dAge=d=>Math.floor((Date.now()-new Date(d))/864e5);
+const imc=()=>`<h2 style="margin-top:0">Immunization</h2><p style="color:var(--mu);margin-top:-6px">Children under 2 with vaccines due, based on the EPI schedule in the app. Confirm the schedule with your RHU before real use.</p><div class="cd"><label>Barangay</label><select id="imb" style="max-width:260px" onchange="imSet(this.value)"><option value="">All barangays</option>${[...new Set(P.map(p=>p.br))].sort().map(b=>`<option ${imb===b?'selected':''}>${E(b)}</option>`).join('')}</select></div><div class="cd ov"><div id="iml">Loading...</div></div>`;
+function imSet(v){imb=v;imRender()}
+function imRender(){
+  const el=$('iml');if(!el)return;
+  const can=CROLES.includes(U.role),rows=P.filter(p=>p.dob&&dAge(p.dob)>=0&&dAge(p.dob)<=730&&(!imb||p.br===imb)).map(p=>{const a=dAge(p.dob);return{p,due:VAX.filter(v=>a>=v[2]&&!IM[p.id+'_'+v[0]])}}).filter(r=>r.due.length).sort((x,y)=>y.due.length-x.due.length);
+  el.innerHTML=rows.length?`<table><thead><tr><th>Child</th><th>Age</th><th>Purok / Barangay</th><th>Due</th></tr></thead><tbody>${rows.map(({p,due})=>`<tr><td><a href="#" onclick="view('${p.id}');return false">${E(pn(p))}</a></td><td>${age(p.dob)}</td><td>${E(p.pu+', '+p.br)}</td><td>${due.map(v=>can?`<button class="bt g" style="margin:2px" onclick="imGive('${p.id}','${v[0]}')">${v[1]}</button>`:E(v[1])).join(can?'':', ')}</td></tr>`).join('')}</tbody></table><div class="er2" id="ime"></div>`:'<p style="color:var(--mu)">No children with vaccines due.</p>'
+}
+async function loadIm(){
+  try{const s=await getDocs(collection(db,'immunizations'));IM={};s.docs.forEach(d=>{IM[d.id]=d.data()});imRender()}
+  catch(e){const l=$('iml');if(l)l.textContent='Could not load. Check your connection.'}
+}
+async function imGive(id,k){
+  const v=VAX.find(x=>x[0]===k),p=P.find(x=>x.id===id),d=prompt('Date '+v[1]+' was given (YYYY-MM-DD)',today());if(d===null)return;
+  const er=$('ime');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()||d<p.dob){er.textContent='Enter a valid date (not in the future, not before birth).';return}
+  try{await setDoc(doc(db,'immunizations',id+'_'+k),{pid:id,pname:pn(p),vax:k,label:v[1],d,by:U.uid,byName:U.name,at:serverTimestamp()});IM[id+'_'+k]={d};await lg('Immunization '+k+' '+id);imRender()}
+  catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to record vaccines.':'Could not save. Check your connection.'}
+}
 async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);loadUsers()}
 async function addStaff(){
   const e=$('ue'),ln=$('u1a').value.trim(),fn=$('u1b').value.trim(),mn=$('u1c').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('u2').value.trim(),p=$('u3').value,r=$('u4').value;
@@ -434,5 +457,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
 </script></body></html>
