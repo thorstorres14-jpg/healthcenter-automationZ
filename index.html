@@ -230,20 +230,37 @@ const qpg=()=>`<h2 style="margin-top:0">Queue</h2><p style="color:var(--mu);marg
 function qSearch(v){
   const s=v.trim().toLowerCase(),r=$('qres');if(!s){r.innerHTML='';return}
   const l=P.filter(p=>(pn(p)+' '+p.id).toLowerCase().includes(s)).slice(0,6);
-  r.innerHTML=l.length?`<div class="ov"><table><tbody>${l.map(p=>`<tr><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td><td><input id="rs-${p.id}" placeholder="Reason (e.g. check-up)" style="min-width:150px"></td><td><button class="bt" onclick="qAdd('${p.id}')">Add</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">No match.</p>'}
-async function qAdd(id,r){
+  r.innerHTML=l.length?`<div class="ov"><table><tbody>${l.map(p=>`<tr><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td><td><input id="rs-${p.id}" placeholder="Reason (e.g. check-up)" style="min-width:150px"></td><td><button class="bt" onclick="qAskV('${p.id}')">Add</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">No match.</p>'}
+async function qAdd(id,r,v){
   const el=$('rs-'+id),reason=((r!==undefined?r:(el?el.value:''))||'').trim()||'Check-up',p=P.find(x=>x.id===id),er=$('qe'),say=m=>{if(er)er.textContent=m;else alert(m)};
   await fetchQ();
   if(Q.some(x=>x.pid===id&&['waiting','in-consult'].includes(x.status)))return say("That patient is already in today's queue.");
   try{
     const num=Q.reduce((m,x)=>Math.max(m,x.num||0),0)+1;
-    await addDoc(collection(db,'queue'),{pid:id,name:pn(p),age:age(p.dob),sex:p.sex,reason,status:'waiting',day:today(),num,by:U.name,at:serverTimestamp()});
+    await addDoc(collection(db,'queue'),{pid:id,name:pn(p),age:age(p.dob),sex:p.sex,reason,status:'waiting',day:today(),num,by:U.name,at:serverTimestamp(),...(v?{vitals:v,vitalsBy:U.name,vitalsAt:serverTimestamp()}:{})});
     await lg('Queued '+id);
     if(pg==='queue'){await fetchQ();refreshQ();$('qsrch').value='';$('qres').innerHTML='';if(er)er.textContent=''}else go('queue')
   }catch(x){say(x.code==='permission-denied'?'You do not have permission to add to the queue.':'Could not add. Check your connection.')}
 }
-async function qAddP(){const r=prompt('Reason for visit (short)','Check-up');if(r===null)return;await qAdd(pid,r)}
-let vq=null;
+async function qAddP(){const r=prompt('Reason for visit (short)','Check-up');if(r===null)return;await qAskV(pid,r)}
+let vq=null,qPend=null;
+function readV(p){const v={};VF.forEach(([k,l,lo,hi])=>{const t=$(p+k).value.trim();if(t==='')return;const n=Number(t);if(!isFinite(n)||n<lo||n>hi)throw new Error(l+' looks wrong. Please check it.');v[k]=n});return v}
+async function qAskV(id,r){
+  const el=$('rs-'+id),reason=((r!==undefined?r:(el?el.value:''))||'').trim();
+  if(!canVitals())return qAdd(id,reason);
+  await fetchQ();
+  if(Q.some(x=>x.pid===id&&['waiting','in-consult'].includes(x.status))){const er=$('qe'),m="That patient is already in today's queue.";return er?er.textContent=m:alert(m)}
+  qPend={id,reason};const p=P.find(x=>x.id===id),d=document.createElement('div');
+  d.id='vmod';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px;z-index:50';
+  d.innerHTML=`<div class="cd" style="max-width:640px;width:100%;margin:auto"><h3 style="margin-top:0">Vitals: ${E(pn(p))}</h3><div class="fm">${VF.map(([k,l])=>`<div><label>${l}</label><input id="mv-${k}" type="number" step="any" inputmode="decimal"></div>`).join('')}</div><div class="er2" id="vme"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="bt" onclick="qVGo(true)">Save vitals and add to queue</button><button class="bt g" onclick="qVGo(false)">Skip, add without vitals</button><button class="bt g" onclick="qVX()">Cancel</button></div></div>`;
+  document.body.appendChild(d)
+}
+async function qVGo(w){
+  let v=null;
+  if(w){try{v=readV('mv-');if(!Object.keys(v).length)throw new Error('Enter at least one value, or choose Skip.')}catch(x){$('vme').textContent=x.message;return}}
+  const{id,reason}=qPend;qVX();await qAdd(id,reason,v)
+}
+function qVX(){const m=$('vmod');if(m)m.remove()}
 const VF=[['bps','Systolic BP (mmHg)',40,300],['bpd','Diastolic BP (mmHg)',20,200],['t','Temperature (°C)',30,45],['pr','Pulse (bpm)',20,250],['rr','Respiratory rate (/min)',4,80],['o2','SpO2 (%)',50,100],['wt','Weight (kg)',0.3,400],['ht','Height (cm)',20,260]];
 function vsum(a){a=a||{};const o=[];if(a.bps!=null&&a.bpd!=null)o.push('BP '+a.bps+'/'+a.bpd);if(a.t!=null)o.push('T '+a.t);if(a.pr!=null)o.push('PR '+a.pr);if(a.rr!=null)o.push('RR '+a.rr);if(a.o2!=null)o.push('SpO2 '+a.o2+'%');if(a.wt!=null)o.push(a.wt+' kg');if(a.ht!=null)o.push(a.ht+' cm');return o.join(', ')}
 const vForm=x=>{const a=x.vitals||{};return `<tr><td colspan="6"><div class="fm">${VF.map(([k,l])=>`<div><label>${l}</label><input id="qv-${k}" type="number" step="any" inputmode="decimal" value="${a[k]??''}"></div>`).join('')}</div><div class="er2" id="ve2"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="bt" onclick="vSave('${x.id}')">Save vitals</button><button class="bt g" onclick="vOpen(null)">Close</button></div></td></tr>`};
@@ -335,5 +352,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{if(U&&Date.now()-t>IDLE){await lg('Signed out (inactivity)');msg='Signed out after 10 minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setVitalsRole,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setVitalsRole,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
 </script></body></html>
