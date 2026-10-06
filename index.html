@@ -58,6 +58,18 @@ const bhwF=()=>U.role==='bhw'&&S.bhwFront===true;
 const canReg=()=>REG.includes(U.role)||can('adminAdd')||bhwF();
 const canEdit=()=>REG.includes(U.role)||can('adminEdit')||bhwF();
 const VDEF=['frontdesk','midwife','doctor'],VOPT=[['frontdesk','Front desk'],['midwife','Midwife / Nurse'],['doctor','Doctor (MHO)'],['bhw','BHW'],['admin','Admin']];
+const rooms=()=>Math.max(1,Math.min(20,parseInt(S.rooms)||1));
+let myRoom=null;try{myRoom=parseInt(sessionStorage.getItem('myRoom'))||null}catch(e){}
+const curRoom=()=>rooms()===1?1:(myRoom&&myRoom<=rooms()?myRoom:null);
+function setMyRoom(v){myRoom=parseInt(v)||null;try{sessionStorage.setItem('myRoom',v)}catch(e){}}
+const roomBar=()=>CROLES.includes(U.role)&&rooms()>1?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><label style="margin:0"><b>Your room</b></label><select style="width:auto" onchange="setMyRoom(this.value)"><option value="">Choose room...</option>${Array.from({length:rooms()},(_,i)=>`<option value="${i+1}" ${curRoom()===i+1?'selected':''}>Consultation ${i+1}</option>`).join('')}</select></div>`:'';
+const syncDisp=(x,extra)=>setDoc(doc(db,'queueDisplay',x.id),{day:x.day,num:x.num,...extra},{merge:true}).catch(()=>{});
+async function setRooms(){
+  const er=$('rme'),n=parseInt($('rmn').value);er.textContent='';
+  if(!(n>=1&&n<=20)){er.textContent='Enter a number from 1 to 20.';return}
+  try{await setDoc(doc(db,'meta','settings'),{rooms:n,by:U.name,at:serverTimestamp()},{merge:true});S.rooms=n;await lg('Consultation rooms: '+n);er.textContent='Saved.'}
+  catch(x){er.textContent='Could not save. Check your connection.'}
+}
 const vRoles=()=>Array.isArray(S.vitalsRoles)?S.vitalsRoles:VDEF;
 const canVitals=()=>U.role==='developer'||vRoles().includes(U.role)||(bhwF()&&vRoles().includes('frontdesk'));
 const lg=a=>U?addDoc(collection(db,'audit'),{uid:U.uid,name:U.name,role:U.real||U.role,action:a,at:serverTimestamp()}).catch(()=>{}):Promise.resolve();
@@ -135,7 +147,8 @@ async function save(aq){
     P.push(np);regHH='';await lg('Registered '+np.id);view(np.id);if(aq)qAskV(np.id,'');
   }catch(x){$('sv').disabled=false;$('sv2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to register patients.':'Could not save. Registration needs an internet connection.')}
 }
-const usr=()=>`<h2 style="margin-top:0">Users</h2><div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Last name</label><input id="u1a"></div><div><label>First name</label><input id="u1b"></div><div><label>Middle name (optional)</label><input id="u1c"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>Role</label><select id="u4">${ROLES.filter(r=>r[0]!=='developer'||U.role==='developer').map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd"><h3 style="margin-top:0">Demo data (for testing only)</h3><p style="color:var(--mu);margin-top:0">Creates 6 demo staff accounts (doctor, midwife, pharmacist, medtech, BHW, front desk) and 20 made-up patients in 7 households. Emails look like <b>demo.doctor@example.com</b>. Do not use real patient data here.</p><div class="fm"><div><label>Password for the demo accounts (8+ characters)</label><input id="dp" type="text" autocomplete="off"></div></div><div class="er2" id="de"></div><button class="bt" id="db" style="margin-top:12px" onclick="loadDemo()">Load demo data</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
+const roomsCard=()=>`<div class="cd"><h3 style="margin-top:0">Consultation rooms</h3><p style="color:var(--mu);margin-top:0">How many consultation rooms the health center uses. Doctors and midwives choose their room before starting a consultation, and the waiting-area display announces it.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="rmn" type="number" min="1" max="20" value="${rooms()}" style="width:90px"><button class="bt" onclick="setRooms()">Save</button></div><div class="er2" id="rme"></div></div>`;
+const usr=()=>`<h2 style="margin-top:0">Users</h2>${U.role==='admin'?roomsCard():''}<div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Last name</label><input id="u1a"></div><div><label>First name</label><input id="u1b"></div><div><label>Middle name (optional)</label><input id="u1c"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>Role</label><select id="u4">${ROLES.filter(r=>r[0]!=='developer'||U.role==='developer').map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd"><h3 style="margin-top:0">Demo data (for testing only)</h3><p style="color:var(--mu);margin-top:0">Creates 6 demo staff accounts (doctor, midwife, pharmacist, medtech, BHW, front desk) and 20 made-up patients in 7 households. Emails look like <b>demo.doctor@example.com</b>. Do not use real patient data here.</p><div class="fm"><div><label>Password for the demo accounts (8+ characters)</label><input id="dp" type="text" autocomplete="off"></div></div><div class="er2" id="de"></div><button class="bt" id="db" style="margin-top:12px" onclick="loadDemo()">Load demo data</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
 async function loadUsers(){
   try{const s=await getDocs(collection(db,'users'));$('ul').innerHTML=`<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${s.docs.map(d=>{const u=d.data(),on=u.active!==false;return `<tr><td>${E(u.name)}</td><td>${E(u.email)}</td><td>${E(RN[u.role]||u.role)}</td><td><span class="tg ${on?'ok':'wa'}">${on?'Active':'Inactive'}</span></td><td>${d.id===U.uid||(u.role==='developer'&&U.role!=='developer')?'':`<button class="bt g" onclick="setActive('${d.id}',${!on})">${on?'Deactivate':'Activate'}</button>${can('adminDelete')&&u.role!=='developer'?` <button class="bt g" onclick="removeUser('${d.id}')">Remove</button>`:''}`}</td></tr>`}).join('')}</tbody></table>`}catch(e){$('ul').textContent='Could not load users.'}
 }
@@ -233,8 +246,8 @@ const ST={waiting:['wa','Waiting'],'in-consult':['ok','In consultation'],done:['
 function qTable(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   if(!Q.length)return '<p style="color:var(--mu)">No one in the queue yet today.</p>';
-  return `<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Vitals</th><th>Status</th><th></th></tr></thead><tbody>${Q.map(x=>{const st=ST[x.status]||['wa',x.status],open=x.status==='waiting'||x.status==='in-consult';
-    return `<tr><td>${x.num}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a></td><td>${E(x.reason||'')}</td><td>${E(vsum(x.vitals))||'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}</td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${open&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='in-consult'&&CROLES.includes(U.role)?`<button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}`}).join('')}</tbody></table>`}
+  return roomBar()+`<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Vitals</th><th>Status</th><th></th></tr></thead><tbody>${Q.map(x=>{const st=ST[x.status]||['wa',x.status],open=x.status==='waiting'||x.status==='in-consult';
+    return `<tr><td>${x.num}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a></td><td>${E(x.reason||'')}</td><td>${E(vsum(x.vitals))||'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}</td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${open&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='in-consult'&&CROLES.includes(U.role)?`<button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}`}).join('')}</tbody></table>`}
 const qpg=()=>`<h2 style="margin-top:0">Queue</h2><p style="color:var(--mu);margin-top:-6px">${new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>${canReg()?`<div class="cd"><h3 style="margin-top:0">Add patient to queue</h3><input id="qsrch" placeholder="Search patient by name or ID" oninput="qSearch(this.value)" autocomplete="off"><div id="qres" style="margin-top:8px"></div><div class="er2" id="qe"></div></div>`:''}<div class="cd ov"><div id="qt">${qTable()}</div></div>`;
 function qSearch(v){
   const s=v.trim().toLowerCase(),r=$('qres');if(!s){r.innerHTML='';return}
@@ -246,7 +259,8 @@ async function qAdd(id,r,v){
   if(Q.some(x=>x.pid===id&&['waiting','in-consult'].includes(x.status)))return say("That patient is already in today's queue.");
   try{
     const num=Q.reduce((m,x)=>Math.max(m,x.num||0),0)+1;
-    await addDoc(collection(db,'queue'),{pid:id,name:pn(p),age:age(p.dob),sex:p.sex,reason,status:'waiting',day:today(),num,by:U.name,at:serverTimestamp(),...(v?{vitals:v,vitalsBy:U.name,vitalsAt:serverTimestamp()}:{})});
+    const nr=await addDoc(collection(db,'queue'),{pid:id,name:pn(p),age:age(p.dob),sex:p.sex,reason,status:'waiting',day:today(),num,by:U.name,at:serverTimestamp(),...(v?{vitals:v,vitalsBy:U.name,vitalsAt:serverTimestamp()}:{})});
+    syncDisp({id:nr.id,day:today(),num},{status:'waiting'});
     await lg('Queued '+id);
     if(pg==='queue'){await fetchQ();refreshQ();$('qsrch').value='';$('qres').innerHTML='';if(er)er.textContent=''}else go('queue')
   }catch(x){say(x.code==='permission-denied'?'You do not have permission to add to the queue.':'Could not add. Check your connection.')}
@@ -288,41 +302,51 @@ async function setVitalsRole(k,v,el){
 }
 async function qCancel(id){
   if(!confirm('Remove this patient from today\'s queue?'))return;
-  try{await updateDoc(doc(db,'queue',id),{status:'cancelled'});await lg('Cancelled queue '+id);await fetchQ();refreshQ()}
+  try{await updateDoc(doc(db,'queue',id),{status:'cancelled'});{const x=Q.find(e=>e.id===id);if(x)syncDisp(x,{status:'cancelled'})}await lg('Cancelled queue '+id);await fetchQ();refreshQ()}
   catch(x){alert('Could not update the queue ('+(x.code||x.message)+').')}
 }
-const qWho=x=>x.status==='in-consult'&&x.byName?`<br><small style="color:var(--mu)">with ${E(x.byName)}</small>`:'';
-async function claimQ(id){
+const qWho=x=>x.status==='in-consult'&&x.byName?`<br><small style="color:var(--mu)">with ${E(x.byName)}${x.room?' | Room '+x.room:''}</small>`:'';
+async function claimQ(id,room){
   const r=doc(db,'queue',id);
   return runTransaction(db,async t=>{
     const s=await t.get(r);if(!s.exists())throw{code:'gone'};const d=s.data();
     if(!['waiting','in-consult'].includes(d.status))throw{code:'closed'};
     if(d.status==='in-consult'&&d.by&&d.by!==U.uid)throw{code:'taken',who:d.byName};
-    if(d.status!=='in-consult'||d.by!==U.uid)t.update(r,{status:'in-consult',by:U.uid,byName:U.name,startedAt:serverTimestamp()})
+    if(d.status!=='in-consult'||d.by!==U.uid){t.update(r,{status:'in-consult',by:U.uid,byName:U.name,room,startedAt:serverTimestamp()});t.set(doc(db,'queueDisplay',id),{day:d.day,num:d.num,status:'in-consult',room,calledAt:serverTimestamp()},{merge:true})}
   })
 }
-async function claimUI(id){
-  try{await claimQ(id);return true}
+async function claimUI(id,room){
+  try{await claimQ(id,room);return true}
   catch(e){alert(e.code==='taken'?'This patient is already being seen by '+(e.who||'another staff member')+'.':(e.code==='closed'||e.code==='gone')?'This patient is no longer waiting in the queue.':'Could not start the consultation. Check your connection.');await fetchQ();refreshQ();return false}
 }
 const busyMine=id=>Q.filter(e=>e.status==='in-consult'&&e.by===U.uid&&e.id!==id);
+const roomOk=id=>{
+  const r=curRoom();if(!r){alert('Choose your room first.');return null}
+  const oc=Q.find(e=>e.status==='in-consult'&&e.room===r&&e.id!==id&&e.by!==U.uid);
+  if(oc){alert('Consultation '+r+' is in use by '+(oc.byName||'another staff member')+' (patient #'+oc.num+'). Choose another room.');return null}
+  return r};
 const busyOk=id=>{const m=busyMine(id);return !m.length||confirm('You are already seeing '+m.map(e=>e.name).join(', ')+'. Start another patient at the same time?')};
 async function startQ(id){
   await fetchQ();const x=Q.find(e=>e.id===id);if(!x)return;
-  if(!busyOk(id))return;
-  if(!await claimUI(id))return;
+  const rm=roomOk(id);if(!rm||!busyOk(id))return;
+  if(!await claimUI(id,rm))return;
   cp=x.pid;cq=id;pg='consult';R();scrollTo(0,0)
 }
 async function startC(id){
   await fetchQ();const x=Q.find(e=>e.pid===id&&['waiting','in-consult'].includes(e.status));
-  if(x){if(!busyOk(x.id))return;if(!await claimUI(x.id))return}
+  if(x){const rm=roomOk(x.id);if(!rm||!busyOk(x.id))return;if(!await claimUI(x.id,rm))return}
   cp=id;cq=x?x.id:null;pg='consult';R();scrollTo(0,0)
+}
+async function recallQ(id,el){
+  const x=Q.find(e=>e.id===id);if(!x||x.status!=='in-consult'||!x.room)return;
+  await syncDisp(x,{status:'in-consult',room:x.room,calledAt:serverTimestamp()});
+  if(el){const t0=el.textContent;el.textContent='Called';setTimeout(()=>{el.textContent=t0},1500)}
 }
 async function releaseQ(id){
   await fetchQ();const x=Q.find(e=>e.id===id);if(!x||x.status!=='in-consult'){refreshQ();if(cq===id){cp=null;cq=null;R()}return}
   const o=x.by&&x.by!==U.uid;
   if(!confirm(o?x.name+' is being seen by '+(x.byName||'another staff member')+'. Return to the waiting list anyway?':'Return '+x.name+' to the waiting list?'))return;
-  try{await updateDoc(doc(db,'queue',id),{status:'waiting',by:null,byName:null});await lg('Returned to waiting '+id)}
+  try{await updateDoc(doc(db,'queue',id),{status:'waiting',by:null,byName:null,room:null});syncDisp(x,{status:'waiting',room:null});await lg('Returned to waiting '+id)}
   catch(e){alert('Could not update the queue ('+(e.code||e.message)+').');return}
   await fetchQ();if(cq===id){cp=null;cq=null;R();scrollTo(0,0)}else refreshQ()
 }
@@ -330,7 +354,7 @@ async function releaseQ(id){
 function consList(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   const l=Q.filter(x=>['waiting','in-consult'].includes(x.status));
-  return l.length?`<table><thead><tr><th>No.</th><th>Patient</th><th>Age / sex</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${x.num}</td><td>${E(x.name)}</td><td>${E(x.age||'')} / ${E(x.sex||'')}</td><td>${E(x.reason||'')}</td><td><span class="tg ${(ST[x.status]||['wa'])[0]}">${(ST[x.status]||['',x.status])[1]}</span>${qWho(x)}</td><td><button class="bt" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start':'Continue'}</button>${x.status==='in-consult'?` <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No patients waiting.</p>'}
+  return roomBar()+(l.length?`<table><thead><tr><th>No.</th><th>Patient</th><th>Age / sex</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${x.num}</td><td>${E(x.name)}</td><td>${E(x.age||'')} / ${E(x.sex||'')}</td><td>${E(x.reason||'')}</td><td><span class="tg ${(ST[x.status]||['wa'])[0]}">${(ST[x.status]||['',x.status])[1]}</span>${qWho(x)}</td><td><button class="bt" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start':'Continue'}</button>${x.status==='in-consult'?` <button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No patients waiting.</p>')}
 const cons=()=>cp?consForm():`<h2 style="margin-top:0">Consultation</h2><div class="cd ov"><h3 style="margin-top:0">Waiting today</h3><div id="cl">${consList()}</div></div><div class="cd"><h3 style="margin-top:0">See a patient who is not in the queue</h3><input placeholder="Search patient by name or ID" oninput="cSearch(this.value)" autocomplete="off"><div id="cres" style="margin-top:8px"></div></div>`;
 function cSearch(v){
   const s=v.trim().toLowerCase(),r=$('cres');if(!s){r.innerHTML='';return}
@@ -347,7 +371,7 @@ function consForm(){
 <div class="cd"><h3 style="margin-top:0">Lab tests (optional)</h3><input id="lt" list="ltl" placeholder="e.g. CBC, Urinalysis (separate with commas)"><datalist id="ltl">${labList().map(t=>`<option value="${E(t)}">`).join('')}</datalist></div>
 <div class="cd"><h3 style="margin-top:0">Prescription</h3><div id="rxs">${rxRow()}</div><button class="bt g" style="margin-top:4px" onclick="addRx()">Add medicine</button></div>
 <div class="cd"><label style="display:flex;gap:8px;align-items:center"><input id="rf" type="checkbox" style="width:auto" onchange="$('rfb').style.display=this.checked?'grid':'none'"><span>Refer this patient to another facility</span></label><div class="fm" id="rfb" style="display:none;margin-top:10px"><div><label>Refer to</label><input id="rf1" placeholder="e.g. Provincial Hospital"></div><div><label>Reason</label><input id="rf2"></div><div><label>Urgency</label><select id="rf3"><option>Routine</option><option>Urgent</option><option>Emergency</option></select></div></div></div>
-<div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button>${cq?`<button class="bt g" onclick="releaseQ('${cq}')">Return to waiting list</button>`:''}</div>`}
+<div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button>${cq?`<button class="bt g" onclick="recallQ('${cq}',this)">Call again</button><button class="bt g" onclick="releaseQ('${cq}')">Return to waiting list</button>`:''}</div>`}
 function cancelC(){go('consult')}
 async function saveC(){
   const e=t=>{$('ce').textContent=t},g=i=>$(i).value.trim(),p=P.find(x=>x.id===cp);
@@ -367,7 +391,7 @@ async function saveC(){
     b.set(vr,{pid:p.id,pname:pn(p),d,cc:g('cc'),dx:g('dx'),tx:g('tx'),rx,vitals:vit,referral:ref,by:U.uid,byName:U.name,role:U.role,at:serverTimestamp()});
     if(items.length)b.set(doc(collection(db,'prescriptions')),{pid:p.id,pname:pn(p),vid:vr.id,d,rx,items,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()});
     g('lt').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>b.set(doc(collection(db,'labs')),{pid:p.id,pname:pn(p),vid:vr.id,d,test:t,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()}));
-    if(cq)b.update(doc(db,'queue',cq),{status:'done'});
+    if(cq){b.update(doc(db,'queue',cq),{status:'done'});const qx=Q.find(e=>e.id===cq);if(qx)b.set(doc(db,'queueDisplay',cq),{day:qx.day,num:qx.num,status:'done',room:null},{merge:true})}
     await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;view(p.id,1)
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
 }
@@ -413,7 +437,7 @@ async function dispense(id){
   }catch(x){alert(x.code==='permission-denied'?'You do not have permission to dispense.':'Could not update. Check your connection.')}
 }
 const idleMin=()=>typeof S.idleMin==='number'?S.idleMin:10;
-const dvp=()=>`<h2 style="margin-top:0">Developer</h2><div class="cd"><h3 style="margin-top:0">Admin permissions</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Choose what admins may do. Only you (the developer) can change these.</p>${[['adminAdd','Add patients'],['adminEdit','Edit patients'],['adminDelete','Delete patients and remove staff accounts']].map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${S[k]?'checked':''} onchange="setPower('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="pe"></div></div><div class="cd"><h3 style="margin-top:0">Who can record vitals</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Choose which roles may enter vitals on the Queue page. Default: Front desk, Midwife / Nurse and Doctor.</p>${VOPT.map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${vRoles().includes(k)?'checked':''} onchange="setVitalsRole('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="ve"></div></div><div class="cd"><h3 style="margin-top:0">BHW at front desk</h3><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${S.bhwFront?'checked':''} onchange="setPower('bhwFront',this.checked,this)"><span>BHW can also work as front desk (register patients, manage the queue, record vitals)</span></label></div><div class="cd"><h3 style="margin-top:0">Auto sign-out</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Sign staff out after this much time with no activity. Applies the next time each person logs in.</p><select id="idl" style="max-width:260px" onchange="setIdle(this.value)">${[[10,'10 minutes (default)'],[15,'15 minutes'],[30,'30 minutes'],[60,'1 hour'],[0,'Never (not recommended)']].map(([m,t])=>`<option value="${m}" ${idleMin()===m?'selected':''}>${t}</option>`).join('')}</select><div class="er2" id="ie"></div></div><div class="cd"><h3 style="margin-top:0">Lab tests offered</h3><p style="color:var(--mu);margin-top:0;font-size:14px">One test per line. These appear as suggestions when a doctor requests a lab test. Applies the next time each person logs in.</p><textarea id="lbt" rows="8">${E(labList().join('\n'))}</textarea><div class="er2" id="lte"></div><button class="bt" style="margin-top:10px" onclick="setLabTests()">Save list</button></div>`;
+const dvp=()=>`<h2 style="margin-top:0">Developer</h2><div class="cd"><h3 style="margin-top:0">Admin permissions</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Choose what admins may do. Only you (the developer) can change these.</p>${[['adminAdd','Add patients'],['adminEdit','Edit patients'],['adminDelete','Delete patients and remove staff accounts']].map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${S[k]?'checked':''} onchange="setPower('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="pe"></div></div><div class="cd"><h3 style="margin-top:0">Who can record vitals</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Choose which roles may enter vitals on the Queue page. Default: Front desk, Midwife / Nurse and Doctor.</p>${VOPT.map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${vRoles().includes(k)?'checked':''} onchange="setVitalsRole('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="ve"></div></div>${roomsCard()}<div class="cd"><h3 style="margin-top:0">BHW at front desk</h3><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${S.bhwFront?'checked':''} onchange="setPower('bhwFront',this.checked,this)"><span>BHW can also work as front desk (register patients, manage the queue, record vitals)</span></label></div><div class="cd"><h3 style="margin-top:0">Auto sign-out</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Sign staff out after this much time with no activity. Applies the next time each person logs in.</p><select id="idl" style="max-width:260px" onchange="setIdle(this.value)">${[[10,'10 minutes (default)'],[15,'15 minutes'],[30,'30 minutes'],[60,'1 hour'],[0,'Never (not recommended)']].map(([m,t])=>`<option value="${m}" ${idleMin()===m?'selected':''}>${t}</option>`).join('')}</select><div class="er2" id="ie"></div></div><div class="cd"><h3 style="margin-top:0">Lab tests offered</h3><p style="color:var(--mu);margin-top:0;font-size:14px">One test per line. These appear as suggestions when a doctor requests a lab test. Applies the next time each person logs in.</p><textarea id="lbt" rows="8">${E(labList().join('\n'))}</textarea><div class="er2" id="lte"></div><button class="bt" style="margin-top:10px" onclick="setLabTests()">Save list</button></div>`;
 async function setIdle(v){
   const n=Number(v),er=$('ie'),old=idleMin();er.textContent='';
   try{await setDoc(doc(db,'meta','settings'),{idleMin:n,by:U.name,at:serverTimestamp()},{merge:true});S.idleMin=n;await lg('Auto sign-out set to '+(n?n+' min':'never'))}
@@ -498,5 +522,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,cSearch,addRx,rmRx,saveC,cancelC});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
