@@ -276,18 +276,26 @@ async function setAnnRole(k,v,el){
   catch(x){if(el)el.checked=!v;if(er)er.textContent='Could not save. Check your connection.'}
 }
 const annRolesCard=()=>`<div class="cd"><h3 style="margin-top:0">Who can post announcements</h3><p style="color:var(--mu);margin-top:0">Announcements appear on the waiting-area display. Developers can always post. Default: Admin.</p>${AOPT.map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${annRoles().includes(k)?'checked':''} onchange="setAnnRole('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="ane"></div></div>`;
-const annCard=()=>{setTimeout(loadAnn,0);return `<div class="cd"><h3 style="margin-top:0">Display announcement</h3><p style="color:var(--mu);margin-top:0">Shown on the waiting-area display. Do not include patient names or health details.</p><div id="anst" style="margin-bottom:8px;font-size:14px;color:var(--mu)">Loading...</div><textarea id="antx" rows="2" maxlength="200" placeholder="e.g. No doctor from 12:00 to 1:00 PM"></textarea><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><label style="margin:0">Show for</label><select id="andu" style="width:auto"><option value="0">Until I clear it</option><option value="1">1 hour</option><option value="3">3 hours</option><option value="eod">Until end of today</option></select><button class="bt" onclick="postAnn()">Post</button><button class="bt g" onclick="clearAnn()">Clear</button></div><div class="er2" id="ane2"></div></div>`};
+const annCard=()=>{setTimeout(loadAnn,0);return `<div class="cd"><h3 style="margin-top:0">Display announcement</h3><p style="color:var(--mu);margin-top:0">Shown on the waiting-area display. Do not include patient names or health details.</p><div id="anst" style="margin-bottom:8px;font-size:14px;color:var(--mu)">Loading...</div><textarea id="antx" rows="2" maxlength="200" placeholder="e.g. No doctor from 12:00 to 1:00 PM"></textarea><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px"><label style="margin:0">Show for</label><select id="andu" style="width:auto" onchange="annDuChange()"><option value="0">Until I clear it</option><option value="1">1 hour</option><option value="3">3 hours</option><option value="eod">Until end of today</option><option value="date">Until a specific date...</option></select><input type="datetime-local" id="andt" style="width:auto;display:none"><button class="bt" onclick="postAnn()">Post</button><button class="bt g" onclick="clearAnn()">Clear</button></div><div class="er2" id="ane2"></div></div>`};
+const annFmt=t=>{const d=new Date(t),same=d.toDateString()===new Date().toDateString();return same?d.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'}):d.toLocaleString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})};
+function annDuChange(){
+  const dt=$('andt'),on=$('andu').value==='date';dt.style.display=on?'':'none';
+  if(on&&!dt.value){const n=new Date(),z=x=>String(x).padStart(2,'0');dt.value=n.getFullYear()+'-'+z(n.getMonth()+1)+'-'+z(n.getDate())+'T23:59';dt.min=n.getFullYear()+'-'+z(n.getMonth()+1)+'-'+z(n.getDate())+'T00:00'}
+}
 async function loadAnn(){
   const st=$('anst');if(!st)return;
   try{const d=await getDoc(doc(db,'announcement','current')),a=d.exists()?d.data():null,live=a&&a.text&&(!a.until||a.until>Date.now());
-    st.innerHTML=live?'On display now: <b>'+E(a.text)+'</b>'+(a.until?' (until '+new Date(a.until).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'})+')':''):'Nothing is on display.';
+    st.innerHTML=live?'On display now: <b>'+E(a.text)+'</b>'+(a.until?' (until '+annFmt(a.until)+')':''):'Nothing is on display.';
     if(live&&$('antx')&&!$('antx').value)$('antx').value=a.text}
   catch(e){st.textContent='Could not load the current announcement.'}
 }
 async function postAnn(){
   const er=$('ane2'),t=$('antx').value.trim(),d=$('andu').value;er.textContent='';
   if(!t){er.textContent='Type the announcement first.';return}
-  const until=d==='0'?null:d==='eod'?new Date(new Date().setHours(23,59,59,999)).getTime():Date.now()+Number(d)*3600000;
+  let until;
+  if(d==='date'){const v=$('andt').value;if(!v){er.textContent='Pick the date and time until when it should show.';return}
+    until=new Date(v).getTime();if(!(until>Date.now())){er.textContent='That date and time has already passed. Pick a later one.';return}}
+  else until=d==='0'?null:d==='eod'?new Date(new Date().setHours(23,59,59,999)).getTime():Date.now()+Number(d)*3600000;
   try{await setDoc(doc(db,'announcement','current'),{text:t,until,at:serverTimestamp()});await lg('Posted announcement');await loadAnn();er.textContent='Posted.'}
   catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to post announcements.':'Could not post. Check your connection.'}
 }
@@ -686,5 +694,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
+Object.assign(window,{annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
