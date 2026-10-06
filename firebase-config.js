@@ -1,10 +1,8 @@
-// Paste your Firebase web app config here (Firebase Console > Project settings > Your apps).
-// This config is not secret. Access is protected by Firestore Security Rules.
 export const firebaseConfig = {
-  apiKey: "PASTE_HERE",
-  authDomain: "PASTE_HERE",
-  projectId: "PASTE_HERE",
-  storageBucket: "PASTE_HERE",
-  messagingSenderId: "PASTE_HERE",
-  appId: "PASTE_HERE"
+  apiKey: "AIzaSyDYF1CmxASd1aDY6QWJ5hdLTIwyr0JxJSM",
+  authDomain: "healthcenter-automationz.firebaseapp.com",
+  projectId: "healthcenter-automationz",
+  storageBucket: "healthcenter-automationz.firebasestorage.app",
+  messagingSenderId: "1015198696357",
+  appId: "1:1015198696357:web:2ae377b3d3058e681e9e4c"
 };
