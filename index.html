@@ -45,7 +45,7 @@ const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;
 const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)'],['midwife','Midwife / Nurse'],['pharmacist','Pharmacist'],['medtech','Medical technologist'],['bhw','BHW'],['frontdesk','Front desk']];
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['imm','Immunization',1],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',1,['medtech']],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['audit','Audit log',0,['admin','developer']]];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['imm','Immunization',1],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['audit','Audit log',0,['admin','developer']]];
 let Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
 let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false;
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -78,16 +78,16 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k){pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm')loadPh();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k){pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm')loadPh();if(k==='lab')loadLab();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><h1>RHU Health Center</h1>${nav}</nav><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div><button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,dev:dvp}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='lab'&&U.role!=='medtech')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,dev:dvp}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['pat','u5','sr','today'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
-const DNOTE={developer:'You control what admins are allowed to do. Use the Users page to manage permissions.',admin:'You manage staff accounts and can review the audit log.',doctor:'Open the Queue or Consultation page to see who is waiting.',midwife:'Open the Queue or Consultation page to see who is waiting.',frontdesk:'Register walk-in patients and add them to today\'s queue.',bhw:'Households and patients in your area. Immunization due lists will appear here later.',pharmacist:'Open Pharmacy to dispense prescriptions and update stock.',medtech:'Lab requests will appear here once the Lab module is added.'};
+const DNOTE={developer:'You control what admins are allowed to do. Use the Users page to manage permissions.',admin:'You manage staff accounts and can review the audit log.',doctor:'Open the Queue or Consultation page to see who is waiting.',midwife:'Open the Queue or Consultation page to see who is waiting.',frontdesk:'Register walk-in patients and add them to today\'s queue.',bhw:'Households and patients in your area. Immunization due lists will appear here later.',pharmacist:'Open Pharmacy to dispense prescriptions and update stock.',medtech:'Open Lab to enter results for requested tests.'};
 function dash(){
   const hh=new Set(P.map(x=>x.hh)).size,today=new Date().toLocaleDateString('en-CA'),rec=P.slice(-5).reverse(),brg={};
   P.forEach(x=>{brg[x.br]=(brg[x.br]||0)+1});
@@ -99,10 +99,10 @@ function rows(){const s=q.toLowerCase(),l=P.filter(p=>(p.fn+' '+(p.mn||'')+' '+p
 function pats(){return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Patients</h2>${canReg()?`<button class="bt" onclick="go('reg')">Register patient</button>`:''}</div><div class="cd"><input placeholder="Search by name, patient ID, barangay or contact" value="${E(q)}" oninput="sq(this.value)"><div class="ov"><table style="margin-top:10px"><thead><tr><th>Patient ID</th><th>Name</th><th>Age / sex</th><th>Barangay</th></tr></thead><tbody id="tbl">${rows()}</tbody></table></div></div>`}
 function prof(){
   const p=P.find(x=>x.id===pid),lv=LV[U.role]||'basic',m=P.filter(x=>x.hh===p.hh&&x.id!==p.id);
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="go('patients')">Back to patients</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>`}
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="go('patients')">Back to patients</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><h3 style="margin-top:0">Lab results</h3><div id="labh" class="ov">Loading...</div></div>`:''}`}
 async function view(id){
   pid=id;pg='prof';lg('Viewed '+id);R();scrollTo(0,0);
-  const lv=LV[U.role]||'basic',h=$('hist');if(lv==='basic')return;
+  const lv=LV[U.role]||'basic',h=$('hist');if(lv==='basic')return;if(lv==='full')loadLabH(id);
   try{
     const s=await getDocs(query(collection(db,lv==='full'?'visits':'prescriptions'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||((b.at?.seconds||0)-(a.at?.seconds||0)));
     const vt=v=>{const a=v.vitals||{},o=[];if(a.bps!=null&&a.bpd!=null)o.push('BP '+a.bps+'/'+a.bpd);if(a.t!=null)o.push('T '+a.t+'°C');if(a.pr!=null)o.push('PR '+a.pr);if(a.rr!=null)o.push('RR '+a.rr);if(a.o2!=null)o.push('SpO2 '+a.o2+'%');if(a.wt!=null)o.push(a.wt+' kg');if(a.ht!=null)o.push(a.ht+' cm');return o.join(', ')};
@@ -310,6 +310,7 @@ function consForm(){
   return `<button class="bt g" onclick="cancelC()">Back</button><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'} | ${E(p.pu+', '+p.br)}</div></div>
 <div class="cd"><h3 style="margin-top:0">Vitals</h3><div class="fm">${f('v1','BP systolic (mmHg)','120')}${f('v2','BP diastolic (mmHg)','80')}${f('v3','Temperature (°C)','36.5')}${f('v4','Pulse (bpm)','80')}${f('v5','Respiratory rate (/min)','18')}${f('v6','SpO2 (%)','98')}${f('v7','Weight (kg)','')}${f('v8','Height (cm)','')}</div></div>
 <div class="cd"><h3 style="margin-top:0">Consultation</h3><label>Chief complaint</label><textarea id="cc" rows="2"></textarea><label style="margin-top:10px">Diagnosis</label><textarea id="dx" rows="2"></textarea><label style="margin-top:10px">Treatment / notes (optional)</label><textarea id="tx" rows="3"></textarea></div>
+<div class="cd"><h3 style="margin-top:0">Lab tests (optional)</h3><input id="lt" list="ltl" placeholder="e.g. CBC, Urinalysis (separate with commas)"><datalist id="ltl"><option value="CBC"><option value="Urinalysis"><option value="Fecalysis"><option value="Blood sugar (FBS)"><option value="Blood sugar (RBS)"><option value="Lipid profile"><option value="Pregnancy test"><option value="Sputum AFB"></datalist></div>
 <div class="cd"><h3 style="margin-top:0">Prescription</h3><div id="rxs">${rxRow()}</div><button class="bt g" style="margin-top:4px" onclick="addRx()">Add medicine</button></div>
 <div class="cd"><label style="display:flex;gap:8px;align-items:center"><input id="rf" type="checkbox" style="width:auto" onchange="$('rfb').style.display=this.checked?'grid':'none'"><span>Refer this patient to another facility</span></label><div class="fm" id="rfb" style="display:none;margin-top:10px"><div><label>Refer to</label><input id="rf1" placeholder="e.g. Provincial Hospital"></div><div><label>Reason</label><input id="rf2"></div><div><label>Urgency</label><select id="rf3"><option>Routine</option><option>Urgent</option><option>Emergency</option></select></div></div></div>
 <div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button></div>`}
@@ -331,6 +332,7 @@ async function saveC(){
     const b=writeBatch(db),vr=doc(collection(db,'visits')),d=today();
     b.set(vr,{pid:p.id,pname:pn(p),d,cc:g('cc'),dx:g('dx'),tx:g('tx'),rx,vitals:vit,referral:ref,by:U.uid,byName:U.name,role:U.role,at:serverTimestamp()});
     if(items.length)b.set(doc(collection(db,'prescriptions')),{pid:p.id,pname:pn(p),vid:vr.id,d,rx,items,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()});
+    g('lt').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>b.set(doc(collection(db,'labs')),{pid:p.id,pname:pn(p),vid:vr.id,d,test:t,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()}));
     if(cq)b.update(doc(db,'queue',cq),{status:'done'});
     await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;view(p.id)
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
@@ -380,6 +382,33 @@ async function setIdle(v){
   try{await setDoc(doc(db,'meta','settings'),{idleMin:n,by:U.name,at:serverTimestamp()},{merge:true});S.idleMin=n;await lg('Auto sign-out set to '+(n?n+' min':'never'))}
   catch(x){$('idl').value=old;er.textContent='Could not save the setting. Publish the latest firestore.rules first.'}
 }
+/* ---------- Lab ---------- */
+let LB=[],LD=[];
+const lbg=()=>`<h2 style="margin-top:0">Lab</h2><div class="cd ov"><h3 style="margin-top:0">Requests to process</h3><div id="lbl">Loading...</div></div><div class="cd ov"><h3 style="margin-top:0">Done today</h3><div id="lbd"></div></div>`;
+function lbRender(){
+  const l=$('lbl'),d=$('lbd');if(!l)return;
+  l.innerHTML=LB.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Test</th><th>Result</th><th></th></tr></thead><tbody>${LB.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${E(r.test)}</td><td><input id="lr-${r.id}" placeholder="Result" style="min-width:180px"></td><td><button class="bt" onclick="lbSave('${r.id}')">Save result</button></td></tr>`).join('')}</tbody></table><div class="er2" id="lbe"></div>`:'<p style="color:var(--mu)">No requests waiting.</p>';
+  d.innerHTML=LD.length?`<table><thead><tr><th>Patient</th><th>Test</th><th>Result</th></tr></thead><tbody>${LD.map(r=>`<tr><td>${E(r.pname)}</td><td>${E(r.test)}</td><td>${E(r.result||'')}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">None yet.</p>'
+}
+async function loadLab(){
+  try{
+    const[a,b]=await Promise.all([getDocs(query(collection(db,'labs'),where('status','==','pending'))),getDocs(query(collection(db,'labs'),where('status','==','done'),where('d','==',today())))]);
+    LB=a.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(x.d||'').localeCompare(y.d||''));LD=b.docs.map(d=>d.data());lbRender()
+  }catch(e){const l=$('lbl');if(l)l.textContent='Could not load. Check your connection.'}
+}
+async function lbSave(id){
+  const v=$('lr-'+id).value.trim(),er=$('lbe');
+  if(!v){er.textContent='Enter the result first.';return}
+  try{await updateDoc(doc(db,'labs',id),{status:'done',result:v,resultBy:U.name,resultAt:serverTimestamp()});await lg('Lab result '+id);await loadLab()}
+  catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to enter results.':'Could not save. Check your connection.'}
+}
+async function loadLabH(id){
+  const h=$('labh');if(!h)return;
+  try{
+    const s=await getDocs(query(collection(db,'labs'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||''));
+    h.innerHTML=l.length?`<table><thead><tr><th>Date</th><th>Test</th><th>Result</th></tr></thead><tbody>${l.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.test)}</td><td>${r.status==='done'?E(r.result||''):'<span class="tg wa">Pending</span>'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No lab requests yet.</p>'
+  }catch(e){h.textContent='Could not load lab results.'}
+}
 async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);loadUsers()}
 async function addStaff(){
   const e=$('ue'),ln=$('u1a').value.trim(),fn=$('u1b').value.trim(),mn=$('u1c').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('u2').value.trim(),p=$('u3').value,r=$('u4').value;
@@ -398,5 +427,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
 </script></body></html>
