@@ -50,7 +50,7 @@ const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['docto
 const IMR=['doctor','midwife','bhw','admin','developer'];
 const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['audit','Audit log',0,['admin','developer']]];
 let Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
-let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false;
+let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false,bk=[];
 const today=()=>new Date().toLocaleDateString('en-CA');
 const isAdm=()=>U.role==='admin'||U.role==='developer';
 const can=k=>U.role==='developer'||(U.role==='admin'&&S[k]===true);
@@ -81,7 +81,11 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k){pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm')loadPh();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm')loadPh();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function navPush(){if(pg==='reg'||pg==='edit')return;bk.push({pg,pid,hhSel});history.pushState({bk:1},'')}
+function goBack(def){if(bk.length)history.back();else go(def)}
+function backLbl(def){const e=bk[bk.length-1];if(!e)return def;if(e.pg==='prof')return'previous patient';if(e.pg==='hhd')return'household '+e.hhSel;const n=NAV.find(x=>x[0]===e.pg);return n?n[1]:def}
+addEventListener('popstate',()=>{const e=bk.pop();if(!e)return;if(e.pg==='prof')return view(e.pid,1);hhSel=e.hhSel;go(e.pg,1)});
 function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
@@ -102,8 +106,9 @@ function rows(){const s=q.toLowerCase(),l=P.filter(p=>(p.fn+' '+(p.mn||'')+' '+p
 function pats(){return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Patients</h2>${canReg()?`<button class="bt" onclick="go('reg')">Register patient</button>`:''}</div><div class="cd"><input placeholder="Search by name, patient ID, barangay or contact" value="${E(q)}" oninput="sq(this.value)"><div class="ov"><table style="margin-top:10px"><thead><tr><th>Patient ID</th><th>Name</th><th>Age / sex</th><th>Barangay</th></tr></thead><tbody id="tbl">${rows()}</tbody></table></div></div>`}
 function prof(){
   const p=P.find(x=>x.id===pid),lv=LV[U.role]||'basic',m=P.filter(x=>x.hh===p.hh&&x.id!==p.id);
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="go('patients')">Back to patients</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><h3 style="margin-top:0">Lab results</h3><div id="labh" class="ov">Loading...</div></div>`:''}`}
-async function view(id){
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="goBack('patients')">Back to ${E(backLbl('patients'))}</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><h3 style="margin-top:0">Lab results</h3><div id="labh" class="ov">Loading...</div></div>`:''}`}
+async function view(id,np){
+  if(!np&&(pg!=='prof'||pid!==id))navPush();
   pid=id;pg='prof';lg('Viewed '+id);R();scrollTo(0,0);
   const lv=LV[U.role]||'basic',h=$('hist');if(lv==='basic')return;if(lv==='full')loadLabH(id);
   try{
@@ -193,14 +198,14 @@ async function removeUser(id){
 function editP(){pg='edit';R();scrollTo(0,0)}
 function ed(){
   const p=P.find(x=>x.id===pid);
-  return `<h2 style="margin-top:0">Edit patient</h2><div style="color:var(--mu);margin-bottom:10px">${p.id} | ${p.hh}</div><div class="cd"><div class="fm"><div><label>Last name</label><input id="f2" value="${E(p.ln)}"></div><div><label>First name</label><input id="f1" value="${E(p.fn)}"></div><div><label>Middle name (optional)</label><input id="f9" value="${E(p.mn||'')}"></div><div><label>Sex</label><select id="f3"><option value="F" ${p.sex==='F'?'selected':''}>Female</option><option value="M" ${p.sex==='M'?'selected':''}>Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date" value="${E(p.dob)}"></div><div><label>Barangay</label><input id="f5" value="${E(p.br)}"></div><div><label>Purok</label><input id="f6" value="${E(p.pu)}"></div><div><label>Contact number (optional)</label><input id="f7" value="${E(p.tel||'')}"></div></div><div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="saveEdit()">Save changes</button><button class="bt g" onclick="view('${p.id}')">Cancel</button></div></div>`}
+  return `<h2 style="margin-top:0">Edit patient</h2><div style="color:var(--mu);margin-bottom:10px">${p.id} | ${p.hh}</div><div class="cd"><div class="fm"><div><label>Last name</label><input id="f2" value="${E(p.ln)}"></div><div><label>First name</label><input id="f1" value="${E(p.fn)}"></div><div><label>Middle name (optional)</label><input id="f9" value="${E(p.mn||'')}"></div><div><label>Sex</label><select id="f3"><option value="F" ${p.sex==='F'?'selected':''}>Female</option><option value="M" ${p.sex==='M'?'selected':''}>Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date" value="${E(p.dob)}"></div><div><label>Barangay</label><input id="f5" value="${E(p.br)}"></div><div><label>Purok</label><input id="f6" value="${E(p.pu)}"></div><div><label>Contact number (optional)</label><input id="f7" value="${E(p.tel||'')}"></div></div><div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="saveEdit()">Save changes</button><button class="bt g" onclick="view('${p.id}',1)">Cancel</button></div></div>`}
 async function saveEdit(){
   const g=i=>$(i).value.trim(),e=t=>{$('fe').textContent=t},p=P.find(x=>x.id===pid);
   const ch={fn:g('f1'),ln:g('f2'),mn:g('f9'),sex:g('f3'),dob:g('f4'),br:g('f5'),pu:g('f6'),tel:g('f7')};
   if(!ch.fn||!ch.ln||!ch.sex||!ch.dob||!ch.br||!ch.pu)return e('Fill in all fields except the contact number.');
   if(new Date(ch.dob)>new Date())return e('Birthdate cannot be in the future.');
   $('sv').disabled=true;e('');
-  try{await updateDoc(doc(db,'patients',p.id),ch);Object.assign(p,ch);await lg('Edited '+p.id);view(p.id)}
+  try{await updateDoc(doc(db,'patients',p.id),ch);Object.assign(p,ch);await lg('Edited '+p.id);view(p.id,1)}
   catch(x){$('sv').disabled=false;e(x.code==='permission-denied'?'You do not have permission to edit patients.':'Could not save. Check your connection.')}
 }
 async function delP(){
@@ -216,11 +221,11 @@ function hhRows(){
   const s=q.toLowerCase(),l=Object.entries(hhGroups()).filter(([h,ms])=>(h+' '+ms.map(x=>pn(x)+' '+x.br+' '+x.pu).join(' ')).toLowerCase().includes(s)).sort((a,b)=>a[0].localeCompare(b[0]));
   return l.length?l.map(([h,ms])=>`<tr class="cl" onclick="openHH('${h}')"><td>${h}</td><td>${E(ms[0].br+', '+ms[0].pu)}</td><td>${ms.length}</td><td>${ms.map(x=>E(x.fn)).join(', ')}</td></tr>`).join(''):'<tr><td colspan="4">No matching households.</td></tr>'}
 const hhs=()=>`<h2 style="margin-top:0">Households</h2><div class="cd"><input placeholder="Search by household ID, member name, barangay or purok" value="${E(q)}" oninput="sq(this.value)"><div class="ov"><table style="margin-top:10px"><thead><tr><th>Household</th><th>Address</th><th>Members</th><th>Who</th></tr></thead><tbody id="tbl">${hhRows()}</tbody></table></div></div>`;
-function openHH(h){hhSel=h;pg='hhd';q='';R();scrollTo(0,0)}
+function openHH(h){if(pg!=='hhd'||hhSel!==h)navPush();hhSel=h;pg='hhd';q='';R();scrollTo(0,0)}
 function addMember(h){regHH=h;go('reg')}
 function hhd(){
   const ms=hhGroups()[hhSel]||[];if(!ms.length)return hhs();
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="go('hh')">Back to households</button>${canReg()?`<button class="bt" onclick="addMember('${hhSel}')">Add member</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${hhSel}</h2><div style="color:var(--mu)">${E(ms[0].br+', '+ms[0].pu)} | ${ms.length} member${ms.length>1?'s':''}</div></div><div class="cd ov"><table><thead><tr><th>Patient ID</th><th>Name</th><th>Age / sex</th></tr></thead><tbody>${ms.map(p=>`<tr class="cl" onclick="view('${p.id}')"><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td></tr>`).join('')}</tbody></table></div>`}
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="goBack('hh')">Back to ${E(backLbl('households'))}</button>${canReg()?`<button class="bt" onclick="addMember('${hhSel}')">Add member</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${hhSel}</h2><div style="color:var(--mu)">${E(ms[0].br+', '+ms[0].pu)} | ${ms.length} member${ms.length>1?'s':''}</div></div><div class="cd ov"><table><thead><tr><th>Patient ID</th><th>Name</th><th>Age / sex</th></tr></thead><tbody>${ms.map(p=>`<tr class="cl" onclick="view('${p.id}')"><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td></tr>`).join('')}</tbody></table></div>`}
 /* ---------- Queue ---------- */
 async function fetchQ(){try{const s=await getDocs(query(collection(db,'queue'),where('day','==',today())));Q=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.num||0)-(b.num||0));qmsg=''}catch(e){Q=[];qmsg='Could not load the queue. Check your connection.'}}
 const refreshQ=()=>{const a=$('qt'),c=$('cl');if(a)a.innerHTML=qTable();if(c)c.innerHTML=consList()};
@@ -337,7 +342,7 @@ async function saveC(){
     if(items.length)b.set(doc(collection(db,'prescriptions')),{pid:p.id,pname:pn(p),vid:vr.id,d,rx,items,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()});
     g('lt').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>b.set(doc(collection(db,'labs')),{pid:p.id,pname:pn(p),vid:vr.id,d,test:t,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()}));
     if(cq)b.update(doc(db,'queue',cq),{status:'done'});
-    await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;view(p.id)
+    await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;view(p.id,1)
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
 }
 /* ---------- Pharmacy ---------- */
