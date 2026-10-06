@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RHU Health Center System</title>
+<style>
+:root{--bg:#f3f6fb;--cd:#fff;--tx:#12203a;--mu:#5a6a85;--bd:#dfe6f0;--pr:#1d4ed8;--pt:#fff;--ok:#166534;--ob:#dcfce7;--wa:#92400e;--wb:#fef3c7;--nv:#0b2a5b;--nt:#c9d6f0;--na:#1e4fae;--er:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1524;--cd:#172238;--tx:#e6edfb;--mu:#9db0d0;--bd:#2a3b5e;--pr:#6b9cff;--pt:#0b1530;--ok:#86efac;--ob:#14351f;--wa:#fcd34d;--wb:#3a2a0c;--nv:#081a3a;--er:#fca5a5}}
+*,*:before,*:after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+button,input,select{font:inherit;color:inherit}
+.app{display:flex;min-height:100vh}
+.sb{width:230px;background:var(--nv);color:var(--nt);padding:16px 10px;flex:none;display:flex;flex-direction:column;gap:2px}
+.sb h1{font-size:15px;color:#fff;margin:0 8px 14px;font-weight:600}
+.nv{display:flex;justify-content:space-between;padding:9px 12px;border-radius:8px;cursor:pointer;color:var(--nt);border:0;background:none;text-align:left;width:100%}
+.nv.on{background:var(--na);color:#fff}.nv.dis{opacity:.45;cursor:default}.nv small{font-size:11px}
+.mn{flex:1;min-width:0}
+.tb{display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--cd);border-bottom:1px solid var(--bd);justify-content:space-between}
+.ct{padding:20px;max-width:1100px}
+.cd{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px}
+.gr{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.gr .cd{margin:0}.st b{display:block;font-size:26px}.st span{color:var(--mu);font-size:13px}
+.ov{overflow-x:auto}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--bd);font-size:14px}th{color:var(--mu);font-weight:500}
+tr.cl{cursor:pointer}tr.cl:hover{background:var(--bg)}
+.bt{background:var(--pr);color:var(--pt);border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:500}
+.bt.g{background:none;color:var(--pr);border:1px solid var(--bd)}.bt:disabled{opacity:.6}
+input,select{width:100%;padding:9px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--cd)}
+label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
+.fm{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.tg{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px}.ok{background:var(--ob);color:var(--ok)}.wa{background:var(--wb);color:var(--wa)}
+.er2{color:var(--er);font-size:13px;margin-top:6px}
+.lg{max-width:440px;margin:0 auto;padding:24px 14px}
+.hm{display:none}
+@media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;width:75%;z-index:5;display:none}.sb.open{display:flex}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px}}
+</style></head><body><div id="root"></div>
+<script type="module">
+import{firebaseConfig as C}from'./firebase-config.js';
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import{initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,getDoc,setDoc,updateDoc,addDoc,collection,getDocs,query,orderBy,limit,where,runTransaction,writeBatch,serverTimestamp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+const app=initializeApp(C),auth=getAuth(app);
+const db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+const $=i=>document.getElementById(i);
+const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ROLES=[['admin','Admin'],['doctor','Doctor (MHO)'],['midwife','Midwife / Nurse'],['pharmacist','Pharmacist'],['medtech','Medical technologist'],['bhw','BHW'],['frontdesk','Front desk']];
+const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households',1],['queue','Queue',1],['consult','Consultation',1,['doctor','midwife']],['imm','Immunization',1],['pharm','Pharmacy',1,['pharmacist']],['lab','Lab',1,['medtech']],['users','Users',0,['admin']],['audit','Audit log',0,['admin']]];
+let U=null,P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false;
+const lg=a=>U?addDoc(collection(db,'audit'),{uid:U.uid,name:U.name,role:U.role,action:a,at:serverTimestamp()}).catch(()=>{}):Promise.resolve();
+function age(d){const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;if(a<1)return((n.getFullYear()-b.getFullYear())*12+n.getMonth()-b.getMonth())+' mo';return a+' y'}
+async function loadP(){const s=await getDocs(query(collection(db,'patients'),orderBy('id')));P=s.docs.map(d=>d.data())}
+onAuthStateChanged(auth,async u=>{
+  if(setting)return;
+  if(!u){U=null;try{mode=(await getDoc(doc(db,'meta','setup'))).exists()?'login':'setup'}catch(e){mode='login'}return R()}
+  try{const d=await getDoc(doc(db,'users',u.uid));if(d.exists()&&d.data().active!==false){U={uid:u.uid,...d.data()};mode='app';pg='dash';msg='';t=Date.now();await loadP().catch(()=>{})}else mode='orphan'}catch(e){mode='orphan'}
+  R();
+});
+function R(){$('root').innerHTML=mode==='boot'?'<div class="lg">Loading...</div>':mode==='app'?shell():mode==='orphan'?orphan():authForm(mode==='setup')}
+const orphan=()=>`<div class="lg"><div class="cd"><h3 style="margin-top:0">Account not active</h3><p>Your account has no access yet, or it was deactivated. Ask the administrator for help.</p><button class="bt" onclick="out()">Sign out</button></div></div>`;
+const authForm=s=>`<div class="lg"><div class="cd"><h2 style="margin-top:0">RHU Health Center System</h2><p style="color:var(--mu);margin-top:-8px">${s?'First-time setup: create the administrator account.':'Sign in with your staff account.'}</p>${msg?`<div class="tg wa" style="display:block;margin-bottom:10px">${E(msg)}</div>`:''}${s?'<label>Full name</label><input id="nm">':''}<label style="margin-top:10px">Email</label><input id="em" type="email" autocomplete="username"><label style="margin-top:10px">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="er2" id="le"></div><button class="bt" style="width:100%;margin-top:12px" onclick="${s?'doSetup()':'doLogin()'}">${s?'Create administrator':'Sign in'}</button></div></div>`;
+async function doLogin(){const e=$('le');e.textContent='';try{await signInWithEmailAndPassword(auth,$('em').value.trim(),$('pw').value)}catch(x){e.textContent=x.code==='auth/network-request-failed'?'No internet connection.':'Invalid email or password.'}}
+async function doSetup(){
+  const e=$('le'),n=$('nm').value.trim(),m=$('em').value.trim(),p=$('pw').value;
+  if(!n||!m||p.length<8){e.textContent='Enter your name, an email, and a password of at least 8 characters.';return}
+  setting=true;
+  try{const c=await createUserWithEmailAndPassword(auth,m,p),b=writeBatch(db);b.set(doc(db,'users',c.user.uid),{name:n,email:m,role:'admin',active:true});b.set(doc(db,'meta','setup'),{at:serverTimestamp()});await b.commit();location.reload()}
+  catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
+}
+async function out(){await lg('Signed out');await signOut(auth)}
+function go(k){pg=k;q='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='audit')loadAudit()}
+function shell(){
+  const cur=(pg==='prof'||pg==='reg')?'patients':pg;
+  const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
+  return `<div class="app"><nav class="sb" id="sb"><h1>RHU Health Center</h1>${nav}</nav><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div><button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${page()}</div></div></div>`}
+function page(){if((['users','audit'].includes(pg)&&U.role!=='admin')||(pg==='reg'&&!REG.includes(U.role)))pg='dash';return({dash,patients:pats,prof,reg,users:usr,audit:aud}[pg]||dash)()}
+function dash(){
+  const hh=new Set(P.map(x=>x.hh)).size,today=new Date().toLocaleDateString('en-CA'),rec=P.slice(-5).reverse();
+  const cards=[[P.length,'Registered patients'],[hh,'Households'],[P.filter(x=>x.createdDay===today).length,'Registered today']];
+  return `<h2 style="margin-top:0">Dashboard</h2><div class="gr">${cards.map(c=>`<div class="cd st"><b>${c[0]}</b><span>${c[1]}</span></div>`).join('')}</div><div class="cd"><h3 style="margin-top:0">Recently registered</h3><div class="ov"><table><tbody>${rec.map(p=>`<tr class="cl" onclick="view('${p.id}')"><td>${p.id}</td><td>${E(p.fn+' '+p.ln)}</td><td>${E(p.br)}</td></tr>`).join('')||'<tr><td>No patients yet. Register the first patient from the Patients page.</td></tr>'}</tbody></table></div></div>`}
+function rows(){const s=q.toLowerCase(),l=P.filter(p=>(p.fn+' '+p.ln+' '+p.id+' '+p.br+' '+p.tel).toLowerCase().includes(s));return l.length?l.map(p=>`<tr class="cl" onclick="view('${p.id}')"><td>${p.id}</td><td>${E(p.fn+' '+p.ln)}</td><td>${age(p.dob)} / ${p.sex}</td><td>${E(p.br)}</td></tr>`).join(''):'<tr><td colspan="4">No matching patients. Try another name or ID.</td></tr>'}
+function pats(){return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0">Patients</h2>${REG.includes(U.role)?`<button class="bt" onclick="go('reg')">Register patient</button>`:''}</div><div class="cd"><input placeholder="Search by name, patient ID, barangay or contact" value="${E(q)}" oninput="q=this.value;$('tbl').innerHTML=rows()"><div class="ov"><table style="margin-top:10px"><thead><tr><th>Patient ID</th><th>Name</th><th>Age / sex</th><th>Barangay</th></tr></thead><tbody id="tbl">${rows()}</tbody></table></div></div>`}
+function prof(){
+  const p=P.find(x=>x.id===pid),lv=LV[U.role]||'basic',m=P.filter(x=>x.hh===p.hh&&x.id!==p.id);
+  return `<button class="bt g" onclick="go('patients')">Back to patients</button><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(p.fn+' '+p.ln)}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>Household</label>${p.hh}</div></div>`}</div>${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(x.fn+' '+x.ln)} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>`}
+async function view(id){
+  pid=id;pg='prof';lg('Viewed '+id);R();scrollTo(0,0);
+  const lv=LV[U.role]||'basic',h=$('hist');if(lv==='basic')return;
+  try{
+    const s=await getDocs(query(collection(db,lv==='full'?'visits':'prescriptions'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||''));
+    h.innerHTML=l.length?`<table><thead><tr><th>Date</th>${lv==='full'?'<th>Complaint</th><th>Diagnosis</th>':''}<th>Prescription</th></tr></thead><tbody>${l.map(v=>`<tr><td>${E(v.d)}</td>${lv==='full'?`<td>${E(v.cc)}</td><td>${E(v.dx)}</td>`:''}<td>${E(v.rx)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No records yet. Consultations will appear here once they are recorded.</p>';
+  }catch(e){h.textContent='Could not load records. Check your connection.'}
+}
+function reg(){const hs=[...new Set(P.map(x=>x.hh))];return `<h2 style="margin-top:0">Register patient</h2><div class="cd"><div class="fm"><div><label>First name</label><input id="f1"></div><div><label>Last name</label><input id="f2"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date"></div><div><label>Barangay</label><input id="f5"></div><div><label>Purok</label><input id="f6"></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option>${h}</option>`).join('')}</select></div></div><label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label><div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="save()">Save patient</button><button class="bt g" onclick="go('patients')">Cancel</button></div></div>`}
+async function save(){
+  const g=i=>$(i).value.trim(),f=[g('f1'),g('f2'),g('f3'),g('f4'),g('f5'),g('f6')],e=s=>{$('fe').textContent=s};
+  if(f.some(x=>!x))return e('Fill in all fields except the contact number.');
+  if(new Date(f[3])>new Date())return e('Birthdate cannot be in the future.');
+  if(!$('cs').checked)return e('Patient consent is required before saving.');
+  $('sv').disabled=true;e('');let np;
+  try{
+    await runTransaction(db,async tx=>{
+      const r=doc(db,'meta','counters'),c=await tx.get(r),d=c.exists()?c.data():{},n=(d.patients||0)+1;let h=g('f8'),hn=d.households||0;
+      if(!h){hn++;h='HH-'+(1000+hn)}
+      tx.set(r,{patients:n,households:hn},{merge:true});
+      np={id:'RHU-'+String(n).padStart(6,'0'),fn:f[0],ln:f[1],sex:f[2],dob:f[3],br:f[4],pu:f[5],tel:g('f7'),hh:h,consent:true,consentBy:U.name,createdDay:new Date().toLocaleDateString('en-CA')};
+      tx.set(doc(db,'patients',np.id),{...np,createdAt:serverTimestamp()});
+    });
+    P.push(np);await lg('Registered '+np.id);view(np.id);
+  }catch(x){$('sv').disabled=false;e(x.code==='permission-denied'?'You do not have permission to register patients.':'Could not save. Registration needs an internet connection.')}
+}
+const usr=()=>`<h2 style="margin-top:0">Users</h2><div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Full name</label><input id="u1"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>Role</label><select id="u4">${ROLES.map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
+async function loadUsers(){
+  try{const s=await getDocs(collection(db,'users'));$('ul').innerHTML=`<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${s.docs.map(d=>{const u=d.data(),on=u.active!==false;return `<tr><td>${E(u.name)}</td><td>${E(u.email)}</td><td>${E(RN[u.role]||u.role)}</td><td><span class="tg ${on?'ok':'wa'}">${on?'Active':'Inactive'}</span></td><td>${d.id===U.uid?'':`<button class="bt g" onclick="setActive('${d.id}',${!on})">${on?'Deactivate':'Activate'}</button>`}</td></tr>`}).join('')}</tbody></table>`}catch(e){$('ul').textContent='Could not load users.'}
+}
+async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);loadUsers()}
+async function addStaff(){
+  const e=$('ue'),n=$('u1').value.trim(),m=$('u2').value.trim(),p=$('u3').value,r=$('u4').value;
+  if(!n||!m||p.length<8){e.textContent='Enter a name, an email, and a password of at least 8 characters.';return}
+  $('ub').disabled=true;e.textContent='';
+  try{
+    const sec=initializeApp(C,'sec'+Date.now()),a2=getAuth(sec),c=await createUserWithEmailAndPassword(a2,m,p);
+    await signOut(a2);await setDoc(doc(db,'users',c.user.uid),{name:n,email:m,role:r,active:true});
+    await lg('Created account '+m+' ('+r+')');go('users');
+  }catch(x){$('ub').disabled=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Could not create the account ('+(x.code||x.message)+').'}
+}
+const aud=()=>`<h2 style="margin-top:0">Audit log</h2><div class="cd ov"><div id="al">Loading...</div></div>`;
+async function loadAudit(){
+  try{const s=await getDocs(query(collection(db,'audit'),orderBy('at','desc'),limit(100)));$('al').innerHTML=`<table><thead><tr><th>Time</th><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>${s.docs.map(d=>{const a=d.data();return `<tr><td>${a.at?a.at.toDate().toLocaleString():''}</td><td>${E(a.name)}</td><td>${E(RN[a.role]||a.role)}</td><td>${E(a.action)}</td></tr>`}).join('')||'<tr><td colspan="4">No activity yet.</td></tr>'}</tbody></table>`}catch(e){$('al').textContent='Could not load the audit log.'}
+}
+['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
+addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nm')?doSetup:doLogin)()});
+setInterval(async()=>{if(U&&Date.now()-t>IDLE){await lg('Signed out (inactivity)');msg='Signed out after 10 minutes of inactivity.';signOut(auth)}},15000);
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive});
+</script></body></html>
