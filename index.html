@@ -274,11 +274,8 @@ function consForm(){
 <div class="cd"><h3 style="margin-top:0">Consultation</h3><label>Chief complaint</label><textarea id="cc" rows="2"></textarea><label style="margin-top:10px">Diagnosis</label><textarea id="dx" rows="2"></textarea><label style="margin-top:10px">Treatment / notes (optional)</label><textarea id="tx" rows="3"></textarea></div>
 <div class="cd"><h3 style="margin-top:0">Prescription</h3><div id="rxs">${rxRow()}</div><button class="bt g" style="margin-top:4px" onclick="addRx()">Add medicine</button></div>
 <div class="cd"><label style="display:flex;gap:8px;align-items:center"><input id="rf" type="checkbox" style="width:auto" onchange="$('rfb').style.display=this.checked?'grid':'none'"><span>Refer this patient to another facility</span></label><div class="fm" id="rfb" style="display:none;margin-top:10px"><div><label>Refer to</label><input id="rf1" placeholder="e.g. Provincial Hospital"></div><div><label>Reason</label><input id="rf2"></div><div><label>Urgency</label><select id="rf3"><option>Routine</option><option>Urgent</option><option>Emergency</option></select></div></div></div>
-<div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Cancel</button></div>`}
-async function cancelC(){
-  if(cq){try{await updateDoc(doc(db,'queue',cq),{status:'waiting'})}catch(e){}}
-  go('consult')
-}
+<div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button></div>`}
+function cancelC(){go('consult')}
 async function saveC(){
   const e=t=>{$('ce').textContent=t},g=i=>$(i).value.trim(),p=P.find(x=>x.id===cp);
   const num=(i,lo,hi,l)=>{const v=g(i);if(v==='')return null;const n=Number(v);if(!isFinite(n)||n<lo||n>hi)throw new Error(l+' looks wrong. Please check it.');return n};
