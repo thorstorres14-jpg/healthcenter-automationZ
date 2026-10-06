@@ -58,7 +58,7 @@ const canEdit=()=>REG.includes(U.role)||can('adminEdit')||bhwF();
 const VDEF=['frontdesk','midwife','doctor'],VOPT=[['frontdesk','Front desk'],['midwife','Midwife / Nurse'],['doctor','Doctor (MHO)'],['bhw','BHW'],['admin','Admin']];
 const vRoles=()=>Array.isArray(S.vitalsRoles)?S.vitalsRoles:VDEF;
 const canVitals=()=>U.role==='developer'||vRoles().includes(U.role)||(bhwF()&&vRoles().includes('frontdesk'));
-const lg=a=>U?addDoc(collection(db,'audit'),{uid:U.uid,name:U.name,role:U.role,action:a,at:serverTimestamp()}).catch(()=>{}):Promise.resolve();
+const lg=a=>U?addDoc(collection(db,'audit'),{uid:U.uid,name:U.name,role:U.real||U.role,action:a,at:serverTimestamp()}).catch(()=>{}):Promise.resolve();
 function age(d){const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;if(a<1)return((n.getFullYear()-b.getFullYear())*12+n.getMonth()-b.getMonth())+' mo';return a+' y'}
 async function loadP(){const s=await getDocs(query(collection(db,'patients'),orderBy('id')));P=s.docs.map(d=>d.data())}
 onAuthStateChanged(auth,async u=>{
@@ -83,7 +83,7 @@ function go(k){pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0)
 function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
-  return `<div class="app"><nav class="sb" id="sb"><h1>RHU Health Center</h1>${nav}</nav><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div><button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${page()}</div></div></div>`}
+  return `<div class="app"><nav class="sb" id="sb"><h1>RHU Health Center</h1>${nav}</nav><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
 function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,dev:dvp}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
@@ -439,6 +439,11 @@ async function imGive(id,k){
   try{await setDoc(doc(db,'immunizations',id+'_'+k),{pid:id,pname:pn(p),vax:k,label:v[1],d,by:U.uid,byName:U.name,at:serverTimestamp()});IM[id+'_'+k]={d};await lg('Immunization '+k+' '+id);imRender()}
   catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to record vaccines.':'Could not save. Check your connection.'}
 }
+function viewAs(r){
+  if(!U.real)U.real=U.role;
+  if(r===U.real){U.role=U.real;delete U.real}else U.role=r;
+  q='';cp=null;cq=null;vq=null;pg='dash';R();scrollTo(0,0)
+}
 async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);loadUsers()}
 async function addStaff(){
   const e=$('ue'),ln=$('u1a').value.trim(),fn=$('u1b').value.trim(),mn=$('u1c').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('u2').value.trim(),p=$('u3').value,r=$('u4').value;
@@ -457,5 +462,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
+Object.assign(window,{$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,cSearch,addRx,saveC,cancelC});
 </script></body></html>
