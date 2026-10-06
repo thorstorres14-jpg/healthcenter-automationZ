@@ -8,7 +8,7 @@ html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
 header{display:flex;justify-content:space-between;align-items:center;padding:18px 32px;background:linear-gradient(90deg,var(--hd),var(--hd2));color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15)}
 header .brand{display:flex;align-items:center;gap:18px}
-header .brand img{height:clamp(44px,7vw,90px);width:auto;max-width:140px;object-fit:contain;background:#fff;border-radius:12px;padding:4px}
+header .brand img{height:clamp(44px,7vw,90px);width:auto;max-width:140px;object-fit:contain}
 header .sub{font-size:clamp(13px,1.6vw,20px);opacity:.9;letter-spacing:.12em;text-transform:uppercase}
 header h1{margin:0;font-size:clamp(20px,3vw,38px)}
 #clock{font-size:clamp(26px,4.4vw,64px);font-weight:600;font-variant-numeric:tabular-nums;text-align:right;line-height:1.15;white-space:nowrap;flex:none;margin-left:24px}
@@ -101,7 +101,7 @@ onSnapshot(doc(db,'displayConfig','main'),s=>{const c=s.exists()?s.data():{};if(
 
 let annData=null,annKey=null;
 function fitAnn(){const t=$('annt'),w=$('annw');if(!t||!w)return;const cw=w.clientWidth;t.style.setProperty('--w',cw+'px');t.style.animationDuration=Math.max(10,(cw+t.scrollWidth)/110)+'s'}
-function showAnn(){const a=$('ann'),ok=annData&&annData.text&&(!annData.until||annData.until>Date.now());if(ok){a.style.display='flex';if(annKey!==annData.text){annKey=annData.text;a.innerHTML='<div class="al">Announcement</div><div id="annw"><span id="annt"></span></div>';$('annt').textContent=annData.text;fitAnn()}}else{a.style.display='none';annKey=null}}
+function showAnn(){const a=$('ann'),ok=annData&&annData.text&&(!annData.until||annData.until>Date.now());if(ok){a.style.display='flex';if(annKey!==annData.text){annKey=annData.text;a.innerHTML='<div id="annw"><span id="annt"></span></div>';$('annt').textContent=annData.text;fitAnn()}}else{a.style.display='none';annKey=null}}
 window.addEventListener('resize',fitAnn);
 onSnapshot(doc(db,'announcement','current'),s=>{annData=s.exists()?s.data():null;showAnn()},()=>{});
 function tick(){showAnn();const n=new Date();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==curDay){curDay=day();if(unsub)unsub();first=true;docs=[];Object.keys(last).forEach(k=>delete last[k]);render();sub()}}
