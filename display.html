@@ -2,28 +2,30 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Queue Display - RHU Health Center</title>
 <style>
+:root{--bg:#eef4f8;--ink:#12324a;--mu:#5b7388;--hd:#0b6e6e;--hd2:#0e8a7d;--card:#fff;--num:#0b6e6e;--line:#d3e0ea;--next:#f59e0b;--flash:#fff3cd}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
-body{background:#0b1f33;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
-header{display:flex;justify-content:space-between;align-items:center;padding:18px 32px;background:#0f2a45;border-bottom:3px solid #1d9a6c}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+header{display:flex;justify-content:space-between;align-items:center;padding:18px 32px;background:linear-gradient(90deg,var(--hd),var(--hd2));color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15)}
 header h1{margin:0;font-size:clamp(20px,3vw,38px)}
-#clock{font-size:clamp(18px,2.6vw,32px);opacity:.85;font-variant-numeric:tabular-nums}
+#clock{font-size:clamp(18px,2.6vw,32px);font-variant-numeric:tabular-nums;text-align:right;line-height:1.2}
+#clock small{display:block;font-size:.6em;opacity:.9}
 main{flex:1;display:grid;grid-template-columns:2fr 1fr;gap:24px;padding:24px 32px;min-height:0}
 @media(max-width:800px){main{grid-template-columns:1fr}}
-h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;letter-spacing:.08em;opacity:.8}
+h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;letter-spacing:.08em;color:var(--mu)}
 .now{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;align-content:start}
-.card{background:#12385c;border-radius:20px;padding:22px;text-align:center;border:3px solid transparent}
-.card .rm{font-size:clamp(18px,2.4vw,30px);opacity:.85}
-.card .n{font-size:clamp(70px,13vw,190px);font-weight:800;line-height:1.05;color:#5df2b0}
-.card.flash{animation:fl 1s ease-in-out 6;border-color:#ffd54a}
-@keyframes fl{50%{background:#1d6a4c}}
+.card{background:var(--card);border-radius:20px;padding:22px;text-align:center;border:3px solid var(--line);box-shadow:0 4px 14px rgba(18,50,74,.08)}
+.card .rm{font-size:clamp(18px,2.4vw,30px);color:var(--mu);font-weight:600}
+.card .n{font-size:clamp(70px,13vw,190px);font-weight:800;line-height:1.05;color:var(--num)}
+.card.flash{animation:fl 1s ease-in-out 6;border-color:var(--next)}
+@keyframes fl{50%{background:var(--flash)}}
 .wait{display:flex;flex-wrap:wrap;gap:12px;align-content:flex-start}
-.chip{background:#12385c;border-radius:14px;padding:8px 20px;font-size:clamp(26px,4vw,56px);font-weight:700;min-width:90px;text-align:center}
-.chip.next{background:#c98f0a;color:#fff}
-.empty{opacity:.55;font-size:clamp(18px,2.2vw,28px)}
-#snd{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9}
-#snd button{font-size:28px;padding:22px 40px;border:0;border-radius:16px;background:#1d9a6c;color:#fff;cursor:pointer}
-#st{position:fixed;right:12px;bottom:8px;font-size:13px;opacity:.5}
+.chip{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:8px 20px;font-size:clamp(26px,4vw,56px);font-weight:700;min-width:90px;text-align:center;color:var(--ink)}
+.chip.next{background:var(--next);border-color:var(--next);color:#fff}
+.empty{color:var(--mu);font-size:clamp(18px,2.2vw,28px)}
+#snd{position:fixed;inset:0;background:rgba(18,50,74,.88);display:flex;align-items:center;justify-content:center;z-index:9}
+#snd button{font-size:28px;padding:22px 40px;border:0;border-radius:16px;background:var(--hd2);color:#fff;cursor:pointer}
+#st{position:fixed;right:12px;bottom:8px;font-size:13px;color:var(--mu)}
 </style></head><body>
 <div id="snd"><button onclick="enableSound()">Tap to turn on sound and start display</button></div>
 <header><h1>RHU Health Center - Queue</h1><div id="clock"></div></header>
@@ -80,6 +82,6 @@ onSnapshot(query(collection(db,'queueDisplay'),where('day','==',startDay)),snap=
   });
   first=false;render()
 },()=>{$('st').textContent='connection problem - retrying...'});
-function tick(){const n=new Date();$('clock').textContent=n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric'})+'  '+n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});if(day()!==startDay)location.reload()}
-tick();setInterval(tick,15000);
+function tick(){const n=new Date();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==startDay)location.reload()}
+tick();setInterval(tick,1000);
 </script></body></html>
