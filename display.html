@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Queue Display - RHU Health Center</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:#0b1f33;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+header{display:flex;justify-content:space-between;align-items:center;padding:18px 32px;background:#0f2a45;border-bottom:3px solid #1d9a6c}
+header h1{margin:0;font-size:clamp(20px,3vw,38px)}
+#clock{font-size:clamp(18px,2.6vw,32px);opacity:.85;font-variant-numeric:tabular-nums}
+main{flex:1;display:grid;grid-template-columns:2fr 1fr;gap:24px;padding:24px 32px;min-height:0}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;letter-spacing:.08em;opacity:.8}
+.now{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;align-content:start}
+.card{background:#12385c;border-radius:20px;padding:22px;text-align:center;border:3px solid transparent}
+.card .rm{font-size:clamp(18px,2.4vw,30px);opacity:.85}
+.card .n{font-size:clamp(70px,13vw,190px);font-weight:800;line-height:1.05;color:#5df2b0}
+.card.flash{animation:fl 1s ease-in-out 6;border-color:#ffd54a}
+@keyframes fl{50%{background:#1d6a4c}}
+.wait{display:flex;flex-wrap:wrap;gap:12px;align-content:flex-start}
+.chip{background:#12385c;border-radius:14px;padding:8px 20px;font-size:clamp(26px,4vw,56px);font-weight:700;min-width:90px;text-align:center}
+.chip.next{background:#c98f0a;color:#fff}
+.empty{opacity:.55;font-size:clamp(18px,2.2vw,28px)}
+#snd{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9}
+#snd button{font-size:28px;padding:22px 40px;border:0;border-radius:16px;background:#1d9a6c;color:#fff;cursor:pointer}
+#st{position:fixed;right:12px;bottom:8px;font-size:13px;opacity:.5}
+</style></head><body>
+<div id="snd"><button onclick="enableSound()">Tap to turn on sound and start display</button></div>
+<header><h1>RHU Health Center - Queue</h1><div id="clock"></div></header>
+<main>
+  <section><h2>Now serving</h2><div class="now" id="now"></div></section>
+  <section><h2>Waiting</h2><div class="wait" id="wait"></div></section>
+</main>
+<div id="st">connecting...</div>
+<script type="module">
+import{firebaseConfig as C}from'./firebase-config.js';
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import{getFirestore,collection,query,where,onSnapshot}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+const db=getFirestore(initializeApp(C));
+const $=id=>document.getElementById(id);
+const day=()=>new Date().toLocaleDateString('en-CA');
+const LANG=new URLSearchParams(location.search).get('lang')==='tl'?'tl':'en';
+const startDay=day();
+let ready=false,soundOn=false,first=true,docs=[];const last={},flash={};
+let ac=null;
+window.enableSound=()=>{
+  soundOn=true;$('snd').remove();
+  try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}
+  try{speechSynthesis.speak(new SpeechSynthesisUtterance(''))}catch(e){}
+};
+function chime(){
+  return new Promise(res=>{
+    if(!ac)return res();
+    [[880,0],[660,.3]].forEach(([f,t])=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const s=ac.currentTime+t;g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(.4,s+.03);g.gain.exponentialRampToValueAtTime(.0001,s+.5);o.start(s);o.stop(s+.55)});
+    setTimeout(res,900)})
+}
+function say(text){
+  return new Promise(res=>{
+    try{const u=new SpeechSynthesisUtterance(text);u.lang=LANG==='tl'?'fil-PH':'en-US';u.rate=.9;u.onend=u.onerror=()=>res();speechSynthesis.cancel();speechSynthesis.speak(u);setTimeout(res,12000)}catch(e){res()}})
+}
+let chain=Promise.resolve();
+function announce(num,room){
+  const txt=LANG==='tl'?`Pasyente bilang ${num}, pumunta po sa Consultation ${room}.`:`Patient number ${num}, please proceed to Consultation ${room}.`;
+  chain=chain.then(async()=>{if(!soundOn)return;await chime();await say(txt)})
+}
+function render(){
+  const now=docs.filter(d=>d.status==='in-consult'&&d.room).sort((a,b)=>a.room-b.room||a.num-b.num);
+  const wait=docs.filter(d=>d.status==='waiting').sort((a,b)=>a.num-b.num);
+  $('now').innerHTML=now.length?now.map(d=>`<div class="card ${flash[d.id]>Date.now()?'flash':''}"><div class="rm">Consultation ${d.room}</div><div class="n">#${d.num}</div></div>`).join(''):'<div class="empty">No patient is being called right now.</div>';
+  const shown=wait.slice(0,24);
+  $('wait').innerHTML=wait.length?shown.map((d,i)=>`<div class="chip ${i===0?'next':''}">#${d.num}</div>`).join('')+(wait.length>shown.length?`<div class="chip">+${wait.length-shown.length}</div>`:''):'<div class="empty">No one is waiting.</div>'
+}
+onSnapshot(query(collection(db,'queueDisplay'),where('day','==',startDay)),snap=>{
+  $('st').textContent='';
+  docs=snap.docs.map(d=>({id:d.id,...d.data()}));
+  docs.forEach(d=>{
+    const ms=d.calledAt&&d.calledAt.toMillis?d.calledAt.toMillis():0;
+    if(!first&&d.status==='in-consult'&&d.room&&ms>(last[d.id]||0)){flash[d.id]=Date.now()+7000;announce(d.num,d.room);setTimeout(render,7100)}
+    last[d.id]=ms
+  });
+  first=false;render()
+},()=>{$('st').textContent='connection problem - retrying...'});
+function tick(){const n=new Date();$('clock').textContent=n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric'})+'  '+n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});if(day()!==startDay)location.reload()}
+tick();setInterval(tick,15000);
+</script></body></html>
