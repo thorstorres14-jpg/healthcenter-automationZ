@@ -80,7 +80,7 @@ const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
 const IMR=['doctor','midwife','bhw','admin','developer'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['rp','Reports',0,['doctor','midwife','developer']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk']],['audit','Audit log',0,['admin','developer']]];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['mc','My consultations',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['rp','Reports',0,['doctor','midwife','developer']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk']],['audit','Audit log',0,['admin','developer']]];
 let RXL=[],RSK=null,Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
 let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false,bk=[];
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -232,7 +232,7 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -362,7 +362,7 @@ function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}${n[0]==='pharm'?pxBadge():''}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||(pg==='mc'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp,mc:mcPg}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['dvt','dlr','u5','sr'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
@@ -1721,6 +1721,59 @@ async function rfSave(v,ch,modal){
     const m=x.code==='permission-denied'?'You do not have permission to update referrals.':'Could not update. Check your connection.';
     if(modal){fmBusy(false);const e=$('rfe');if(e)e.textContent=m}else sAlert(m)
   }
+}
+/* ---------- My consultations ---------- */
+let MC={r:'week',from:'',to:'',v:null,err:false,q:'',doc:''};
+const mcRange=r=>{const t=today();if(r==='today')return[t,t];if(r==='week')return[dstr((new Date().getDay()+6)%7),t];if(r==='month')return[t.slice(0,8)+'01',t];return[MC.from||t,MC.to||t]};
+async function loadMc(){
+  const f=MC.from,t=MC.to;MC.v=null;MC.err=false;if(pg==='mc')R();
+  try{
+    const s=await getDocs(query(collection(db,'visits'),where('d','>=',f),where('d','<=',t)));
+    if(MC.from!==f||MC.to!==t)return;
+    MC.v=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.d).localeCompare(String(a.d))||drMs(b)-drMs(a))
+  }catch(e){MC.err=true;MC.v=[]}
+  if(pg==='mc')R()
+}
+function mcSetR(k){
+  MC.r=k;
+  if(k==='custom'){R();return}
+  [MC.from,MC.to]=mcRange(k);loadMc()
+}
+function mcApply(){
+  const f=($('mcf')||{}).value,t=($('mct')||{}).value,er=$('mce');if(er)er.textContent='';
+  if(!f||!t){if(er)er.textContent='Choose both dates.';return}
+  if(f>t){if(er)er.textContent='The "From" date must be before the "To" date.';return}
+  if((new Date(t)-new Date(f))/864e5>366){if(er)er.textContent='Choose a range of one year or less.';return}
+  MC.from=f;MC.to=t;loadMc()
+}
+function mcSq(v){MC.q=v;const b=$('mcb');if(b)b.innerHTML=mcBody()}
+function mcDoc(v){MC.doc=v;const b=$('mcb');if(b)b.innerHTML=mcBody()}
+function mcList(){
+  const dev=U.role==='developer',s=MC.q.toLowerCase();
+  return (MC.v||[]).filter(v=>(dev?(!MC.doc||v.by===MC.doc):v.by===U.uid)&&(!s||((v.pname||'')+' '+(v.dx||'')+' '+(v.cc||'')).toLowerCase().includes(s)))
+}
+function mcBody(){
+  if(MC.err)return '<div class="cd"><p class="er2" style="margin:0">Could not load consultations. Check your connection.</p></div>';
+  if(MC.v===null)return '<div class="cd">Loading...</div>';
+  const l=mcList(),cd=(n,t)=>`<div class="cd" style="margin:0;padding:12px"><div style="color:var(--mu);font-size:13px">${t}</div><div style="font-size:24px;font-weight:600">${n}</div></div>`;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px">${cd(l.length,'Consultations')+cd(new Set(l.map(v=>v.pid)).size,'Patients seen')+cd(l.filter(v=>v.referral).length,'Referrals')+cd(l.filter(v=>v.fu).length,'With follow-up')}</div>`
+  +`<div class="cd"><div class="ov"><table><thead><tr><th>Date</th><th>Patient</th><th>Complaint and diagnosis</th><th>Notes</th></tr></thead><tbody>${l.length?l.map(v=>{
+    const n=v.rx?String(v.rx).split('; ').length:0;
+    return `<tr class="cl" onclick="view('${E(v.pid)}')"><td style="white-space:nowrap">${E(v.d)}</td><td>${E(v.pname)}${U.role==='developer'&&v.byName?`<small style="display:block;color:var(--mu)">${E(v.byName)}</small>`:''}</td><td>${E(v.dx||'No diagnosis')}<small style="display:block;color:var(--mu)">${E(v.cc||'')}</small></td><td>${v.referral?tgh('Referred','wa')+' ':''}${v.fu?tgh('Follow-up '+E(v.fu),'ok')+' ':''}${n?`<small style="color:var(--mu)">${n} Rx</small>`:''}</td></tr>`}).join(''):'<tr><td colspan="4">No consultations in this range.</td></tr>'}</tbody></table></div><p style="color:var(--mu);font-size:13px;margin:10px 0 0">Click a row to open the patient profile.</p></div>`
+}
+function mcPg(){
+  const dev=U.role==='developer';
+  if(!MC.from){[MC.from,MC.to]=mcRange(MC.r)}
+  const chips=[['today','Today'],['week','This week'],['month','This month'],['custom','Custom']].map(([k,t])=>`<button class="bt ${MC.r===k?'':'g'}" onclick="mcSetR('${k}')">${t}</button>`).join('');
+  const cust=MC.r==='custom'?`<div><label>From</label><input type="date" id="mcf" value="${E(MC.from)}"></div><div><label>To</label><input type="date" id="mct" value="${E(MC.to)}"></div><button class="bt" onclick="mcApply()">Show</button>`:'';
+  const docs=dev?[...new Map((MC.v||[]).filter(v=>v.by).map(v=>[v.by,v.byName||v.by])).entries()]:[];
+  return `<h2 style="margin-top:0">${dev?'Consultations':'My consultations'}</h2><div class="cd"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">${chips}${cust}</div><div class="er2" id="mce"></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">${dev?`<select style="width:auto" onchange="mcDoc(this.value)" aria-label="Doctor"><option value="">All doctors</option>${docs.map(([u,n])=>`<option value="${E(u)}" ${MC.doc===u?'selected':''}>${E(n)}</option>`).join('')}</select>`:''}<input placeholder="Search patient or diagnosis" value="${E(MC.q)}" oninput="mcSq(this.value)" style="flex:1;min-width:180px"><button class="bt g" onclick="mcCsv()">Download CSV</button></div></div><div id="mcb" style="margin-top:12px">${mcBody()}</div>`
+}
+async function mcCsv(){
+  if(MC.v===null||MC.err)return sAlert('The list is not loaded yet.');
+  const l=mcList();if(!l.length)return sAlert('There are no consultations to download in this range.');
+  const rows=[['date','patient_id','patient','complaint','diagnosis','treatment','referred_to','referral_reason','follow_up_date','doctor']].concat(l.map(v=>[v.d,v.pid,v.pname,v.cc||'',v.dx||'',v.tx||'',(v.referral||{}).to||'',(v.referral||{}).why||'',v.fu||'',v.byName||'']));
+  ioDl('consultations-'+MC.from+'_to_'+MC.to+'.csv',rows);await lg('Downloaded consultation list ('+l.length+' consultations)')
 }
 /* ---------- Follow-ups ---------- */
 let FU=null,FUE=false,FUALL=false;
