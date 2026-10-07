@@ -11,7 +11,7 @@ a{color:var(--pr)}
 input:focus,select:focus,textarea:focus{outline:2px solid #14807f55;border-color:var(--pr)}
 .nv:hover{background:rgba(255,255,255,.08)}.mt{background:#e8ecef;color:#5b6b7a}.bt.dn{color:var(--er);border-color:#e3b4ae}
 .app{display:flex;min-height:100vh}
-.sb{width:230px;background:var(--nv);color:var(--nt);padding:16px 10px;flex:none;display:flex;flex-direction:column;gap:2px}
+.sb{width:230px;background:var(--nv);color:var(--nt);padding:16px 10px;flex:none;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;align-self:flex-start;height:100vh;height:100dvh;overflow-y:auto}
 .sb h1{font-size:15px;color:#fff;margin:0;font-weight:600;line-height:1.25}
 .sb .bd{display:flex;align-items:center;gap:10px;margin:0 8px 14px}
 .sb .bd img{height:42px;width:42px;object-fit:contain;flex:none}
@@ -65,7 +65,7 @@ label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
 .lg{max-width:440px;margin:0 auto;padding:24px 14px}
 .hm{display:none}
 .sbc,.sbx{display:none}
-@media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;width:75%;z-index:5;display:none}.sb.open{display:flex}.sb.open~.sbx{display:block;position:fixed;top:0;right:0;bottom:0;left:0;z-index:4;background:rgba(0,0,0,.45)}.sbc{display:inline-block;margin-left:auto;flex:none;background:transparent;border:0;color:#fff;font-size:28px;line-height:1;padding:4px 8px;cursor:pointer}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px}}
+@media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;height:auto;width:75%;z-index:5;display:none;overflow-y:auto}.sb.open{display:flex}.sb.open~.sbx{display:block;position:fixed;top:0;right:0;bottom:0;left:0;z-index:4;background:rgba(0,0,0,.45)}.sbc{display:inline-block;margin-left:auto;flex:none;background:transparent;border:0;color:#fff;font-size:28px;line-height:1;padding:4px 8px;cursor:pointer}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px}}
 </style></head><body><div id="root"></div>
 <script type="module">
 import{firebaseConfig as C}from'./firebase-config.js';
