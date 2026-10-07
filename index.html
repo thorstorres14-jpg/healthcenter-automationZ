@@ -43,6 +43,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid #14807f55;border-color
 .dmh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:14px 16px 8px}.dmh b{font-size:17px;display:block}.dmh small{color:var(--mu);font-size:13px}
 .dmb{overflow:auto;padding:0 16px}.dmr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--bd);font-size:14px}.dmr small{display:block;color:var(--mu);font-size:12px}
 .dmf{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--bd)}
+.dlo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:200}
+.dlc{background:var(--cd);border-radius:12px;max-width:380px;width:100%;padding:18px 20px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+.dlc b{font-size:17px;display:block;margin-bottom:6px}.dlc p{margin:0;color:var(--mu);font-size:14px;line-height:1.45}
+.dli{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.dlf{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
 .dbr{display:grid;grid-template-columns:minmax(80px,32%) 1fr 40px;gap:10px;align-items:center;font-size:14px;margin:9px 0}.dbr .tr{height:10px;border-radius:6px;background:var(--bd);overflow:hidden}.dbr .tr i{display:block;height:100%;background:var(--pr);border-radius:6px}.dbr b{text-align:right;font-weight:600}
 .dcol{display:flex;align-items:stretch;gap:8px;height:140px}.dcol div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-size:12px;color:var(--mu);gap:3px}.dcol i{display:block;width:100%;max-width:30px;background:var(--pr);border-radius:6px 6px 0 0;min-height:3px}.dcol b{font-size:12px;color:var(--tx);font-weight:600}
 .gr{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
@@ -94,7 +99,7 @@ const syncDisp=(x,extra)=>setDoc(doc(db,'queueDisplay',x.id),{day:x.day,num:x.nu
 async function setRooms(){
   const er=$('rme'),n=parseInt($('rmn').value);er.textContent='';
   if(!(n>=1&&n<=20)){er.textContent='Enter a number from 1 to 20.';return}
-  try{await setDoc(doc(db,'meta','settings'),{rooms:n,by:U.name,at:serverTimestamp()},{merge:true});S.rooms=n;await lg('Consultation rooms: '+n);er.textContent='Saved.'}
+  try{await setDoc(doc(db,'meta','settings'),{rooms:n,by:U.name,at:serverTimestamp()},{merge:true});S.rooms=n;await lg('Consultation rooms: '+n);er.textContent='';sDone('Consultation rooms updated.')}
   catch(x){er.textContent='Could not save. Check your connection.'}
 }
 const vRoles=()=>Array.isArray(S.vitalsRoles)?S.vitalsRoles:VDEF;
@@ -145,17 +150,17 @@ async function apApprove(ri){
   try{const b=writeBatch(db);
     b.update(doc(db,'prescriptions',r.id),{items,rx,status:'pending',approvedBy:U.uid,approvedByName:U.name,approvedAt:serverTimestamp(),edited:rx!==r.rx});
     if(r.vid)b.update(doc(db,'visits',r.vid),{rx});
-    await b.commit();await lg('Approved prescription '+r.pid+' '+r.d);await loadAppr()}
+    await b.commit();await lg('Approved prescription '+r.pid+' '+r.d);sDone('The prescription was approved and sent to the pharmacy.','Prescription approved');await loadAppr()}
   catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to approve.':'Could not save. Check your connection.'}
 }
 async function apReject(ri){
-  const r=AP[ri],er=$('ape'+ri),why=prompt('Reason for rejecting (optional)','');if(why===null)return;
-  try{await updateDoc(doc(db,'prescriptions',r.id),{status:'rejected',rejectedBy:U.uid,rejectedByName:U.name,rejectReason:why.trim(),rejectedAt:serverTimestamp()});await lg('Rejected prescription '+r.pid+' '+r.d);await loadAppr()}
+  const r=AP[ri],er=$('ape'+ri),why=await sPrompt('Reject prescription','Reason for rejecting (optional)','','Reject');if(why===null)return;
+  try{await updateDoc(doc(db,'prescriptions',r.id),{status:'rejected',rejectedBy:U.uid,rejectedByName:U.name,rejectReason:why.trim(),rejectedAt:serverTimestamp()});await lg('Rejected prescription '+r.pid+' '+r.d);sDone('The prescription was rejected.','Prescription rejected');await loadAppr()}
   catch(x){er.textContent='Could not save. Check your connection.'}
 }
 async function saveRxApprove(){
   const er=$('rae'),n=$('raw').checked?['midwife']:[],ex=$('rax').value.split('\n').map(x=>x.trim()).filter(Boolean);er.textContent='';
-  try{await setDoc(doc(db,'meta','settings'),{rxApprove:n,rxExempt:ex,by:U.name,at:serverTimestamp()},{merge:true});S.rxApprove=n;S.rxExempt=ex;await lg('Rx approval: '+(n.length?'required for midwife':'off')+', exempt: '+ex.length);er.textContent='Saved.'}
+  try{await setDoc(doc(db,'meta','settings'),{rxApprove:n,rxExempt:ex,by:U.name,at:serverTimestamp()},{merge:true});S.rxApprove=n;S.rxExempt=ex;await lg('Rx approval: '+(n.length?'required for midwife':'off')+', exempt: '+ex.length);er.textContent='';sDone('Prescription approval settings saved.')}
   catch(x){er.textContent='Could not save. Check your connection.'}
 }
 const rxApproveCard=()=>`<div class="cd"><h3 style="margin-top:0">Doctor approval for prescriptions</h3><p style="color:var(--mu);margin-top:0">When on, prescriptions saved by a midwife / nurse wait for a doctor to approve them (Rx approvals page) before the pharmacist can see them.</p><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input id="raw" type="checkbox" style="width:auto" ${rxApprove().includes('midwife')?'checked':''}><span>Require doctor approval for prescriptions written by Midwife / Nurse</span></label><label style="margin-top:10px">Medicines that do not need approval (one per line, for example Paracetamol)</label><textarea id="rax" rows="4">${E(rxExempt().join('\n'))}</textarea><div class="er2" id="rae"></div><button class="bt" style="margin-top:10px" onclick="saveRxApprove()">Save</button></div>`;
@@ -175,7 +180,7 @@ async function savePlaces(){
     seen.add(name.toLowerCase());
     out.push({name,puroks:[...new Set(r.querySelector('.pp').value.split('\n').map(x=>x.trim()).filter(Boolean))]})
   }
-  try{await setDoc(doc(db,'meta','settings'),{places:out,by:U.name,at:serverTimestamp()},{merge:true});S.places=out;await lg('Updated barangay and purok list ('+out.length+' barangays)');er.textContent='Saved.'}
+  try{await setDoc(doc(db,'meta','settings'),{places:out,by:U.name,at:serverTimestamp()},{merge:true});S.places=out;await lg('Updated barangay and purok list ('+out.length+' barangays)');er.textContent='';sDone('Barangay and purok list saved.')}
   catch(x){er.textContent='Could not save. Check your connection.'}
 }
 let VH=[];
@@ -206,7 +211,7 @@ async function lhSave(){
   const er=$('lhe'),g=i=>$(i).value.trim(),n=g('lh1');er.textContent='';
   if(!n){er.textContent='Enter the facility name.';return}
   const v={name:n,mun:g('lh2'),addr:g('lh3'),contact:g('lh4'),office:g('lh5'),logo:lhLogo===undefined?lh().logo:lhLogo};
-  try{await setDoc(doc(db,'meta','settings'),{lh:v,by:U.name,at:serverTimestamp()},{merge:true});S.lh=v;lhLogo=undefined;try{await setDoc(doc(db,'displayConfig','main'),{name:v.name,logo:v.logo||'',at:serverTimestamp()},{merge:true})}catch(e){er.textContent='Saved, but the display could not be updated (admin or developer only).';await lg('Updated letterhead');return}await lg('Updated letterhead');er.textContent='Saved.'}
+  try{await setDoc(doc(db,'meta','settings'),{lh:v,by:U.name,at:serverTimestamp()},{merge:true});S.lh=v;lhLogo=undefined;try{await setDoc(doc(db,'displayConfig','main'),{name:v.name,logo:v.logo||'',at:serverTimestamp()},{merge:true})}catch(e){er.textContent='';await lg('Updated letterhead');dlg({kind:'ask',title:'Saved with a warning',msg:'The letterhead was saved, but the waiting-area display could not be updated (admin or developer only).',ok:'OK'});return}await lg('Updated letterhead');er.textContent='';sDone('Letterhead saved.')}
   catch(x){er.textContent=x.code==='permission-denied'?'Only the developer can change the letterhead.':'Could not save. Check your connection.'}
 }
 function printDoc(html,size){
@@ -214,13 +219,13 @@ function printDoc(html,size){
   const w=f.contentWindow,d=w.document;d.open();
   d.write('<!doctype html><html><head><meta charset="utf-8"><title>Print</title><style>@page{size:'+size+';margin:14mm}body{font-family:Georgia,"Times New Roman",serif;color:#000;font-size:14px;margin:0}.hd{display:flex;align-items:center;gap:14px;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:14px}.lg{height:72px;width:72px;object-fit:contain}.ht{flex:1;text-align:center}.ht h1{margin:0;font-size:22px}.ht .s{font-size:12px}.ht .t{margin-top:4px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;font-weight:bold}.row{display:flex;justify-content:space-between;gap:12px;margin:4px 0}.rx{font-size:36px;font-weight:bold;margin:14px 0 6px}ol{margin:0;padding-left:24px}li{margin-bottom:10px;font-size:15px}.sig{margin-top:70px;text-align:right}.sig div{display:inline-block;min-width:230px;text-align:center}.sig .ln{border-top:1px solid #000;padding-top:4px}h2{text-align:center;letter-spacing:.2em;margin:22px 0}p{line-height:1.8;text-align:justify;font-size:15px}.ft{margin-top:30px;font-size:11px;color:#444}</style></head><body>'+html+'</body></html>');
   d.close();
-  w.onafterprint=()=>f.remove();setTimeout(()=>{try{w.focus();w.print()}catch(e){alert('Could not open the print dialog.')}},300);setTimeout(()=>f.remove(),120000)
+  w.onafterprint=()=>f.remove();setTimeout(()=>{try{w.focus();w.print()}catch(e){sAlert('Could not open the print dialog.')}},300);setTimeout(()=>f.remove(),120000)
 }
 const longD=d=>new Date(d+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'});
 function printRx(i){
   const v=VH[i],p=P.find(x=>x.id===pid);if(!v||!p)return;
   const items=(v.rx||'').split('; ').map(x=>x.trim()).filter(Boolean);
-  if(!items.length)return alert('No medicines were prescribed in this visit.');
+  if(!items.length)return sAlert('No medicines were prescribed in this visit.');
   lg('Printed prescription '+p.id+' '+v.d);
   printDoc(`${lhHtml('Prescription')}<div class="row"><span><b>Patient:</b> ${E(pn(p))}</span><span><b>Date:</b> ${E(longD(v.d))}</span></div><div class="row"><span><b>Age / Sex:</b> ${E(age(p.dob))} / ${p.sex==='M'?'Male':'Female'}</span><span><b>Patient ID:</b> ${E(p.id)}</span></div><div class="row"><span><b>Address:</b> ${E(p.pu+', '+p.br)}</span></div><div class="rx">&#8478;</div><ol>${items.map(t=>`<li>${E(t)}</li>`).join('')}</ol><div class="sig"><div class="ln">${E(U.name)}<br><small>${E(RN[U.role]||U.role)}<br>${licTxt()}</small></div></div>`,'A5 portrait')
 }
@@ -430,6 +435,31 @@ async function loadMt(){
   if(p)p.innerHTML=`<div class="dh" style="margin-top:0"><b>Requests to process</b><span><a href="#" onclick="go('lab');return false">Open Lab</a></span></div>`+(PL.p.length?PL.p.slice(0,5).map(r=>dmr(E(r.pname),E(r.test),E(r.d||''))).join('')+more(PL.p.length,5):'<p style="color:var(--mu);margin:6px 0 0">No requests waiting.</p>');
   if(d)d.innerHTML=`<div class="dh" style="margin-top:0"><b>Done today</b><span></span></div>`+(PL.d.length?PL.d.slice(0,5).map(r=>dmr(E(r.pname),E(r.test),E(r.result||''))).join('')+more(PL.d.length,5):'<p style="color:var(--mu);margin:6px 0 0">None yet.</p>')
 }
+/* ---------- Dialogs: replace the browser alert and confirm popups ---------- */
+const DLI={err:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',ok:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/>',ask:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/>',del:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'};
+const DLC={err:['#fde4e1','var(--er)'],ok:['#dcf3e4','var(--ok)'],ask:['#fff1d6','var(--wa)'],del:['#fde4e1','var(--er)']};
+function dlg(o){
+  return new Promise(res=>{
+    const k=o.kind||'err',ov=document.createElement('div');ov.className='dlo';
+    const done=v=>{ov.remove();removeEventListener('keydown',onk,true);res(v)};
+    const onk=e=>{if(e.key==='Escape'){const all=document.querySelectorAll('.dlo');if(all[all.length-1]===ov){e.stopPropagation();done(o.input!==undefined?null:false)}}};
+    ov.innerHTML=`<div class="dlc" role="alertdialog" aria-modal="true" aria-label="${E(o.title)}"><div class="dli" style="background:${DLC[k][0]};color:${DLC[k][1]}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${DLI[k]}</svg></div><b>${E(o.title)}</b><p>${E(o.msg)}</p>${o.input!==undefined?`<input value="${E(o.input)}" autocomplete="off" style="width:100%;margin-top:10px">`:''}<div class="dlf">${o.cancel?`<button class="bt g" data-v="0">${E(o.cancel)}</button>`:''}<button class="bt ${o.danger?'g dn':''}" data-v="1">${E(o.ok||'OK')}</button></div></div>`;
+    const inp=ov.querySelector('input');
+    ov.onclick=e=>{if(e.target===ov)done(inp?null:!o.cancel)};
+    ov.querySelectorAll('button').forEach(b=>{b.onclick=()=>done(b.dataset.v==='1'?(inp?inp.value:true):(inp?null:false))});
+    document.body.appendChild(ov);addEventListener('keydown',onk,true);
+    if(inp){inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();ov.querySelector('[data-v="1"]').click()}};inp.focus();inp.select()}
+    else{const fb=ov.querySelector(o.danger&&o.cancel?'[data-v="0"]':'[data-v="1"]');if(fb)fb.focus()}
+    if(o.auto)setTimeout(()=>{if(ov.isConnected)done(true)},o.auto)
+  })
+}
+function sAlert(msg){
+  const m=String(msg),perm=/permission/i.test(m),bad=perm||/^could not|error|failed|invalid|cannot/i.test(m),good=/^saved/i.test(m);
+  return dlg({kind:good?'ok':bad?'err':'ask',title:perm?'Not allowed':bad?'Something went wrong':good?'Saved':'Notice',msg:m,ok:'OK'})
+}
+const sConfirm=(msg,title,ok,danger)=>dlg({kind:danger?'del':'ask',title,msg,ok,cancel:'Cancel',danger});
+const sDone=(msg,title)=>dlg({kind:'ok',title:title||'Saved',msg,ok:'OK',auto:2500});
+const sPrompt=(title,msg,def,ok)=>dlg({kind:'ask',title,msg,ok:ok||'OK',cancel:'Cancel',input:def==null?'':String(def)});
 function dash(){
   if(U.role==='pharmacist')return pdDash();if(U.role==='medtech')return mtDash();
   const hh=new Set(P.map(x=>x.hh)).size,today=new Date().toLocaleDateString('en-CA'),brg={};
@@ -480,7 +510,7 @@ async function save(aq){
       np={id:'RHU-'+String(n).padStart(6,'0'),fn:f[0],ln:f[1],mn:g('f9'),sex:f[2],dob:f[3],br:f[4],pu:f[5],tel:g('f7'),hh:h,consent:true,consentBy:U.name,createdDay:new Date().toLocaleDateString('en-CA')};
       tx.set(doc(db,'patients',np.id),{...np,createdAt:serverTimestamp()});
     });
-    P.push(np);regHH='';await lg('Registered '+np.id);view(np.id);if(aq)qAskV(np.id,'');
+    P.push(np);regHH='';await lg('Registered '+np.id);if(!aq)sDone(pn(np)+' was registered.','Patient registered');view(np.id);if(aq)qAskV(np.id,'');
   }catch(x){$('sv').disabled=false;$('sv2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to register patients.':'Could not save. Registration needs an internet connection.')}
 }
 const AOPT=[['admin','Admin'],['frontdesk','Front desk'],['midwife','Midwife / Nurse'],['doctor','Doctor (MHO)'],['bhw','BHW'],['pharmacist','Pharmacist'],['medtech','Medical technologist']];
@@ -514,13 +544,13 @@ async function postAnn(){
   if(d==='date'){const v=$('andt').value;if(!v){er.textContent='Pick the date and time until when it should show.';return}
     until=new Date(v).getTime();if(!(until>Date.now())){er.textContent='That date and time has already passed. Pick a later one.';return}}
   else until=d==='0'?null:d==='eod'?new Date(new Date().setHours(23,59,59,999)).getTime():Date.now()+Number(d)*3600000;
-  try{await setDoc(doc(db,'announcement','current'),{text:t,until,at:serverTimestamp()});await lg('Posted announcement');await loadAnn();er.textContent='Posted.'}
+  try{await setDoc(doc(db,'announcement','current'),{text:t,until,at:serverTimestamp()});await lg('Posted announcement');await loadAnn();er.textContent='';sDone('The announcement is now on the display.','Announcement posted')}
   catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to post announcements.':'Could not post. Check your connection.'}
 }
 async function clearAnn(){
   const er=$('ane2');er.textContent='';
-  if(!confirm('Remove the announcement from the display?'))return;
-  try{await setDoc(doc(db,'announcement','current'),{text:'',until:null,at:serverTimestamp()});await lg('Cleared announcement');$('antx').value='';await loadAnn();er.textContent='Cleared.'}
+  if(!await sConfirm('Remove the announcement from the display?','Remove announcement?','Remove',1))return;
+  try{await setDoc(doc(db,'announcement','current'),{text:'',until:null,at:serverTimestamp()});await lg('Cleared announcement');$('antx').value='';await loadAnn();er.textContent='';sDone('The announcement was removed from the display.','Announcement removed')}
   catch(x){er.textContent='Could not clear. Check your connection.'}
 }
 const soundCard=()=>{setTimeout(loadSound,0);return `<div class="cd"><h3 style="margin-top:0">Display sound</h3><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input id="snden" type="checkbox" style="width:auto" checked onchange="setSound(this.checked,this)"><span>Announce patient calls with a chime and voice on the waiting-area display</span></label><p style="color:var(--mu);font-size:13px;margin:8px 0 0">When off, the display is silent and does not ask to turn on sound. When on, the browser still needs one tap on the display after each refresh.</p><div class="er2" id="sndr"></div></div>`};
@@ -534,9 +564,9 @@ const roomsCard=()=>`<div class="cd"><h3 style="margin-top:0">Consultation rooms
 const usr=()=>`<h2 style="margin-top:0">Users</h2>${U.role==='admin'?roomsCard()+soundCard():''}<div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Last name</label><input id="u1a"></div><div><label>First name</label><input id="u1b"></div><div><label>Middle name (optional)</label><input id="u1c"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>PRC license no. (optional)</label><input id="u5"></div><div><label>Role</label><select id="u4">${ROLES.filter(r=>r[0]!=='developer'||U.role==='developer').map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd"><h3 style="margin-top:0">Demo data (for testing only)</h3><p style="color:var(--mu);margin-top:0">Creates 6 demo staff accounts (doctor, midwife, pharmacist, medtech, BHW, front desk) and 20 made-up patients in 7 households. Emails look like <b>demo.doctor@example.com</b>. Do not use real patient data here.</p><div class="fm"><div><label>Password for the demo accounts (8+ characters)</label><input id="dp" type="text" autocomplete="off"></div></div><div class="er2" id="de"></div><button class="bt" id="db" style="margin-top:12px" onclick="loadDemo()">Load demo data</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
 const ULM={};
 async function editLic(id){
-  const u=ULM[id]||{},v=prompt('PRC license number for '+(u.name||'this user')+' (leave empty to remove)',u.lic||'');if(v===null)return;
-  try{await updateDoc(doc(db,'users',id),{lic:v.trim()});if(id===U.uid)U.lic=v.trim();await lg('Updated license no. for '+(u.email||id));loadUsers()}
-  catch(x){alert('Could not save ('+(x.code||x.message)+').')}
+  const u=ULM[id]||{},v=await sPrompt('License number','PRC license number for '+(u.name||'this user')+' (leave empty to remove)',u.lic||'','Save');if(v===null)return;
+  try{await updateDoc(doc(db,'users',id),{lic:v.trim()});if(id===U.uid)U.lic=v.trim();await lg('Updated license no. for '+(u.email||id));sDone('The license number was updated.','License updated');loadUsers()}
+  catch(x){sAlert('Could not save ('+(x.code||x.message)+').')}
 }
 async function loadUsers(){
   try{const s=await getDocs(collection(db,'users'));$('ul').innerHTML=`<table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>License no.</th><th>Status</th><th></th></tr></thead><tbody>${s.docs.map(d=>{const u=d.data(),on=u.active!==false;ULM[d.id]=u;return `<tr><td>${E(u.name)}</td><td>${E(u.email)}</td><td>${E(RN[u.role]||u.role)}</td><td>${E(u.lic||'-')}</td><td><span class="tg ${on?'ok':'wa'}">${on?'Active':'Inactive'}</span></td><td>${(u.role==='developer'&&U.role!=='developer')?'':`<button class="bt g" onclick="editLic('${d.id}')">License</button> `}${d.id===U.uid||(u.role==='developer'&&U.role!=='developer')?'':`<button class="bt g" onclick="setActive('${d.id}',${!on})">${on?'Deactivate':'Activate'}</button>${can('adminDelete')&&u.role!=='developer'?` <button class="bt g" onclick="removeUser('${d.id}')">Remove</button>`:''}`}</td></tr>`}).join('')}</tbody></table>`}catch(e){$('ul').textContent='Could not load users.'}
@@ -593,9 +623,9 @@ async function setPower(k,v,el){
   catch(x){el.checked=!v;e.textContent='Could not save the setting ('+(x.code||x.message)+'). Publish the latest firestore.rules first.'}
 }
 async function removeUser(id){
-  if(!confirm('Remove this staff account? They will no longer be able to use the system.'))return;
-  try{await deleteDoc(doc(db,'users',id));await lg('Removed user '+id);loadUsers()}
-  catch(x){alert('Could not remove the account ('+(x.code||x.message)+').')}
+  if(!await sConfirm('Remove this staff account? They will no longer be able to use the system.','Remove account?','Remove',1))return;
+  try{await deleteDoc(doc(db,'users',id));await lg('Removed user '+id);sDone('The account was removed.','Account removed');loadUsers()}
+  catch(x){sAlert('Could not remove the account ('+(x.code||x.message)+').')}
 }
 function editP(){pg='edit';R();scrollTo(0,0)}
 function ed(){
@@ -607,14 +637,14 @@ async function saveEdit(){
   if(!ch.fn||!ch.ln||!ch.sex||!ch.dob||!ch.br||!ch.pu)return e('Fill in all fields except the contact number.');
   if(new Date(ch.dob)>new Date())return e('Birthdate cannot be in the future.');
   $('sv').disabled=true;e('');
-  try{await updateDoc(doc(db,'patients',p.id),ch);Object.assign(p,ch);await lg('Edited '+p.id);view(p.id,1)}
+  try{await updateDoc(doc(db,'patients',p.id),ch);Object.assign(p,ch);await lg('Edited '+p.id);sDone('Changes to '+pn(p)+' were saved.','Patient updated');view(p.id,1)}
   catch(x){$('sv').disabled=false;e(x.code==='permission-denied'?'You do not have permission to edit patients.':'Could not save. Check your connection.')}
 }
 async function delP(){
   const p=P.find(x=>x.id===pid);
-  if(!p||!confirm('Delete '+pn(p)+' ('+p.id+')? This cannot be undone.'))return;
-  try{await deleteDoc(doc(db,'patients',p.id));P=P.filter(x=>x.id!==p.id);await lg('Deleted '+p.id+' ('+pn(p)+')');go('patients')}
-  catch(x){alert(x.code==='permission-denied'?'You do not have permission to delete patients.':'Could not delete. Check your connection.')}
+  if(!p||!await sConfirm('Delete '+pn(p)+' ('+p.id+')? This cannot be undone.','Delete patient?','Delete',1))return;
+  try{await deleteDoc(doc(db,'patients',p.id));P=P.filter(x=>x.id!==p.id);await lg('Deleted '+p.id+' ('+pn(p)+')');sDone(pn(p)+' was deleted.','Patient deleted');go('patients')}
+  catch(x){sAlert(x.code==='permission-denied'?'You do not have permission to delete patients.':'Could not delete. Check your connection.')}
 }
 function sq(v){q=v;const t=$('tbl');if(t)t.innerHTML=(pg==='hh'?hhRows:rows)()}
 /* ---------- Households ---------- */
@@ -643,25 +673,25 @@ function qSearch(v){
   const l=P.filter(p=>(pn(p)+' '+p.id).toLowerCase().includes(s)).slice(0,6);
   r.innerHTML=l.length?`<div class="ov"><table><tbody>${l.map(p=>`<tr><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td><td><input id="rs-${p.id}" placeholder="Reason (e.g. check-up)" style="min-width:150px"></td><td><button class="bt" onclick="qAskV('${p.id}')">Add</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">No match.</p>'+(canReg()?'<button class="bt" onclick="go(\'reg\')">Register new patient</button>':'')}
 async function qAdd(id,r,v){
-  const el=$('rs-'+id),reason=((r!==undefined?r:(el?el.value:''))||'').trim()||'Check-up',p=P.find(x=>x.id===id),er=$('qe'),say=m=>{if(er)er.textContent=m;else alert(m)};
+  const el=$('rs-'+id),reason=((r!==undefined?r:(el?el.value:''))||'').trim()||'Check-up',p=P.find(x=>x.id===id),er=$('qe'),say=m=>{if(er)er.textContent=m;else sAlert(m)};
   await fetchQ();
   if(Q.some(x=>x.pid===id&&['waiting','in-consult'].includes(x.status)))return say("That patient is already in today's queue.");
   try{
     const num=Q.reduce((m,x)=>Math.max(m,x.num||0),0)+1;
     const nr=await addDoc(collection(db,'queue'),{pid:id,name:pn(p),age:age(p.dob),sex:p.sex,reason,status:'waiting',day:today(),num,by:U.name,at:serverTimestamp(),...(v?{vitals:v,vitalsBy:U.name,vitalsAt:serverTimestamp()}:{})});
     syncDisp({id:nr.id,day:today(),num},{status:'waiting'});
-    await lg('Queued '+id);
+    await lg('Queued '+id);{const qp=P.find(x=>x.id===id);sDone((qp?pn(qp):'The patient')+' was added to today\'s queue.','Added to queue')}
     if(pg==='queue'){await fetchQ();refreshQ();$('qsrch').value='';$('qres').innerHTML='';if(er)er.textContent=''}else go('queue')
   }catch(x){say(x.code==='permission-denied'?'You do not have permission to add to the queue.':'Could not add. Check your connection.')}
 }
-async function qAddP(){const r=prompt('Reason for visit (short)','Check-up');if(r===null)return;await qAskV(pid,r)}
+async function qAddP(){const r=await sPrompt('Reason for visit','Reason for visit (short)','Check-up','Add to queue');if(r===null)return;await qAskV(pid,r)}
 let vq=null,qPend=null;
 function readV(p){const v={};VF.forEach(([k,l,lo,hi])=>{const t=$(p+k).value.trim();if(t==='')return;const n=Number(t);if(!isFinite(n)||n<lo||n>hi)throw new Error(l+' looks wrong. Please check it.');v[k]=n});return v}
 async function qAskV(id,r){
   const el=$('rs-'+id),reason=((r!==undefined?r:(el?el.value:''))||'').trim();
   if(!canVitals())return qAdd(id,reason);
   await fetchQ();
-  if(Q.some(x=>x.pid===id&&['waiting','in-consult'].includes(x.status))){const er=$('qe'),m="That patient is already in today's queue.";return er?er.textContent=m:alert(m)}
+  if(Q.some(x=>x.pid===id&&['waiting','in-consult'].includes(x.status))){const er=$('qe'),m="That patient is already in today's queue.";return er?er.textContent=m:sAlert(m)}
   qPend={id,reason};const p=P.find(x=>x.id===id),d=document.createElement('div');
   d.id='vmod';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px;z-index:50';
   d.innerHTML=`<div class="cd" style="max-width:640px;width:100%;margin:auto"><h3 style="margin-top:0">Vitals: ${E(pn(p))}</h3><div class="fm">${VF.map(([k,l])=>`<div><label>${l}</label><input id="mv-${k}" type="number" step="any" inputmode="decimal"></div>`).join('')}</div><div class="er2" id="vme"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="bt" onclick="qVGo(true)">Save vitals and add to queue</button><button class="bt g" onclick="qVGo(false)">Skip, add without vitals</button><button class="bt g" onclick="qVX()">Cancel</button></div></div>`;
@@ -680,7 +710,7 @@ function vOpen(id){vq=id;refreshQ()}
 async function vSave(id){
   const er=$('ve2'),vit={};
   try{VF.forEach(([k,l,lo,hi])=>{const s=$('qv-'+k).value.trim();if(s==='')return;const n=Number(s);if(!isFinite(n)||n<lo||n>hi)throw new Error(l+' looks wrong. Please check it.');vit[k]=n});if(!Object.keys(vit).length)throw new Error('Enter at least one value.')}catch(x){er.textContent=x.message;return}
-  try{await updateDoc(doc(db,'queue',id),{vitals:vit,vitalsBy:U.name,vitalsAt:serverTimestamp()});await lg('Vitals recorded '+id);vq=null;await fetchQ();refreshQ()}
+  try{await updateDoc(doc(db,'queue',id),{vitals:vit,vitalsBy:U.name,vitalsAt:serverTimestamp()});await lg('Vitals recorded '+id);sDone('The vitals were saved.','Vitals saved');vq=null;await fetchQ();refreshQ()}
   catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to record vitals.':'Could not save. Check your connection.'}
 }
 async function setVitalsRole(k,v,el){
@@ -690,9 +720,9 @@ async function setVitalsRole(k,v,el){
   catch(x){if(el)el.checked=!v;if(er)er.textContent='Could not save. Check your connection.'}
 }
 async function qCancel(id){
-  if(!confirm('Remove this patient from today\'s queue?'))return;
-  try{await updateDoc(doc(db,'queue',id),{status:'cancelled'});{const x=Q.find(e=>e.id===id);if(x)syncDisp(x,{status:'cancelled'})}await lg('Cancelled queue '+id);await fetchQ();refreshQ()}
-  catch(x){alert('Could not update the queue ('+(x.code||x.message)+').')}
+  if(!await sConfirm('Remove this patient from today\'s queue?','Remove from queue?','Remove',1))return;
+  try{await updateDoc(doc(db,'queue',id),{status:'cancelled'});{const x=Q.find(e=>e.id===id);if(x)syncDisp(x,{status:'cancelled'})}await lg('Cancelled queue '+id);sDone('The patient was removed from today\'s queue.','Removed from queue');await fetchQ();refreshQ()}
+  catch(x){sAlert('Could not update the queue ('+(x.code||x.message)+').')}
 }
 const qWho=x=>x.status==='in-consult'&&x.byName?`<br><small style="color:var(--mu)">with ${E(x.byName)}${x.room?' | Room '+x.room:''}</small>`:'';
 async function claimQ(id,room){
@@ -706,24 +736,24 @@ async function claimQ(id,room){
 }
 async function claimUI(id,room){
   try{await claimQ(id,room);return true}
-  catch(e){alert(e.code==='taken'?'This patient is already being seen by '+(e.who||'another staff member')+'.':(e.code==='closed'||e.code==='gone')?'This patient is no longer waiting in the queue.':'Could not start the consultation. Check your connection.');await fetchQ();refreshQ();return false}
+  catch(e){sAlert(e.code==='taken'?'This patient is already being seen by '+(e.who||'another staff member')+'.':(e.code==='closed'||e.code==='gone')?'This patient is no longer waiting in the queue.':'Could not start the consultation. Check your connection.');await fetchQ();refreshQ();return false}
 }
 const busyMine=id=>Q.filter(e=>e.status==='in-consult'&&e.by===U.uid&&e.id!==id);
 const roomOk=id=>{
-  const r=curRoom();if(!r){alert('Choose your room first.');return null}
+  const r=curRoom();if(!r){sAlert('Choose your room first.');return null}
   const oc=Q.find(e=>e.status==='in-consult'&&e.room===r&&e.id!==id&&e.by!==U.uid);
-  if(oc){alert('Consultation '+r+' is in use by '+(oc.byName||'another staff member')+' (patient '+qn(oc.num)+'). Choose another room.');return null}
+  if(oc){sAlert('Consultation '+r+' is in use by '+(oc.byName||'another staff member')+' (patient '+qn(oc.num)+'). Choose another room.');return null}
   return r};
-const busyOk=id=>{const m=busyMine(id);return !m.length||confirm('You are already seeing '+m.map(e=>e.name).join(', ')+'. Start another patient at the same time?')};
+const busyOk=async id=>{const m=busyMine(id);return !m.length||await sConfirm('You are already seeing '+m.map(e=>e.name).join(', ')+'. Start another patient at the same time?','Start another patient?','Start',0)};
 async function startQ(id){
   await fetchQ();const x=Q.find(e=>e.id===id);if(!x)return;
-  const rm=roomOk(id);if(!rm||!busyOk(id))return;
+  const rm=roomOk(id);if(!rm||!(await busyOk(id)))return;
   if(!await claimUI(id,rm))return;
   cp=x.pid;cq=id;pg='consult';R();scrollTo(0,0)
 }
 async function startC(id){
   await fetchQ();const x=Q.find(e=>e.pid===id&&['waiting','in-consult'].includes(e.status));
-  if(x){const rm=roomOk(x.id);if(!rm||!busyOk(x.id))return;if(!await claimUI(x.id,rm))return}
+  if(x){const rm=roomOk(x.id);if(!rm||!(await busyOk(x.id)))return;if(!await claimUI(x.id,rm))return}
   cp=id;cq=x?x.id:null;pg='consult';R();scrollTo(0,0)
 }
 async function recallQ(id,el){
@@ -734,9 +764,9 @@ async function recallQ(id,el){
 async function releaseQ(id){
   await fetchQ();const x=Q.find(e=>e.id===id);if(!x||x.status!=='in-consult'){refreshQ();if(cq===id){cp=null;cq=null;R()}return}
   const o=x.by&&x.by!==U.uid;
-  if(!confirm(o?x.name+' is being seen by '+(x.byName||'another staff member')+'. Return to the waiting list anyway?':'Return '+x.name+' to the waiting list?'))return;
+  if(!await sConfirm(o?x.name+' is being seen by '+(x.byName||'another staff member')+'. Return to the waiting list anyway?':'Return '+x.name+' to the waiting list?','Return to waiting list?','Return',0))return;
   try{await updateDoc(doc(db,'queue',id),{status:'waiting',by:null,byName:null,room:null});syncDisp(x,{status:'waiting',room:null});await lg('Returned to waiting '+id)}
-  catch(e){alert('Could not update the queue ('+(e.code||e.message)+').');return}
+  catch(e){sAlert('Could not update the queue ('+(e.code||e.message)+').');return}
   await fetchQ();if(cq===id){cp=null;cq=null;R();scrollTo(0,0)}else refreshQ()
 }
 /* ---------- Consultation ---------- */
@@ -782,7 +812,7 @@ async function saveC(){
     if(items.length)b.set(doc(collection(db,'prescriptions')),{pid:p.id,pname:pn(p),vid:vr.id,d,rx,items,status:awaiting?'awaiting':'pending',by:U.uid,byName:U.name,at:serverTimestamp()});
     g('lt').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>b.set(doc(collection(db,'labs')),{pid:p.id,pname:pn(p),vid:vr.id,d,test:t,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()}));
     if(cq){b.update(doc(db,'queue',cq),{status:'done'});const qx=Q.find(e=>e.id===cq);if(qx)b.set(doc(db,'queueDisplay',cq),{day:qx.day,num:qx.num,status:'done',room:null},{merge:true})}
-    await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;if(awaiting)alert('Saved. The prescription was sent to the doctor for approval before it goes to the pharmacy.');view(p.id,1)
+    await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;if(awaiting)sAlert('Saved. The prescription was sent to the doctor for approval before it goes to the pharmacy.');else sDone('The consultation was saved.','Consultation saved');view(p.id,1)
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
 }
 /* ---------- Pharmacy ---------- */
@@ -826,7 +856,7 @@ async function siSave(){
       tx.update(r,{qty:after,exp,at:serverTimestamp()});
       tx.set(doc(collection(db,'stockin')),{key:k,name:cur.name,qty:n,d,exp:x,src,by:U.uid,byName:U.name,at:serverTimestamp()})
     });
-    await lg('Stock in '+v.name+' +'+n);SK[k]={...v,qty:after,exp};sio=null;siRender();phRender();loadSi()
+    await lg('Stock in '+v.name+' +'+n);sDone('Added '+n+' to '+v.name+'. Now '+after+' on hand.','Stock in saved');SK[k]={...v,qty:after,exp};sio=null;siRender();phRender();loadSi()
   }catch(e){er.textContent=e.code==='permission-denied'?'You do not have permission to add stock. Publish the latest firestore.rules first.':e.code==='gone'?'That medicine is no longer in the list.':'Could not save. Check your connection.'}
 }
 async function loadSi(){
@@ -849,7 +879,7 @@ async function stSave(){
   if(!k){er.textContent='Enter the medicine name.';return}
   if(v===''||!isFinite(q)||q<0){er.textContent='Enter a valid quantity.';return}
   if(!isFinite(lo)||lo<0){er.textContent='Enter a valid low-stock level.';return}
-  try{await setDoc(doc(db,'stock',k),{name:n,qty:q,exp:x,low:lo,at:serverTimestamp()});await lg('Stock '+n+' = '+q);SK[k]={name:n,qty:q,exp:x,low:lo};phRender();$('sn').value='';$('sq').value='';$('sx').value='';$('sl').value=10;er.textContent=''}
+  try{await setDoc(doc(db,'stock',k),{name:n,qty:q,exp:x,low:lo,at:serverTimestamp()});await lg('Stock '+n+' = '+q);sDone(n+' was saved to the stock list.','Stock saved');SK[k]={name:n,qty:q,exp:x,low:lo};phRender();$('sn').value='';$('sq').value='';$('sx').value='';$('sl').value=10;er.textContent=''}
   catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to update stock.':'Could not save. Check your connection.'}
 }
 function stFill(k){$('sn').value=SK[k].name;$('sq').value=SK[k].qty;$('sx').value=SK[k].exp||'';$('sl').value=typeof SK[k].low==='number'?SK[k].low:10;scrollTo(0,0)}
@@ -858,15 +888,15 @@ async function dispense(id){
   const need={};(r.items||[]).forEach(i=>{const n=Number(i.qty);if(i.drug&&n>0){const k=skey(i.drug);need[k]=(need[k]||0)+n}});
   const low=Object.entries(need).filter(([k,n])=>SK[k]&&SK[k].qty<n).map(([k])=>SK[k].name);
   const exp=Object.keys(need).filter(k=>SK[k]&&SK[k].exp&&SK[k].exp<today()).map(k=>SK[k].name);
-  if((low.length||exp.length)&&!confirm((low.length?'Not enough stock for: '+low.join(', ')+'. ':'')+(exp.length?'Expired stock: '+exp.join(', ')+'. ':'')+'Dispense anyway?'))return;
+  if((low.length||exp.length)&&!await sConfirm((low.length?'Not enough stock for: '+low.join(', ')+'. ':'')+(exp.length?'Expired stock: '+exp.join(', ')+'. ':'')+'Dispense anyway?','Dispense anyway?','Dispense anyway',0))return;
   try{
     await runTransaction(db,async tx=>{
       const ks=Object.keys(need).filter(k=>SK[k]),sn=await Promise.all(ks.map(k=>tx.get(doc(db,'stock',k))));
       ks.forEach((k,i)=>{if(sn[i].exists())tx.update(doc(db,'stock',k),{qty:Math.max(0,(sn[i].data().qty||0)-need[k]),at:serverTimestamp()})});
       tx.update(doc(db,'prescriptions',id),{status:'dispensed',dispensedBy:U.name,dispensedAt:serverTimestamp()})
     });
-    await lg('Dispensed '+id);await loadPh()
-  }catch(x){alert(x.code==='permission-denied'?'You do not have permission to dispense.':'Could not update. Check your connection.')}
+    await lg('Dispensed '+id);sDone('The prescription was marked as dispensed.','Dispensed');await loadPh()
+  }catch(x){sAlert(x.code==='permission-denied'?'You do not have permission to dispense.':'Could not update. Check your connection.')}
 }
 const idleMin=()=>typeof S.idleMin==='number'?S.idleMin:10;
 const devCard=()=>{setTimeout(loadDevs,0);return `<div class="cd"><h3 style="margin-top:0">Developer accounts</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Developers have full control of the system and its settings. Only add people you trust. You cannot remove your own account.</p><div id="dvl" class="ov">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Add developer</h3><div class="fm"><div><label>Last name</label><input id="da1"></div><div><label>First name</label><input id="da2"></div><div><label>Middle name (optional)</label><input id="da3"></div><div><label>Email</label><input id="da4" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="da5" type="text" autocomplete="off"></div></div><div class="er2" id="dae"></div><button class="bt" id="dab" style="margin-top:12px" onclick="addDev()">Create developer account</button></div>`};
@@ -879,19 +909,19 @@ async function loadDevs(){
 async function addDev(){
   const e=$('dae'),ln=$('da1').value.trim(),fn=$('da2').value.trim(),mn=$('da3').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('da4').value.trim(),p=$('da5').value;
   if(!ln||!fn||!m||p.length<8){e.textContent='Enter the last and first name, an email, and a password of at least 8 characters.';return}
-  if(!confirm('Give '+n+' full developer access?'))return;
+  if(!await sConfirm('Give '+n+' full developer access?','Give developer access?','Give access',0))return;
   $('dab').disabled=true;e.className='er2';e.textContent='';
   try{
     const sec=initializeApp(C,'sec'+Date.now()),a2=getAuth(sec),c=await createUserWithEmailAndPassword(a2,m,p);
     await signOut(a2);await setDoc(doc(db,'users',c.user.uid),{name:n,ln,fn,mn,email:m,role:'developer',active:true});
-    await lg('Created developer account '+m);['da1','da2','da3','da4','da5'].forEach(i=>$(i).value='');$('dab').disabled=false;e.className='er2 ok2';e.textContent='Developer account created.';loadDevs();
+    await lg('Created developer account '+m);['da1','da2','da3','da4','da5'].forEach(i=>$(i).value='');$('dab').disabled=false;e.className='er2';e.textContent='';sDone('The developer account was created.','Developer added');loadDevs();
   }catch(x){$('dab').disabled=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Could not create the account ('+(x.code||x.message)+').'}
 }
 async function removeDev(id){
   if(id===U.uid)return;
-  if(!confirm('Remove this developer account? They will no longer be able to use the system.'))return;
-  try{await deleteDoc(doc(db,'users',id));await lg('Removed developer '+id);loadDevs()}
-  catch(x){alert('Could not remove the account ('+(x.code||x.message)+').')}
+  if(!await sConfirm('Remove this developer account? They will no longer be able to use the system.','Remove developer account?','Remove',1))return;
+  try{await deleteDoc(doc(db,'users',id));await lg('Removed developer '+id);sDone('The developer account was removed.','Developer removed');loadDevs()}
+  catch(x){sAlert('Could not remove the account ('+(x.code||x.message)+').')}
 }
 let dvCur='perm';
 const DVT=[['perm','Admin permissions'],['dev','Developers'],['vit','Vitals'],['lh','Letterhead'],['pl','Barangays'],['rxa','Rx approval'],['rxp','Rx printing'],['ann','Announcements'],['rm','Rooms'],['snd','Sound'],['bhw','BHW'],['idl','Auto sign-out'],['lab','Lab tests']];
@@ -919,7 +949,7 @@ async function loadLab(){
 async function lbSave(id){
   const v=$('lr-'+id).value.trim(),er=$('lbe');
   if(!v){er.textContent='Enter the result first.';return}
-  try{await updateDoc(doc(db,'labs',id),{status:'done',result:v,resultBy:U.name,resultAt:serverTimestamp()});await lg('Lab result '+id);await loadLab()}
+  try{await updateDoc(doc(db,'labs',id),{status:'done',result:v,resultBy:U.name,resultAt:serverTimestamp()});await lg('Lab result '+id);sDone('The lab result was saved.','Result saved');await loadLab()}
   catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to enter results.':'Could not save. Check your connection.'}
 }
 async function loadLabH(id){
@@ -933,7 +963,7 @@ const LDEF=['CBC','Urinalysis','Fecalysis','Blood sugar (FBS)','Blood sugar (RBS
 const labList=()=>Array.isArray(S.labTests)?S.labTests:LDEF;
 async function setLabTests(){
   const er=$('lte'),l=[...new Set($('lbt').value.split('\n').map(x=>x.trim()).filter(Boolean))];
-  try{await setDoc(doc(db,'meta','settings'),{labTests:l,by:U.name,at:serverTimestamp()},{merge:true});S.labTests=l;await lg('Lab test list updated');er.textContent='Saved.'}
+  try{await setDoc(doc(db,'meta','settings'),{labTests:l,by:U.name,at:serverTimestamp()},{merge:true});S.labTests=l;await lg('Lab test list updated');er.textContent='';sDone('Lab test list saved.')}
   catch(x){er.textContent='Could not save the list. Check your connection.'}
 }
 /* ---------- Immunization ---------- */
@@ -952,10 +982,10 @@ async function loadIm(){
   catch(e){const l=$('iml');if(l)l.textContent='Could not load. Check your connection.'}
 }
 async function imGive(id,k){
-  const v=VAX.find(x=>x[0]===k),p=P.find(x=>x.id===id),d=prompt('Date '+v[1]+' was given (YYYY-MM-DD)',today());if(d===null)return;
+  const v=VAX.find(x=>x[0]===k),p=P.find(x=>x.id===id),d=await sPrompt('Date given','Date '+v[1]+' was given (YYYY-MM-DD)',today(),'Record');if(d===null)return;
   const er=$('ime');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()||d<p.dob){er.textContent='Enter a valid date (not in the future, not before birth).';return}
-  try{await setDoc(doc(db,'immunizations',id+'_'+k),{pid:id,pname:pn(p),vax:k,label:v[1],d,by:U.uid,byName:U.name,at:serverTimestamp()});IM[id+'_'+k]={d};await lg('Immunization '+k+' '+id);imRender()}
+  try{await setDoc(doc(db,'immunizations',id+'_'+k),{pid:id,pname:pn(p),vax:k,label:v[1],d,by:U.uid,byName:U.name,at:serverTimestamp()});IM[id+'_'+k]={d};await lg('Immunization '+k+' '+id);sDone('The vaccine was recorded.','Vaccine recorded');imRender()}
   catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to record vaccines.':'Could not save. Check your connection.'}
 }
 function viewAs(r){
@@ -963,7 +993,7 @@ function viewAs(r){
   if(r===U.real){U.role=U.real;delete U.real}else U.role=r;
   q='';cp=null;cq=null;vq=null;pg='dash';R();scrollTo(0,0)
 }
-async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);loadUsers()}
+async function setActive(id,v){await updateDoc(doc(db,'users',id),{active:v});lg((v?'Activated ':'Deactivated ')+id);sDone(v?'The account was activated.':'The account was deactivated.',v?'Account activated':'Account deactivated');loadUsers()}
 async function addStaff(){
   const e=$('ue'),ln=$('u1a').value.trim(),fn=$('u1b').value.trim(),mn=$('u1c').value.trim(),n=[fn,mn,ln].filter(Boolean).join(' '),m=$('u2').value.trim(),p=$('u3').value,r=$('u4').value,lic=$('u5').value.trim();
   if(!ln||!fn||!m||p.length<8){e.textContent='Enter the last and first name, an email, and a password of at least 8 characters.';return}
@@ -971,7 +1001,7 @@ async function addStaff(){
   try{
     const sec=initializeApp(C,'sec'+Date.now()),a2=getAuth(sec),c=await createUserWithEmailAndPassword(a2,m,p);
     await signOut(a2);await setDoc(doc(db,'users',c.user.uid),{name:n,ln,fn,mn,email:m,role:r,active:true,...(lic?{lic}:{})});
-    await lg('Created account '+m+' ('+r+')');go('users');
+    await lg('Created account '+m+' ('+r+')');sDone('The account for '+n+' was created.','Account created');go('users');
   }catch(x){$('ub').disabled=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Could not create the account ('+(x.code||x.message)+').'}
 }
 const aud=()=>`<h2 style="margin-top:0">Audit log</h2><div class="cd ov"><div id="al">Loading...</div></div>`;
