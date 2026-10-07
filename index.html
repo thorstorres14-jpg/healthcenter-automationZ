@@ -475,6 +475,7 @@ const drMs=r=>r.at&&r.at.toMillis?r.at.toMillis():0;
 const drLt=r=>r.resultAt&&r.resultAt.toDate?r.resultAt.toDate():new Date((r.d||'1970-01-01')+'T00:00:00');
 const drMine=()=>Array.isArray(DR.vt)?DR.vt.filter(v=>v.by===U.uid):null;
 function drDash(){
+  DR={vt:undefined,ap:undefined,lr:undefined,lp:undefined};
   const brg={};P.forEach(x=>{brg[x.br]=(brg[x.br]||0)+1});
   const bl=Object.entries(brg).sort((a,b)=>b[1]-a[1]),bmax=bl.length?bl[0][1]:1;
   DXB=P.length?`<div class="cd"><h3 style="margin-top:0">Patients by barangay</h3>${bl.slice(0,5).map(([k,v])=>`<div class="dbr"><span>${E(k)}</span><div class="tr"><i style="width:${v/bmax*100}%"></i></div><b>${v}</b></div>`).join('')}${bl.length>5?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${bl.length-5} more barangays</p>`:''}</div>`+genCard():'';
@@ -500,7 +501,7 @@ function drRender(){
   if(!$('drs')||U.role!=='doctor')return;
   const w=Q.filter(x=>x.status==='waiting'),c=Q.filter(x=>x.status==='in-consult'),act=[...c,...w],mine=drMine();
   const ld=v=>v===undefined?'...':v===null?'-':v;
-  $('drs').innerHTML=sCard('dqw',qmsg?'-':w.length,'Waiting','in the queue')+sCard('dqc',qmsg?'-':c.length,'In consultation','right now')+sCard('dvt',ld(mine&&mine.length),'Seen today',Array.isArray(DR.vt)?'clinic total '+DR.vt.length:'by you')+sCard('dap',ld(DR.ap&&DR.ap.length),'Rx to approve','prescriptions')+sCard('dlr',ld(DR.lr&&DR.lr.length),'Lab results back',typeof DR.lp==='number'?'last 7 days, '+DR.lp+' pending':'last 7 days');
+  $('drs').innerHTML=sCard('dqw',qmsg?'-':w.length,'Waiting','in the queue')+sCard('dqc',qmsg?'-':c.length,'In consultation','right now')+sCard('dvt',DR.vt===undefined?'...':ld(mine&&mine.length),'Seen today',Array.isArray(DR.vt)?'clinic total '+DR.vt.length:'by you')+sCard('dap',ld(DR.ap&&DR.ap.length),'Rx to approve','prescriptions')+sCard('dlr',ld(DR.lr&&DR.lr.length),'Lab results back',typeof DR.lp==='number'?'last 7 days, '+DR.lp+' pending':'last 7 days');
   const head=(t,r)=>`<div class="dh" style="margin-top:0"><b>${t}</b><span>${r||''}</span></div>`,more=(n,m)=>n>m?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${n-m} more</p>`:'';
   $('drq').innerHTML=head('Next in queue',`<a href="#" onclick="go('queue');return false">Open queue</a>`)+(qmsg?`<p class="er2">${E(qmsg)}</p>`:act.length?act.slice(0,5).map(x=>{const st=ST[x.status]||['wa',x.status],vs=vsum(x.vitals);return `<div class="dqr" style="align-items:flex-start"><span><b>${qn(x.num)}</b> ${E(x.name)}<small style="display:block;color:var(--mu);font-size:12px">${E((x.age||'')+' / '+(x.sex||''))}${x.reason?' | '+E(x.reason):''}<br>${vs?E(vs):'No vitals yet'}</small></span><span style="text-align:right"><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}<br><button class="bt" style="margin-top:6px" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start':'Continue'}</button></span></div>`}).join('')+more(act.length,5):drMu('No one is waiting right now.'));
   const sub=t=>`<div style="font-weight:600;font-size:14px;margin:10px 0 2px">${t}</div>`,ap=DR.ap,lr=DR.lr;
