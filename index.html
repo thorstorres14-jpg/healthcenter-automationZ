@@ -127,7 +127,7 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -848,7 +848,7 @@ function stRows(id,v){
 }
 const stTags=v=>{const t=today(),soon=new Date(Date.now()+60*864e5).toLocaleDateString('en-CA'),o=[],bs=bList(v);if(bs.some(b=>b.exp&&b.exp<t))o.push('Expired');else if(bs.some(b=>b.exp&&b.exp<=soon))o.push('Expires soon');if(bUse(v)<=(typeof v.low==='number'?v.low:10))o.push('Low');return o};
 const skey=n=>String(n).trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-const phg=()=>`<h2 style="margin-top:0">Pharmacy</h2><div class="cd ov"><h3 style="margin-top:0">Prescriptions to dispense</h3><div id="phl">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Stock</h3><div class="fm"><div><label>Medicine</label><input id="sn"></div><div><label>Quantity received</label><input id="sq" type="number" min="0"></div><div><label>Expiry date (optional)</label><input id="sx" type="date"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div><button class="bt" style="margin-top:10px" onclick="stSave()">Save stock</button><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px"><input id="stq" placeholder="Search medicine" oninput="stSearch(this.value)" autocomplete="off" style="max-width:260px"><span id="stfb"></span></div><div class="ov" id="stl" style="margin-top:12px"></div></div><div id="sif"></div><div id="sef"></div><div class="cd ov"><h3 style="margin-top:0">Stock in history</h3><div id="sih">Loading...</div></div>`;
+const phg=()=>`<h2 style="margin-top:0">Pharmacy</h2><div class="cd ov"><h3 style="margin-top:0">Prescriptions to dispense</h3><div id="phl">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Stock</h3><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="stq" placeholder="Search medicine" oninput="stSearch(this.value)" autocomplete="off" style="max-width:260px"><span id="stfb"></span><button class="bt" style="margin-left:auto" onclick="stAdd()">+ Add medicine</button></div><div class="ov" id="stl" style="margin-top:12px"></div></div><div class="cd ov"><h3 style="margin-top:0">Stock in history</h3><div id="sih">Loading...</div></div>`;
 function phRender(){
   const l=$('phl'),s=$('stl');if(!l)return;
   l.innerHTML=RX.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Medicines</th><th></th></tr></thead><tbody>${RX.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${(r.items||[]).map(i=>{const k=SK[skey(i.drug||'')];return E(i.drug+' '+i.dose+', '+i.freq+(i.dur?', '+i.dur:'')+(i.qty?' (#'+i.qty+')':''))+(k?` <small style="color:var(--mu)">stock: ${bUse(k)}</small>`:'')}).join('<br>')}</td><td><button class="bt" onclick="dispense('${r.id}')">Mark as dispensed</button></td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No prescriptions waiting.</p>';
@@ -861,13 +861,24 @@ let SI=[],stq='',stf='all',sio=null,sed='';
 function stFilt(){const q=stq.trim().toLowerCase();return Object.entries(SK).filter(([,v])=>(!q||String(v.name).toLowerCase().includes(q))&&(stf==='all'||(stf==='low'&&stTags(v).includes('Low'))||(stf==='exp'&&stTags(v).some(t=>t!=='Low')))).sort((a,b)=>stTags(b[1]).length-stTags(a[1]).length||a[1].name.localeCompare(b[1].name))}
 function stSearch(v){stq=v;phRender()}
 function stFlt(f){stf=f;phRender()}
-function siOpen(k){sed='';seRender();sio=k;siRender();const e=$('sif');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'center'})}
-function siClose(){sio=null;siRender()}
+function fmClose(){const o=document.getElementById('fmo');if(o)o.remove()}
+function fmBusy(on){const b=document.getElementById('fmok');if(b)b.disabled=on}
+addEventListener('keydown',e=>{if(e.key==='Escape')fmClose()});
+function fmShow(t,sub,body,ok,fn){
+  fmClose();const o=document.createElement('div');o.id='fmo';o.className='dmo';
+  o.innerHTML=`<div class="dmc" role="dialog" aria-modal="true" aria-label="${E(t)}"><div class="dmh"><div><b>${E(t)}</b>${sub?`<small>${E(sub)}</small>`:''}</div><button class="bt g" aria-label="Close" onclick="fmClose()">&times;</button></div><div class="dmb" style="padding-top:12px;padding-bottom:12px">${body}</div><div class="dmf"><button class="bt g" onclick="fmClose()">Cancel</button><button class="bt" id="fmok" onclick="${fn}">${E(ok)}</button></div></div>`;
+  document.body.appendChild(o);const f=o.querySelector('input,select');if(f)f.focus()
+}
+function stAdd(){
+  sio=null;sed='';
+  fmShow('Add medicine','If the medicine is already in the list, the quantity is added as a new batch.',`<div class="fm"><div><label>Medicine</label><input id="sn" autocomplete="off"></div><div><label>Quantity received</label><input id="sq" type="number" min="0" step="1"></div><div><label>Expiry date (optional)</label><input id="sx" type="date"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div>`,'Save stock','stSave()')
+}
+function siOpen(k){sed='';sio=k;siRender()}
+function siClose(){sio=null;fmClose()}
 function siRender(){
-  const el=$('sif');if(!el)return;
-  if(!sio||!SK[sio]){el.innerHTML='';return}
+  if(!sio||!SK[sio]){fmClose();return}
   const v=SK[sio];
-  el.innerHTML=`<div class="cd" style="border:2px solid var(--pr)"><h3 style="margin-top:0">Stock in: ${E(v.name)}</h3><p style="color:var(--mu);margin-top:-6px">Now ${bUse(v)} on hand.</p><div class="fm"><div><label>Quantity received</label><input id="siq" type="number" min="1" step="1" oninput="siSum()"></div><div><label>Date received</label><input id="sid" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date of this batch (optional)</label><input id="six" type="date"></div><div><label>Source</label><select id="sis"><option>Purchased</option><option>DOH or LGU</option><option>Donation</option></select></div></div><div id="sisum" style="color:var(--mu);font-size:14px"></div><div class="er2" id="sie"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="bt" onclick="siSave()">Save stock in</button><button class="bt g" onclick="siClose()">Cancel</button></div></div>`
+  fmShow('Stock in: '+v.name,'Now '+bUse(v)+' on hand.',`<div class="fm"><div><label>Quantity received</label><input id="siq" type="number" min="1" step="1" oninput="siSum()"></div><div><label>Date received</label><input id="sid" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date of this batch (optional)</label><input id="six" type="date" oninput="siSum()"></div><div><label>Source</label><select id="sis"><option>Purchased</option><option>DOH or LGU</option><option>Donation</option></select></div></div><div id="sisum" style="color:var(--mu);font-size:14px;margin-top:8px"></div><div class="er2" id="sie"></div>`,'Save stock in','siSave()')
 }
 function siSum(){const el=$('sisum'),v=SK[sio],n=Number($('siq').value);if(el&&v)el.textContent=Number.isInteger(n)&&n>0?'After saving: '+(bUse(v)+(($('six').value&&$('six').value<today())?0:n))+' on hand':''}
 async function siSave(){
@@ -876,7 +887,7 @@ async function siSave(){
   if(!Number.isInteger(n)||n<1){er.textContent='Enter the quantity received (a whole number, 1 or more).';return}
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()){er.textContent='Enter a valid date received (not in the future).';return}
   if(x&&x<d){er.textContent='The expiry date cannot be before the date received.';return}
-  er.textContent='';let saved=null;
+  er.textContent='';let saved=null;fmBusy(true);
   try{
     await runTransaction(db,async tx=>{
       const r=doc(db,'stock',k),sn=await tx.get(r);if(!sn.exists())throw{code:'gone'};
@@ -885,8 +896,8 @@ async function siSave(){
       tx.set(doc(collection(db,'stockin')),{key:k,name:cur.name,qty:n,d,exp:x,src,batch:b.id,by:U.uid,byName:U.name,at:serverTimestamp()});
       saved={...cur,...p}
     });
-    await lg('Stock in '+v.name+' +'+n+(x?' exp '+x:''));sDone('Added '+n+' to '+v.name+'. Now '+bUse(saved)+' on hand.','Stock in saved');SK[k]=saved;sio=null;siRender();phRender();loadSi()
-  }catch(e){er.textContent=e.code==='permission-denied'?'You do not have permission to add stock. Publish the latest firestore.rules first.':e.code==='gone'?'That medicine is no longer in the list.':'Could not save. Check your connection.'}
+    await lg('Stock in '+v.name+' +'+n+(x?' exp '+x:''));sDone('Added '+n+' to '+v.name+'. Now '+bUse(saved)+' on hand.','Stock in saved');SK[k]=saved;sio=null;fmClose();phRender();loadSi()
+  }catch(e){fmBusy(false);er.textContent=e.code==='permission-denied'?'You do not have permission to add stock. Publish the latest firestore.rules first.':e.code==='gone'?'That medicine is no longer in the list.':'Could not save. Check your connection.'}
 }
 async function loadSi(){
   const el=$('sih');if(!el)return;
@@ -900,7 +911,7 @@ function siList(){
 async function loadPh(){
   try{
     const[a,b]=await Promise.all([getDocs(query(collection(db,'prescriptions'),where('status','==','pending'))),getDocs(collection(db,'stock'))]);
-    RX=a.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(x.d||'').localeCompare(y.d||''));SK={};b.docs.forEach(d=>{SK[d.id]=d.data()});phRender();siRender();seRender();loadSi()
+    RX=a.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(x.d||'').localeCompare(y.d||''));SK={};b.docs.forEach(d=>{SK[d.id]=d.data()});phRender();loadSi()
   }catch(e){const l=$('phl');if(l)l.textContent='Could not load. Check your connection.'}
 }
 async function stSave(){
@@ -915,7 +926,7 @@ async function stSave(){
     if(q<1){er.textContent='This medicine is already in the list. Enter 1 or more to add a batch, or use Edit to correct the stock.';return}
     if(!await sConfirm(ex.name+' is already in the stock list ('+bUse(ex)+' on hand). Add '+q+' as a new batch'+(x?' expiring '+x:'')+'?','Already in the list','Add batch',0))return
   }
-  let saved=null,added=false;
+  let saved=null,added=false;fmBusy(true);
   try{
     await runTransaction(db,async tx=>{
       const r=doc(db,'stock',k),sn=await tx.get(r);
@@ -932,16 +943,15 @@ async function stSave(){
     });
     if(added){await lg('Stock in '+saved.name+' +'+q+(x?' exp '+x:''));sDone('Added '+q+' to '+saved.name+'. Now '+bUse(saved)+' on hand.','Stock in saved');loadSi()}
     else{await lg('Stock '+n+' = '+q);sDone(n+' was saved to the stock list.','Stock saved')}
-    SK[k]=saved;phRender();$('sn').value='';$('sq').value='';$('sx').value='';$('sl').value=10;er.textContent=''
-  }catch(e){er.textContent=e.code==='permission-denied'?'You do not have permission to update stock. Publish the latest firestore.rules first.':'Could not save. Check your connection.'}
+    SK[k]=saved;phRender();fmClose()
+  }catch(e){fmBusy(false);er.textContent=e.code==='permission-denied'?'You do not have permission to update stock. Publish the latest firestore.rules first.':'Could not save. Check your connection.'}
 }
-function stFill(k){sio=null;siRender();sed=k;seRender();const e=$('sef');if(e&&e.scrollIntoView)e.scrollIntoView({behavior:'smooth',block:'center'})}
-function seClose(){sed='';seRender()}
+function stFill(k){sio=null;sed=k;seRender()}
+function seClose(){sed='';fmClose()}
 function seRender(){
-  const el=$('sef');if(!el)return;
-  if(!sed||!SK[sed]){el.innerHTML='';return}
+  if(!sed||!SK[sed]){fmClose();return}
   const v=SK[sed],bs=bSort(bList(v)),t=today();
-  el.innerHTML=`<div class="cd" style="border:2px solid var(--pr)"><h3 style="margin-top:0">Edit: ${E(v.name)}</h3><div class="fm"><div><label>Low-stock level</label><input id="sel" type="number" min="0" value="${typeof v.low==='number'?v.low:10}"></div></div>`+(bs.length?`<div class="ov"><table><thead><tr><th>Received</th><th>Source</th><th>Quantity</th><th>Expiry</th></tr></thead><tbody>${bs.map((b,i)=>`<tr><td>${b.d?E(b.d):'-'}</td><td>${E(b.src||'-')}</td><td><input id="seq${i}" type="number" min="0" step="1" value="${b.qty}" style="max-width:110px"></td><td><input id="sex${i}" type="date" value="${E(b.exp||'')}">${b.exp&&b.exp<t?' <span class="tg er">Expired</span>':''}</td></tr>`).join('')}</tbody></table></div><p style="color:var(--mu);font-size:13px">Set a quantity to 0 to remove that batch (for example expired or damaged stock).</p>`:'<p style="color:var(--mu)">No batches on hand.</p>')+`<div class="er2" id="see"></div><div style="display:flex;gap:8px;margin-top:10px"><button class="bt" onclick="seSave()">Save changes</button><button class="bt g" onclick="seClose()">Cancel</button></div></div>`
+  fmShow('Edit: '+v.name,'',`<div class="fm"><div><label>Low-stock level</label><input id="sel" type="number" min="0" value="${typeof v.low==='number'?v.low:10}"></div></div>`+(bs.length?`<div class="ov" style="margin-top:12px"><table><thead><tr><th>Received</th><th>Source</th><th>Quantity</th><th>Expiry</th></tr></thead><tbody>${bs.map((b,i)=>`<tr><td>${b.d?E(b.d):'-'}</td><td>${E(b.src||'-')}</td><td><input id="seq${i}" type="number" min="0" step="1" value="${b.qty}" style="max-width:110px"></td><td><input id="sex${i}" type="date" value="${E(b.exp||'')}">${b.exp&&b.exp<t?' <span class="tg er">Expired</span>':''}</td></tr>`).join('')}</tbody></table></div><p style="color:var(--mu);font-size:13px">Set a quantity to 0 to remove that batch (for example expired or damaged stock).</p>`:'<p style="color:var(--mu)">No batches on hand.</p>')+`<div class="er2" id="see"></div>`,'Save changes','seSave()')
 }
 async function seSave(){
   const k=sed,v=SK[k],er=$('see');if(!v)return;
@@ -953,7 +963,7 @@ async function seSave(){
     if(x&&(!/^\d{4}-\d{2}-\d{2}$/.test(x)||isNaN(new Date(x)))){er.textContent='Enter a valid expiry date.';return}
     ed[bs[i].id]={qty:q,exp:x}
   }
-  er.textContent='';let saved=null;
+  er.textContent='';let saved=null;fmBusy(true);
   try{
     await runTransaction(db,async tx=>{
       const r=doc(db,'stock',k),sn=await tx.get(r);if(!sn.exists())throw{code:'gone'};
@@ -961,8 +971,8 @@ async function seSave(){
       tx.update(r,{...p,low:lo,at:serverTimestamp()});
       saved={...cur,...p,low:lo}
     });
-    await lg('Stock edit '+v.name+', now '+saved.qty);sDone(v.name+' was updated.','Stock saved');SK[k]=saved;sed='';seRender();phRender()
-  }catch(e){er.textContent=e.code==='permission-denied'?'You do not have permission to update stock.':e.code==='gone'?'That medicine is no longer in the list.':'Could not save. Check your connection.'}
+    await lg('Stock edit '+v.name+', now '+saved.qty);sDone(v.name+' was updated.','Stock saved');SK[k]=saved;sed='';fmClose();phRender()
+  }catch(e){fmBusy(false);er.textContent=e.code==='permission-denied'?'You do not have permission to update stock.':e.code==='gone'?'That medicine is no longer in the list.':'Could not save. Check your connection.'}
 }
 async function dispense(id){
   const r=RX.find(x=>x.id===id);if(!r)return;
@@ -1092,5 +1102,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
+Object.assign(window,{goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
