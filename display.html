@@ -89,7 +89,7 @@ function chime(){
     [[880,0],[660,.3]].forEach(([f,t])=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const s=ac.currentTime+t;g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(.4,s+.03);g.gain.exponentialRampToValueAtTime(.0001,s+.5);o.start(s);o.stop(s+.55)});
     setTimeout(res,900)})
 }
-const REPEAT=Math.min(3,Math.max(1,+new URLSearchParams(location.search).get('repeat')||2));
+const REPEAT=Math.min(3,Math.max(1,+new URLSearchParams(location.search).get('repeat')||1));
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 function tlVoice(){try{return speechSynthesis.getVoices().find(v=>/^(fil|tl)/i.test(v.lang))||null}catch(e){return null}}
 function say(text,voice){
