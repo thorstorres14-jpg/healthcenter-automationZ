@@ -276,7 +276,7 @@ function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!ca
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['pat','u5','sr','today'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
-const DNOTE={developer:'You control what admins are allowed to do. Use the Users page to manage permissions.',admin:'You manage staff accounts and can review the audit log.',doctor:'Open the Queue or Consultation page to see who is waiting.',midwife:'Open the Queue or Consultation page to see who is waiting.',frontdesk:'Register walk-in patients and add them to today\'s queue.',bhw:'Households and patients in your area. Open Immunization to see children with vaccines due.',pharmacist:'Open Pharmacy to dispense prescriptions and update stock.',medtech:'Open Lab to enter results for requested tests.'};
+const DNOTE={developer:'You control what admins are allowed to do. Use the Users page to manage permissions.',admin:'You manage staff accounts and can review the audit log.',doctor:'Your queue, prescription approvals and lab results at a glance. Click a card for the list.',midwife:'Open the Queue or Consultation page to see who is waiting.',frontdesk:'Register walk-in patients and add them to today\'s queue.',bhw:'Households and patients in your area. Open Immunization to see children with vaccines due.',pharmacist:'Open Pharmacy to dispense prescriptions and update stock.',medtech:'Open Lab to enter results for requested tests.'};
 const DIC={pat:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',hh:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>',today:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',u5:'<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>',sr:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',brg:'<path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>'};
 const DCL={pat:'var(--pr)',hh:'var(--na)',today:'var(--ok)',u5:'var(--wa)',sr:'var(--nv)',brg:'var(--pr)'};
 /* ---------- Disease cases (dashboard) ---------- */
@@ -421,6 +421,7 @@ function dmOpen(k){
     if(!PL.ok){T='Still loading';B='<p style="color:var(--mu)">Try again in a moment.</p>'}
     else{const a=k==='lbp'?PL.p:PL.d;T=k==='lbp'?'Lab requests to process':'Lab results done today';S=nN(a.length,k==='lbp'?'request':'result');B=dmList(a,r=>dmr(E(r.pname),E(r.test)+(k==='lbd'&&r.result?': '+E(r.result):'')));btn=['Open Lab',"dmGo('lab')"]}
   }
+  else if(DRK.includes(k)){const m=drModal(k);T=m[0];S=m[1];B=m[2];btn=m[3]}
   else return;
   dmShow(T,S,B,btn)
 }
@@ -464,6 +465,65 @@ async function loadMt(){
   if(p)p.innerHTML=`<div class="dh" style="margin-top:0"><b>Requests to process</b><span><a href="#" onclick="go('lab');return false">Open Lab</a></span></div>`+(PL.p.length?PL.p.slice(0,5).map(r=>dmr(E(r.pname),E(r.test),E(r.d||''))).join('')+more(PL.p.length,5):'<p style="color:var(--mu);margin:6px 0 0">No requests waiting.</p>');
   if(d)d.innerHTML=`<div class="dh" style="margin-top:0"><b>Done today</b><span></span></div>`+(PL.d.length?PL.d.slice(0,5).map(r=>dmr(E(r.pname),E(r.test),E(r.result||''))).join('')+more(PL.d.length,5):'<p style="color:var(--mu);margin:6px 0 0">None yet.</p>')
 }
+/* ---------- Doctor dashboard ---------- */
+const DRK=['dqw','dqc','dvt','dap','dlr'];
+Object.assign(DIC,{dqw:DIC.lbp,dqc:DIC.pat,dvt:DIC.disp,dap:DIC.rx,dlr:DIC.lbd});
+Object.assign(DCL,{dqw:'var(--wa)',dqc:'var(--pr)',dvt:'var(--ok)',dap:'var(--na)',dlr:'var(--nv)'});
+let DR={vt:undefined,ap:undefined,lr:undefined,lp:undefined};
+const drMu=m=>`<p style="color:var(--mu);margin:6px 0 0">${m}</p>`;
+const drMs=r=>r.at&&r.at.toMillis?r.at.toMillis():0;
+const drLt=r=>r.resultAt&&r.resultAt.toDate?r.resultAt.toDate():new Date((r.d||'1970-01-01')+'T00:00:00');
+const drMine=()=>Array.isArray(DR.vt)?DR.vt.filter(v=>v.by===U.uid):null;
+function drDash(){
+  const brg={};P.forEach(x=>{brg[x.br]=(brg[x.br]||0)+1});
+  const bl=Object.entries(brg).sort((a,b)=>b[1]-a[1]),bmax=bl.length?bl[0][1]:1;
+  DXB=P.length?`<div class="cd"><h3 style="margin-top:0">Patients by barangay</h3>${bl.slice(0,5).map(([k,v])=>`<div class="dbr"><span>${E(k)}</span><div class="tr"><i style="width:${v/bmax*100}%"></i></div><b>${v}</b></div>`).join('')}${bl.length>5?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${bl.length-5} more barangays</p>`:''}</div>`+genCard():'';
+  setTimeout(()=>{drRender();fetchQ().then(drRender);loadDr();alRender();loadAl()},0);
+  return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Dashboard</h2><div style="display:flex;gap:8px;flex-wrap:wrap">${canReg()?`<button class="bt g" onclick="go('reg')">Register patient</button>`:''}<button class="bt g" onclick="drRefresh(this)">Refresh</button><button class="bt" onclick="go('consult')">Open consultation</button></div></div><p style="color:var(--mu);margin:6px 0 14px">${DNOTE.doctor}</p><div class="dh"><b>Overview</b><span>${new Date().toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric'})}</span></div><div class="dst" id="drs"></div><div class="dgh"><div class="cd" id="drq"></div><div class="cd" id="drn"></div></div><div class="dgh"><div class="cd" id="drt"></div><div class="cd" id="dal"></div></div>${dxCard()}`
+}
+async function loadDr(){
+  const run=f=>f().catch(()=>null),dc=(q)=>q.then(s=>s.docs.map(d=>({id:d.id,...d.data()}))),since=new Date(Date.now()-7*864e5);
+  const [vt,ap,lr,lp]=await Promise.all([
+    run(()=>dc(getDocs(query(collection(db,'visits'),where('d','==',today()))))),
+    run(()=>dc(getDocs(query(collection(db,'prescriptions'),where('status','==','awaiting')))).then(a=>a.sort((x,y)=>(x.d||'').localeCompare(y.d||'')))),
+    run(()=>dc(getDocs(query(collection(db,'labs'),where('by','==',U.uid),where('status','==','done')))).then(a=>a.filter(r=>drLt(r)>=since).sort((x,y)=>drLt(y)-drLt(x)))),
+    run(()=>getDocs(query(collection(db,'labs'),where('by','==',U.uid),where('status','==','pending'))).then(s=>s.size))
+  ]);
+  DR={vt,ap,lr,lp};drRender()
+}
+async function drRefresh(b){
+  if(b)b.disabled=true;
+  await Promise.all([fetchQ(),loadDr()]);drRender();loadAl();loadDx();
+  if(b)b.disabled=false
+}
+function drRender(){
+  if(!$('drs')||U.role!=='doctor')return;
+  const w=Q.filter(x=>x.status==='waiting'),c=Q.filter(x=>x.status==='in-consult'),act=[...c,...w],mine=drMine();
+  const ld=v=>v===undefined?'...':v===null?'-':v;
+  $('drs').innerHTML=sCard('dqw',qmsg?'-':w.length,'Waiting','in the queue')+sCard('dqc',qmsg?'-':c.length,'In consultation','right now')+sCard('dvt',ld(mine&&mine.length),'Seen today',Array.isArray(DR.vt)?'clinic total '+DR.vt.length:'by you')+sCard('dap',ld(DR.ap&&DR.ap.length),'Rx to approve','prescriptions')+sCard('dlr',ld(DR.lr&&DR.lr.length),'Lab results back',typeof DR.lp==='number'?'last 7 days, '+DR.lp+' pending':'last 7 days');
+  const head=(t,r)=>`<div class="dh" style="margin-top:0"><b>${t}</b><span>${r||''}</span></div>`,more=(n,m)=>n>m?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${n-m} more</p>`:'';
+  $('drq').innerHTML=head('Next in queue',`<a href="#" onclick="go('queue');return false">Open queue</a>`)+(qmsg?`<p class="er2">${E(qmsg)}</p>`:act.length?act.slice(0,5).map(x=>{const st=ST[x.status]||['wa',x.status],vs=vsum(x.vitals);return `<div class="dqr" style="align-items:flex-start"><span><b>${qn(x.num)}</b> ${E(x.name)}<small style="display:block;color:var(--mu);font-size:12px">${E((x.age||'')+' / '+(x.sex||''))}${x.reason?' | '+E(x.reason):''}<br>${vs?E(vs):'No vitals yet'}</small></span><span style="text-align:right"><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}<br><button class="bt" style="margin-top:6px" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start':'Continue'}</button></span></div>`}).join('')+more(act.length,5):drMu('No one is waiting right now.'));
+  const sub=t=>`<div style="font-weight:600;font-size:14px;margin:10px 0 2px">${t}</div>`,ap=DR.ap,lr=DR.lr;
+  $('drn').innerHTML=head('Needs your attention')+sub('Prescription approvals <a href="#" style="font-weight:400;font-size:13px;margin-left:6px" onclick="go(\'appr\');return false">Open</a>')+(ap===undefined?drMu('Loading...'):ap===null?drMu('Could not load prescriptions.'):ap.length?ap.slice(0,3).map(r=>dmrc(E(r.pname),rxDrugs(r)+' | by '+E(r.byName||''),'',"go('appr')")).join('')+more(ap.length,3):drMu('Nothing waiting for approval.'))+sub('Lab results back (last 7 days)')+(lr===undefined?drMu('Loading...'):lr===null?drMu('Could not load lab results.'):lr.length?lr.slice(0,4).map(r=>dmrc(E(r.pname),E(r.test)+': '+E(r.result||''),E(r.d||''),"view('"+r.pid+"')")).join('')+more(lr.length,4):drMu('No new lab results.'));
+  $('drt').innerHTML=head('My consultations today',mine?nN(mine.length,'patient'):'')+(mine===null||DR.vt===undefined?drMu(DR.vt===undefined?'Loading...':'Could not load consultations.'):mine.length?mine.slice().sort((x,y)=>drMs(y)-drMs(x)).slice(0,6).map(v=>dmrc(E(v.pname),E(v.dx||v.cc||''),v.referral?tgh('Referred','wa'):'',"view('"+v.pid+"')")).join('')+more(mine.length,6):drMu('No consultations saved yet today.'))
+}
+function drModal(k){
+  const bad=t=>[t,'',drMu('Could not load this list. Check your connection.'),null],mine=drMine();
+  if(k==='dqw'||k==='dqc'){
+    const a=Q.filter(x=>x.status===(k==='dqw'?'waiting':'in-consult'));
+    return[k==='dqw'?'Waiting in the queue':'In consultation',nN(a.length,'patient'),dmList(a,x=>dmrc(E(qn(x.num)+' '+x.name),E((x.age||'')+' / '+(x.sex||'')+(x.reason?', '+x.reason:'')+(x.status==='in-consult'&&x.byName?' | with '+x.byName:'')),tgh(k==='dqw'?'Start':'Continue','ok'),"dmClose();startQ('"+x.id+"')")),['Open Queue',"dmGo('queue')"]]
+  }
+  if(k==='dvt'){
+    if(!mine)return bad('Seen today');
+    return['Seen today',nN(mine.length,'consultation')+' by you, '+DR.vt.length+' in the clinic',dmList(mine.slice().sort((x,y)=>drMs(y)-drMs(x)),v=>dmrc(E(v.pname),E(v.dx||v.cc||''),v.referral?tgh('Referred','wa'):'',"dmClose();view('"+v.pid+"')")),null]
+  }
+  if(k==='dap'){
+    if(!Array.isArray(DR.ap))return bad('Prescriptions to approve');
+    return['Prescriptions to approve',nN(DR.ap.length,'prescription')+' waiting',dmList(DR.ap,r=>dmr(E(r.pname),rxDrugs(r),E(r.byName||''))),['Open approvals',"dmGo('appr')"]]
+  }
+  if(!Array.isArray(DR.lr))return bad('Lab results back');
+  return['Lab results back',nN(DR.lr.length,'result')+' in the last 7 days'+(typeof DR.lp==='number'?', '+DR.lp+' still pending':''),dmList(DR.lr,r=>dmrc(E(r.pname),E(r.test)+': '+E(r.result||''),E(r.d||''),"dmClose();view('"+r.pid+"')")),null]
+}
 /* ---------- Dialogs: replace the browser alert and confirm popups ---------- */
 const DLI={err:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',ok:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/>',ask:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/>',del:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'};
 const DLC={err:['#fde4e1','var(--er)'],ok:['#dcf3e4','var(--ok)'],ask:['#fff1d6','var(--wa)'],del:['#fde4e1','var(--er)']};
@@ -490,7 +550,7 @@ const sConfirm=(msg,title,ok,danger)=>dlg({kind:danger?'del':'ask',title,msg,ok,
 const sDone=(msg,title)=>dlg({kind:'ok',title:title||'Saved',msg,ok:'OK',auto:2500});
 const sPrompt=(title,msg,def,ok)=>dlg({kind:'ask',title,msg,ok:ok||'OK',cancel:'Cancel',input:def==null?'':String(def)});
 function dash(){
-  if(U.role==='pharmacist')return pdDash();if(U.role==='medtech')return mtDash();
+  if(U.role==='pharmacist')return pdDash();if(U.role==='medtech')return mtDash();if(U.role==='doctor')return drDash();
   const hh=new Set(P.map(x=>x.hh)).size,today=new Date().toLocaleDateString('en-CA'),brg={};
   P.forEach(x=>{brg[x.br]=(brg[x.br]||0)+1});
   const M={pat:[P.length,'Registered patients','in the system'],hh:[hh,'Households','registered'],today:[P.filter(x=>x.createdDay===today).length,'Registered today','new patients'],u5:[P.filter(x=>ageY(x.dob)<5).length,'Children under 5','under 5 years old'],sr:[P.filter(x=>ageY(x.dob)>=60).length,'Seniors 60+','aged 60 and above'],brg:[Object.keys(brg).length,'Barangays covered','with patients']};
@@ -1119,5 +1179,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
+Object.assign(window,{drRefresh,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
