@@ -34,7 +34,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid #14807f55;border-color
 @media(max-width:1000px){.dg3,.dg2{grid-template-columns:1fr}}
 .dnut{width:130px;height:130px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center}.dnut i{width:86px;height:86px;border-radius:50%;background:var(--cd);display:flex;flex-direction:column;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:24px;line-height:1.1}.dnut i small{font-size:11px;color:var(--mu);font-weight:400}
 .dlg{flex:1;min-width:150px;font-size:14px}.dlg div{display:flex;align-items:center;gap:8px;padding:4px 0}.dlg em{width:10px;height:10px;border-radius:50%;flex:none}.dlg span{margin-left:auto;font-weight:600}
-.dqs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}.dqs div{background:var(--bg);border-radius:8px;padding:8px;text-align:center}.dqs b{display:block;font-size:22px}.dqs small{color:var(--mu);font-size:12px}
+.dqs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}.dqs div{background:var(--bg);border-radius:8px;padding:8px;text-align:center}.dqs b{display:block;font-size:22px}.dqs small{color:var(--mu);font-size:12px}
 .dqr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--bd);font-size:14px}
 .dal{padding:6px 10px;border-left:3px solid;margin:8px 0;font-size:14px}.dal small{display:block;color:var(--mu);font-size:13px}
 .tg.er{background:#fde4e1;color:var(--er)}.dsc.cl:hover{border-color:var(--pr)}
@@ -492,8 +492,8 @@ function dqRender(){
   const el=$('dq');if(!el)return;
   const head=`<div class="dh" style="margin-top:0"><b>Today's queue</b><span><a href="#" onclick="go('queue');return false">Open queue</a></span></div>`;
   if(qmsg){el.innerHTML=head+`<p class="er2">${E(qmsg)}</p>`;return}
-  const w=Q.filter(x=>x.status==='waiting'&&isC(x)),c=Q.filter(x=>x.status==='in-consult'&&isC(x)),d=Q.filter(x=>x.status==='done'),act=[...c,...w],show=act.slice(0,5);
-  el.innerHTML=head+`<div class="dqs"><div><b>${w.length}</b><small>Waiting</small></div><div><b>${c.length}</b><small>In consultation</small></div><div><b>${d.length}</b><small>Done</small></div></div>`+(show.length?show.map(x=>{const st=ST[x.status]||['wa',x.status];return `<div class="dqr"><span><b>${qn(x.num)}</b> ${E(x.name)}</span><span class="tg ${st[0]}">${st[1]}${x.status==='in-consult'&&x.room?' | Room '+E(x.room):''}</span></div>`}).join(''):'<p style="color:var(--mu);margin:6px 0 0">No one is waiting right now.</p>')+(act.length>5?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${act.length-5} more</p>`:'')
+  const w=Q.filter(x=>x.status==='waiting'&&isC(x)),c=Q.filter(x=>x.status==='in-consult'&&isC(x)),d=Q.filter(x=>x.status==='done'),sn=Q.filter(x=>!isC(x)&&['waiting','in-consult'].includes(x.status)),act=[...c,...w],show=act.slice(0,5);
+  el.innerHTML=head+`<div class="dqs"><div><b>${w.length}</b><small>Waiting</small></div><div><b>${c.length}</b><small>In consultation</small></div><div><b>${sn.length}</b><small>At stations</small></div><div><b>${d.length}</b><small>Done</small></div></div>`+(show.length?show.map(x=>{const st=ST[x.status]||['wa',x.status];return `<div class="dqr"><span><b>${qn(x.num)}</b> ${E(x.name)}</span><span class="tg ${st[0]}">${st[1]}${x.status==='in-consult'&&x.room?' | Room '+E(x.room):''}</span></div>`}).join(''):'<p style="color:var(--mu);margin:6px 0 0">No one is waiting right now.</p>')+(act.length>5?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${act.length-5} more</p>`:'')
 }
 async function loadAl(){
   const r=U.role,t={},j=[],run=(k,f)=>f().then(v=>{t[k]=v}).catch(()=>{});
@@ -1170,7 +1170,7 @@ const stCard=k=>SROLE[k].includes(U.role)?`<div class="cd ov"><h3 style="margin-
 function stList(k){
   const l=Q.filter(x=>x.station===k&&['waiting','in-consult'].includes(x.status));
   if(!l.length)return '<p style="color:var(--mu)">No one is waiting here.</p>';
-  return `<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${qn(x.num)}</td><td>${E(x.name)}</td><td>${E(x.reason||'')}</td><td><span class="tg ${x.status==='in-consult'?'ok':'wa'}">${x.status==='in-consult'?'Called':'Waiting'}</span>${x.status==='in-consult'&&x.byName?`<br><small style="color:var(--mu)">by ${E(x.byName)}</small>`:''}</td><td>${x.status==='waiting'?`<button class="bt" onclick="stCall('${x.id}')">Call</button>`:`<button class="bt g" onclick="stCall('${x.id}',this)">Call again</button> <button class="bt" onclick="stDone('${x.id}')">Done</button>`}</td></tr>`).join('')}</tbody></table>`}
+  return `<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${qn(x.num)}</td><td>${E(x.name)}</td><td>${E(x.reason||'')}</td><td><span class="tg ${x.status==='in-consult'?'ok':'wa'}">${x.status==='in-consult'?'Called':'Waiting'}</span>${x.status==='in-consult'&&x.byName?`<br><small style="color:var(--mu)">by ${E(x.byName)}</small>`:''}</td><td>${x.status==='waiting'?`<button class="bt" onclick="stCall('${x.id}')">Call</button>`:`<button class="bt g" onclick="stCall('${x.id}',this)">Call again</button> <button class="bt g" onclick="stBack('${x.id}')">Return to waiting</button> <button class="bt" onclick="stDone('${x.id}')">Done</button>`}</td></tr>`).join('')}</tbody></table>`}
 async function stCall(id,el){
   const x=Q.find(e=>e.id===id);if(!x||isC(x)||!SROLE[x.station]||!SROLE[x.station].includes(U.role))return;
   try{
@@ -1178,6 +1178,16 @@ async function stCall(id,el){
     await setDoc(doc(db,'queueDisplay',id),{day:x.day,num:x.num,status:'in-consult',room:null,station:x.station,route:x.route||[],calledAt:serverTimestamp()},{merge:true});
     if(el){const t0=el.textContent;el.textContent='Called';setTimeout(()=>{el.textContent=t0},1500)}
   }catch(e){sAlert(e.code==='permission-denied'?'You do not have permission to call this patient.':'Could not call the patient. Check your connection.')}
+}
+// No-show: the patient was called but did not come. Put them back in the station's waiting list and clear them from the "Now serving" card.
+async function stBack(id){
+  const x=Q.find(e=>e.id===id);if(!x||isC(x)||!SROLE[x.station]||!SROLE[x.station].includes(U.role)||x.status!=='in-consult')return;
+  if(!await sConfirm('Return '+x.name+' to the waiting list of '+(STN[x.station]||x.station)+'?','Return to waiting list?','Return',0))return;
+  try{
+    await updateDoc(doc(db,'queue',id),{status:'waiting',by:null,byName:null});
+    await setDoc(doc(db,'queueDisplay',id),{day:x.day,num:x.num,status:'waiting',room:null,station:x.station,route:x.route||[]},{merge:true});
+    await lg('Station returned to waiting '+x.station+' '+id)
+  }catch(e){sAlert(e.code==='permission-denied'?'You do not have permission to update this patient.':'Could not save. Check your connection.')}
 }
 async function stDone(id){
   const x=Q.find(e=>e.id===id);if(!x||isC(x)||!SROLE[x.station]||!SROLE[x.station].includes(U.role))return;
@@ -1193,7 +1203,7 @@ function qTable(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   if(!Q.length)return '<p style="color:var(--mu)">No one in the queue yet today.</p>';
   return roomBar()+`<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Vitals</th><th>Status</th><th></th></tr></thead><tbody>${Q.map(x=>{const st=ST[x.status]||['wa',x.status],open=x.status==='waiting'||x.status==='in-consult';
-    return `<tr><td>${qn(x.num)}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a></td><td>${E(x.reason||'')}${isC(x)?'':`<br><small style="color:var(--mu)">At ${STN[x.station]||E(x.station)}</small>`}</td><td>${E(vsum(x.vitals))||'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}</td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${open&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='in-consult'&&CROLES.includes(U.role)?`<button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}`}).join('')}</tbody></table>`}
+    return `<tr><td>${qn(x.num)}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a></td><td>${E(x.reason||'')}${isC(x)?'':`<br><small style="color:var(--mu)">At ${STN[x.station]||E(x.station)}</small>`}</td><td>${E(vsum(x.vitals))||'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}</td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${open&&isC(x)&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='in-consult'&&isC(x)&&CROLES.includes(U.role)?`<button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}`}).join('')}</tbody></table>`}
 const qpg=()=>`<h2 style="margin-top:0">Queue</h2><p style="color:var(--mu);margin-top:-6px">${new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>${canReg()?`<div class="cd"><h3 style="margin-top:0">Add patient to queue</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="qsrch" placeholder="Search patient by name or ID" oninput="qSearch(this.value)" autocomplete="off" style="flex:1;min-width:200px"><button type="button" class="bt" onclick="qNew()">+ New patient</button></div><div id="qres" style="margin-top:8px"></div><div class="er2" id="qe"></div></div>`:''}<div class="cd ov"><div id="qt">${qTable()}</div></div>`;
 function qSearch(v){
   const s=v.trim().toLowerCase(),r=$('qres');if(!s){r.innerHTML='';return}
