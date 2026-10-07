@@ -80,7 +80,7 @@ const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
 const IMR=['doctor','midwife','bhw','admin','developer'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk']],['audit','Audit log',0,['admin','developer']]];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['rp','Reports',0,['doctor','midwife','developer']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk']],['audit','Audit log',0,['admin','developer']]];
 let Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
 let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false,bk=[];
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -142,7 +142,7 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -272,7 +272,7 @@ function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}${n[0]==='pharm'?pxBadge():''}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['dvt','dlr','u5','sr'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
@@ -499,6 +499,97 @@ function drModal(k){
   }
   if(!Array.isArray(DR.lr))return['Lab results back','',drMu('Could not load this list. Check your connection.'),null];
   return['Lab results back',nN(DR.lr.length,'result')+' in the last 7 days'+(typeof DR.lp==='number'?', '+DR.lp+' still pending':''),dmList(DR.lr,r=>dmrc(E(r.pname),E(r.test)+': '+E(r.result||''),E(r.d||''),"dmClose();view('"+r.pid+"')")),null]
+}
+/* ---------- Reports (consultations, morbidity, immunization, medicines) ---------- */
+const RPR=['doctor','midwife','developer'];
+let RP={from:'',to:'',d:null,c:null};
+const rpFmt=d=>d.toLocaleDateString('en-CA');
+const rpTab=(head,rows,empty)=>rows.length?`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${E(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:`<p style="color:var(--mu)">${empty}</p>`;
+const rpg=()=>{
+  if(!RP.from){RP.from=today().slice(0,8)+'01';RP.to=today()}
+  return `<h2 style="margin-top:0">Reports</h2><div class="cd"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><div><label>From</label><input type="date" id="rpf" value="${E(RP.from)}"></div><div><label>To</label><input type="date" id="rpt" value="${E(RP.to)}"></div><button class="bt" onclick="rpGo()">Show report</button><div><label>Quick range</label><select onchange="rpPreset(this.value);this.value=''"><option value="">Choose...</option><option value="tm">This month</option><option value="lm">Last month</option><option value="3m">Last 3 months</option><option value="ty">This year</option></select></div></div><div class="er2" id="rpe"></div></div><div id="rpb"></div>`
+};
+function rpInit(){loadRp()}
+function rpPreset(v){
+  const n=new Date(),y=n.getFullYear(),m=n.getMonth();let a,b=today();
+  if(v==='tm')a=rpFmt(new Date(y,m,1));
+  else if(v==='lm'){a=rpFmt(new Date(y,m-1,1));b=rpFmt(new Date(y,m,0))}
+  else if(v==='3m')a=rpFmt(new Date(y,m-2,1));
+  else if(v==='ty')a=rpFmt(new Date(y,0,1));
+  else return;
+  const f=$('rpf'),t=$('rpt');if(f)f.value=a;if(t)t.value=b;loadRp()
+}
+function rpGo(){loadRp()}
+async function loadRp(){
+  const fe=$('rpf'),te=$('rpt'),er=$('rpe');
+  const f=fe?fe.value:RP.from,t=te?te.value:RP.to;
+  if(er)er.textContent='';
+  if(!f||!t){if(er)er.textContent='Choose both dates.';return}
+  if(f>t){if(er)er.textContent='The "From" date must be before the "To" date.';return}
+  RP.from=f;RP.to=t;RP.d=null;RP.c=null;rpRender();
+  const dc=p=>p.then(s=>s.docs.map(d=>d.data())),run=fn=>fn().catch(()=>null);
+  const [vs,im,rx]=await Promise.all([
+    run(()=>dc(getDocs(query(collection(db,'visits'),where('d','>=',f),where('d','<=',t))))),
+    run(()=>dc(getDocs(collection(db,'immunizations')))),
+    run(()=>dc(getDocs(query(collection(db,'prescriptions'),where('d','>=',f),where('d','<=',t)))))
+  ]);
+  if(RP.from!==f||RP.to!==t)return;
+  RP.d={vs,im,rx};RP.c=rpCalc();rpRender()
+}
+function rpCalc(){
+  const D=RP.d,f=RP.from,t=RP.to,pm=new Map(P.map(p=>[p.id,p])),vs=D.vs||[],c={};
+  c.cons=vs.length;c.uniq=new Set(vs.map(v=>v.pid)).size;c.refs=vs.filter(v=>v.referral).length;
+  c.newp=P.filter(p=>p.createdDay&&p.createdDay>=f&&p.createdDay<=t).length;
+  const m={},b={};
+  vs.forEach(v=>{
+    const p=pm.get(v.pid),a=p&&p.dob?ageAt(p.dob,v.d):null,br=(p&&p.br)||'Unknown';b[br]=(b[br]||0)+1;
+    dxClassify(v.dx).forEach(([n])=>{const r=m[n]=m[n]||{n,t:0,M:0,F:0,u5:0,c:0,a:0,s:0,na:0};r.t++;if(p&&p.sex==='M')r.M++;else if(p&&p.sex==='F')r.F++;if(a===null)r.na++;else if(a<5)r.u5++;else if(a<18)r.c++;else if(a<60)r.a++;else r.s++})
+  });
+  c.morb=Object.values(m).sort((x,y)=>y.t-x.t||x.n.localeCompare(y.n));
+  c.brg=Object.entries(b).sort((x,y)=>y[1]-x[1]);
+  if(D.im){
+    const inR=D.im.filter(x=>x.d>=f&&x.d<=t),cnt={};inR.forEach(x=>{cnt[x.vax]=(cnt[x.vax]||0)+1});
+    c.vx=VAX.map(v=>[v[1],cnt[v[0]]||0]).filter(x=>x[1]>0);c.vxN=inR.length;
+    const have={};D.im.forEach(x=>{have[x.pid+'_'+x.vax]=1});
+    const u2=P.filter(p=>p.dob&&dAge(p.dob)>=0&&dAge(p.dob)<=730);
+    c.u2=u2.length;c.u2ok=u2.filter(p=>!VAX.some(v=>dAge(p.dob)>=v[2]&&!have[p.id+'_'+v[0]])).length
+  }
+  if(D.rx){
+    const md={};D.rx.filter(r=>r.status!=='rejected').forEach(r=>(r.items||[]).forEach(i=>{const k=String(i.drug||'').trim().toLowerCase();if(!k)return;const x=md[k]=md[k]||{n:String(i.drug).trim(),c:0,q:0};x.c++;const q=Number(i.qty);if(q>0)x.q+=q}));
+    c.med=Object.values(md).sort((x,y)=>y.c-x.c||x.n.localeCompare(y.n))
+  }
+  return c
+}
+function rpSections(){
+  const c=RP.c,D=RP.d,pct=(a,b)=>b?Math.round(a/b*100)+'%':'-',S=[];
+  S.push(['Summary',rpTab(['Measure','Value'],[['Consultations',c.cons],['Patients seen',c.uniq],['New patients registered',c.newp],['Referrals',c.refs]].concat(c.u2!==undefined?[['Children under 2 with complete vaccines (as of today)',c.u2ok+' of '+c.u2+' ('+pct(c.u2ok,c.u2)+')']]:[]),'')]);
+  S.push(['Morbidity: most common diagnoses',D.vs===null?'<p class="er2">Could not load consultations.</p>':rpTab(['Diagnosis','Total','Male','Female','Under 5','5-17','18-59','60+'],c.morb.slice(0,25).map(r=>[r.n,r.t,r.M,r.F,r.u5,r.c,r.a,r.s]),'No consultations with a diagnosis in this period.')+(c.morb.length>25?`<p style="color:var(--mu);font-size:13px">Showing the top 25 of ${c.morb.length} diagnoses.</p>`:'')+'<p style="color:var(--mu);font-size:13px;margin:6px 0 0">Counted from the typed diagnosis. A visit with two diseases counts once for each.</p>']);
+  S.push(['Consultations by barangay',D.vs===null?'':rpTab(['Barangay','Consultations'],c.brg.slice(0,15),'No consultations in this period.')]);
+  S.push(['Immunization',D.im===null?'<p class="er2">Could not load immunization records.</p>':rpTab(['Vaccine','Doses given'],c.vx.concat(c.vxN?[['Total',c.vxN]]:[]),'No vaccines recorded in this period.')]);
+  S.push(['Medicines prescribed',D.rx===null?'<p style="color:var(--mu)">Prescriptions can be read by doctor and midwife accounts only.</p>':rpTab(['Medicine','Times prescribed','Total quantity'],c.med.slice(0,20).map(x=>[x.n,x.c,x.q||'-']),'No prescriptions in this period.')+'<p style="color:var(--mu);font-size:13px;margin:6px 0 0">Prescribed, not dispensed. Rejected prescriptions are not counted.</p>']);
+  return S
+}
+function rpRender(){
+  const el=$('rpb');if(!el)return;
+  if(!RP.c){el.innerHTML='<div class="cd">Loading report...</div>';return}
+  const c=RP.c,cd=(n,l)=>`<div><b>${n}</b><small>${l}</small></div>`;
+  el.innerHTML=`<div class="dqs" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:12px">${cd(c.cons,'Consultations')+cd(c.uniq,'Patients seen')+cd(c.newp,'New patients')+cd(c.refs,'Referrals')}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="bt g" onclick="rpPrint()">Print report</button><button class="bt g" onclick="rpCsv()">Download CSV</button></div>`+rpSections().map(([t,b])=>`<div class="cd ov"><h3 style="margin-top:0">${t}</h3>${b}</div>`).join('')
+}
+function rpPrint(){
+  if(!RP.c)return;
+  const css='<style>table{border-collapse:collapse;width:100%;font-size:12px;margin:6px 0 14px}th,td{border:1px solid #000;padding:3px 6px;text-align:left}th{background:#eee}h3{margin:16px 0 4px;font-size:14px}</style>';
+  printDoc(css+lhHtml('Health center report')+`<div class="row"><span><b>Period:</b> ${E(longD(RP.from))} to ${E(longD(RP.to))}</span><span><b>Prepared by:</b> ${E(U.name)}</span></div>`+rpSections().map(([t,b])=>`<h3>${t}</h3>${b.replace(/<p[^>]*>/g,'<p style="font-size:11px;margin:2px 0">')}`).join('')+`<div class="sig"><div class="ln">${E(U.name)}<br><small>${E(RN[U.role]||U.role)}</small></div></div>`,'A4 portrait');
+  lg('Printed report '+RP.from+' to '+RP.to)
+}
+function rpCsv(){
+  if(!RP.c)return;
+  const c=RP.c,D=RP.d,r=[['Health center report'],['From',RP.from,'To',RP.to],[],['Summary'],['Consultations',c.cons],['Patients seen',c.uniq],['New patients registered',c.newp],['Referrals',c.refs]];
+  if(c.u2!==undefined)r.push(['Children under 2 with complete vaccines (as of today)',c.u2ok,'of',c.u2]);
+  r.push([],['Morbidity'],['Diagnosis','Total','Male','Female','Under 5','5-17','18-59','60+']);c.morb.forEach(x=>r.push([x.n,x.t,x.M,x.F,x.u5,x.c,x.a,x.s]));
+  r.push([],['Consultations by barangay'],['Barangay','Consultations']);c.brg.forEach(x=>r.push(x));
+  if(D.im){r.push([],['Immunization'],['Vaccine','Doses given']);c.vx.forEach(x=>r.push(x))}
+  if(D.rx){r.push([],['Medicines prescribed'],['Medicine','Times prescribed','Total quantity']);c.med.forEach(x=>r.push([x.n,x.c,x.q||'']))}
+  ioDl('report-'+RP.from+'-to-'+RP.to+'.csv',r);lg('Downloaded report CSV '+RP.from+' to '+RP.to)
 }
 /* ---------- Import / Export (patients, CSV) ---------- */
 const ioNorm=h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -1283,5 +1374,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
+Object.assign(window,{rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
