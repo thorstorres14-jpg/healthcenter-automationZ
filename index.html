@@ -19,7 +19,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid #14807f55;border-color
 .dt button{white-space:nowrap}
 .lgl{display:block;height:84px;max-width:100%;object-fit:contain;margin:0 auto 12px}
 .nv{display:flex;justify-content:space-between;padding:9px 12px;border-radius:8px;cursor:pointer;color:var(--nt);border:0;background:none;text-align:left;width:100%}
-.nv.on{background:var(--na);color:#fff}.nv.dis{opacity:.45;cursor:default}.nv small{font-size:11px}.nbd{display:inline-block;min-width:20px;padding:1px 6px;border-radius:99px;background:#e5484d;color:#fff;font-size:12px;font-weight:600;line-height:18px;text-align:center}.hm .nbd{margin-left:6px}
+.nv.on{background:var(--na);color:#fff}.nv.dis{opacity:.45;cursor:default}.nv small{font-size:11px}.nbd{display:inline-block;min-width:20px;padding:1px 6px;border-radius:99px;background:#e5484d;color:#fff;font-size:12px;font-weight:600;line-height:18px;text-align:center}.hm .nbd{margin-left:6px}.nbd.sqb{background:#d97706;margin-left:6px}.sqt{position:fixed;right:16px;bottom:16px;z-index:60;max-width:340px;background:#12324a;color:#fff;border-left:6px solid #f59e0b;border-radius:12px;padding:12px 16px;box-shadow:0 6px 20px rgba(0,0,0,.28);cursor:pointer;font-size:15px;line-height:1.35}.sqt b{display:block;font-size:16px}
 .mn{flex:1;min-width:0}
 .tb{display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--cd);border-bottom:1px solid var(--bd);justify-content:space-between}
 .ct{padding:20px;max-width:1100px}
@@ -154,16 +154,53 @@ let QU=null,QUd='';
 function qWatch(){
   // Live queue: the queue screens update by themselves when someone adds or changes a patient.
   const on=!!U&&mode==='app'&&(dqOn()||stOn());
-  if(!on){if(QU){QU();QU=null;QUd=''}return}
+  if(!on){if(QU){QU();QU=null;QUd=''}SQs=null;return}
   if(QU&&QUd===today())return;
   if(QU){QU();QU=null}
-  QUd=today();
+  QUd=today();SQs=null;
   QU=onSnapshot(query(collection(db,'queue'),where('day','==',QUd)),sn=>{Q=sn.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.num||0)-(b.num||0));qmsg='';qLive()},()=>{})
+}
+/* Station alert: when a doctor sends a patient to Laboratory, Pharmacy or Immunization, that station gets a badge, a sound and a pop-up. */
+const SQN={pharm:'pharmacy',lab:'lab',imm:'imm'};
+let SQs=null,SQac=null,SQt=null,SQt0='';
+const myStn=()=>U?['pharmacy','lab','imm'].filter(k=>SROLE[k].includes(U.role)):[];
+const sqWaiting=()=>Q.filter(x=>myStn().includes(x.station)&&x.status==='waiting');
+function sqBadge(nk){const k=SQN[nk];if(!k||!myStn().includes(k))return '';const n=Q.filter(x=>x.station===k&&x.status==='waiting').length;return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting">${n>99?'99+':n}</span>`:''}
+function sqPaint(){
+  document.querySelectorAll('.sqb').forEach(e=>e.remove());
+  document.querySelectorAll('.sb .nv').forEach(b=>{const m=(b.getAttribute('onclick')||'').match(/go\('(\w+)'\)/);if(m)b.insertAdjacentHTML('beforeend',sqBadge(m[1]))});
+  const tot=sqWaiting().length,mb=document.querySelector('.tb .hm');
+  if(mb&&tot)mb.insertAdjacentHTML('beforeend',`<span class="nbd sqb" aria-label="${tot} patients waiting">${tot>99?'99+':tot}</span>`);
+  if(!SQt0)SQt0=document.title.replace(/^\(\d+\) /,'');
+  document.title=(tot?'('+tot+') ':'')+SQt0
+}
+document.addEventListener('click',()=>{try{if(!SQac)SQac=new(window.AudioContext||window.webkitAudioContext)();if(SQac.state==='suspended')SQac.resume()}catch(e){}});
+function sqBeep(){
+  try{
+    if(!SQac)return;
+    [[880,0],[1175,.22]].forEach(([f,t])=>{const o=SQac.createOscillator(),g=SQac.createGain();o.frequency.value=f;o.connect(g);g.connect(SQac.destination);const s=SQac.currentTime+t;g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(.3,s+.03);g.gain.exponentialRampToValueAtTime(.0001,s+.35);o.start(s);o.stop(s+.4)})
+  }catch(e){}
+}
+function sqToast(list){
+  const x=list[0],k=x.station,more=list.length>1?` (+${list.length-1} more)`:'';
+  clearTimeout(SQt);const o=document.getElementById('sqt');if(o)o.remove();
+  const d=document.createElement('div');d.id='sqt';d.className='sqt';d.setAttribute('role','status');
+  d.innerHTML=`<b>New patient for ${E(STN[k]||k)}${more}</b>${qn(x.num)} ${E(x.name||'')}`;
+  d.onclick=()=>{d.remove();const pgk=Object.keys(SQN).find(a=>SQN[a]===k);if(pgk)go(pgk)};
+  document.body.appendChild(d);SQt=setTimeout(()=>{d.remove()},8000)
+}
+function sqCheck(){
+  if(!U||mode!=='app'||!myStn().length){SQs=null;return}
+  const cur=sqWaiting(),fresh=SQs?cur.filter(x=>!SQs.has(x.id)):[];
+  SQs=new Set(cur.map(x=>x.id));
+  sqPaint();
+  // Only the dedicated station roles (pharmacist, med tech) get the sound and pop-up. Doctor and midwife only see the badge.
+  if(fresh.length&&stOn()){sqBeep();sqToast(fresh)}
 }
 function qLive(){
   const busy=el=>{const a=document.activeElement;return !!a&&el.contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)};
   try{
-    dqRender();
+    dqRender();sqCheck();
     if(pg==='queue'){const a=$('qt');if(a&&!vq&&!busy(a))a.innerHTML=qTable()}
     if(pg==='consult'&&!cp){const c=$('cl');if(c&&!busy(c))c.innerHTML=consList()}
     ['pharmacy','lab','imm'].forEach(k=>{const e=$('sq-'+k);if(e&&!busy(e))e.innerHTML=stList(k)});
@@ -387,7 +424,7 @@ addEventListener('keydown',e=>{if(e.key==='Escape'){const b=document.getElementB
 addEventListener('popstate',()=>{const e=bk.pop();if(!e)return;if(e.pg==='prof')return view(e.pid,1);hhSel=e.hhSel;go(e.pg,1)});
 function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
-  const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}${n[0]==='pharm'?pxBadge():''}</button>`).join('');
+  const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}${n[0]==='pharm'?pxBadge():''}${sqBadge(n[0])}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
 function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||(pg==='mc'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp,mc:mcPg}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
