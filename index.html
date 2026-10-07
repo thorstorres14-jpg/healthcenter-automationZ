@@ -80,7 +80,7 @@ const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
 const IMR=['doctor','midwife','bhw','admin','developer'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['rp','Reports',0,['doctor','midwife','developer']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk']],['audit','Audit log',0,['admin','developer']]];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['rp','Reports',0,['doctor','midwife','developer']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk']],['audit','Audit log',0,['admin','developer']]];
 let RXL=[],RSK=null,Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
 let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false,bk=[];
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -232,7 +232,7 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -362,7 +362,7 @@ function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}${n[0]==='pharm'?pxBadge():''}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['dvt','dlr','u5','sr'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
@@ -799,7 +799,7 @@ function ioTemplate(){
 async function ioExport(){
   if(!isAdm())return;
   if(!await sConfirm('The file will contain personal information of '+P.length+' patients. Keep it safe. Do not send it through chat or social media.','Download patient list','Download',0))return;
-  const rows=[['patient_id','last_name','first_name','middle_name','sex','birthdate','barangay','purok','contact','household','registered']].concat(P.slice().sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).map(p=>[p.id,p.ln,p.fn,p.mn||'',p.sex,p.dob,p.br,p.pu||'',p.tel||'',p.hh,p.createdDay||'']));
+  const rows=[['patient_id','last_name','first_name','middle_name','sex','birthdate','barangay','purok','contact','household','registered','philhealth']].concat(P.slice().sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).map(p=>[p.id,p.ln,p.fn,p.mn||'',p.sex,p.dob,p.br,p.pu||'',p.tel||'',p.hh,p.createdDay||'',p.ph||'']));
   ioDl('patients-'+today()+'.csv',rows);await lg('Exported patient list ('+P.length+' patients)')
 }
 const iop=()=>{
@@ -903,7 +903,7 @@ async function ahSave(id){
 }
 function prof(){
   const p=P.find(x=>x.id===pid),lv=LV[U.role]||'basic',m=P.filter(x=>x.hh===p.hh&&x.id!==p.id);
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="goBack('patients')">Back to ${E(backLbl('patients'))}</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='basic'?'':ahCard(p,CROLES.includes(U.role))}${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><h3 style="margin-top:0">Lab results</h3><div id="labh" class="ov">Loading...</div></div>`:''}`}
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="goBack('patients')">Back to ${E(backLbl('patients'))}</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>PhilHealth</label>${E(p.ph||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='basic'?'':ahCard(p,CROLES.includes(U.role))}${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><h3 style="margin-top:0">Lab results</h3><div id="labh" class="ov">Loading...</div></div>`:''}`}
 async function view(id,np,quiet){
   if(!np&&(pg!=='prof'||pid!==id))navPush();
   pid=id;pg='prof';if(!quiet){lg('Viewed '+id);R();scrollTo(0,0)}
@@ -916,7 +916,11 @@ async function view(id,np,quiet){
     h.innerHTML=l.length?`${fo?`<div style="color:var(--wa);margin:0 0 8px"><b>Follow-up due:</b> ${E(fo.fu)}${fo.fun?' ('+E(fo.fun)+')':''}</div>`:''}<table><thead><tr><th>Date</th>${lv==='full'?'<th>Vitals</th><th>Complaint</th><th>Diagnosis</th>':''}<th>Prescription</th>${lv==='full'?'<th>Referral</th>':'<th>Status</th>'}${PR?'<th></th>':''}</tr></thead><tbody>${l.map((v,vi)=>`<tr><td>${E(v.d)}</td>${lv==='full'?`<td>${E(vt(v))}</td><td>${E(v.cc)}</td><td>${E(v.dx)}${v.tx?`<br><small style="color:var(--mu)">${E(v.tx)}</small>`:''}${v.fu?`<br><small style="color:var(--mu)">Follow-up: ${E(v.fu)}${v.fun?' ('+E(v.fun)+')':''}${v.fuOpen?'':' (done)'}</small>`:''}</td>`:''}<td>${E(v.rx||'')}${lv==='full'?rxFlag(RXM[v.d+'|'+v.rx],1):''}</td>${lv==='full'?`<td>${v.referral?E(v.referral.to+' ('+v.referral.urg+'): '+v.referral.why):''}</td>`:`<td>${E(rxStLbl(v))}</td>`}${PR?`<td style="white-space:nowrap">${v.rx&&canRx()?`<button class="bt g" onclick="printRx(${vi})">Print Rx</button> `:''}${U.role==='doctor'?`<button class="bt g" onclick="certOpen(${vi})">Med. certificate</button>`:''}</td>`:''}</tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No records yet. Consultations will appear here once they are recorded.</p>';
   }catch(e){h.textContent='Could not load records. Check your connection.'}
 }
-const regFields=hm=>{const hs=[...new Set(P.map(x=>x.hh))];return `<div class="fm"><div><label>Last name</label><input id="f2"></div><div><label>First name</label><input id="f1"></div><div><label>Middle name (optional)</label><input id="f9"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date"></div><div><label>Barangay</label>${brField(hm.br||'')}</div><div><label>Purok</label><div id="f6w">${puField(hm.br||'',hm.pu||'')}</div></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option ${h===regHH?'selected':''}>${h}</option>`).join('')}</select></div>${(LV[U.role]||'basic')==='basic'?'':'<div><label>Allergies (optional)</label><input id="fa1" maxlength="500" placeholder="e.g. Penicillin, shrimp" autocomplete="off"></div><div><label>Medical history (optional)</label><input id="fa2" maxlength="1000" placeholder="e.g. Hypertension, diabetes" autocomplete="off"></div>'}</div>`+`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label>`};
+const phDigits=v=>String(v||'').replace(/\D/g,'').slice(0,12);
+const phFmt=v=>{const d=phDigits(v);return d.length>2?d.slice(0,2)+'-'+d.slice(2,11)+(d.length>11?'-'+d.slice(11):''):d};
+const phOk=v=>!v||phDigits(v).length===12;
+function phIn(el){el.value=phFmt(el.value)}
+const regFields=hm=>{const hs=[...new Set(P.map(x=>x.hh))];return `<div class="fm"><div><label>Last name</label><input id="f2"></div><div><label>First name</label><input id="f1"></div><div><label>Middle name (optional)</label><input id="f9"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date"></div><div><label>Barangay</label>${brField(hm.br||'')}</div><div><label>Purok</label><div id="f6w">${puField(hm.br||'',hm.pu||'')}</div></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>PhilHealth number (optional)</label><input id="f10" inputmode="numeric" maxlength="14" placeholder="12-345678901-2" autocomplete="off" oninput="phIn(this)"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option ${h===regHH?'selected':''}>${h}</option>`).join('')}</select></div>${(LV[U.role]||'basic')==='basic'?'':'<div><label>Allergies (optional)</label><input id="fa1" maxlength="500" placeholder="e.g. Penicillin, shrimp" autocomplete="off"></div><div><label>Medical history (optional)</label><input id="fa2" maxlength="1000" placeholder="e.g. Hypertension, diabetes" autocomplete="off"></div>'}</div>`+`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label>`};
 function reg(){const hm=P.find(x=>x.hh===regHH)||{};return `<h2 style="margin-top:0">Register patient</h2><div class="cd">${regFields(hm)}<div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="save()">Save patient</button><button class="bt" id="sv2" onclick="save(true)">Register and add to queue</button><button class="bt g" onclick="go('patients')">Cancel</button></div></div>`}
 function qNew(){
   const t=(($('qsrch')||{}).value||'').trim(),m=t.split(','),ln=m[0].trim(),fn=(m[1]||'').trim();
@@ -929,6 +933,7 @@ async function save(aq){
   const g=i=>$(i).value.trim(),f=[g('f1'),g('f2'),g('f3'),g('f4'),g('f5'),g('f6')],e=s=>{$('fe').textContent=s};
   if(f.some(x=>!x))return e('Fill in all fields except the contact number.');
   if(new Date(f[3])>new Date())return e('Birthdate cannot be in the future.');
+  if(!phOk(g('f10')))return e('PhilHealth number must have 12 digits, or leave it blank.');
   if(!$('cs').checked)return e('Patient consent is required before saving.');
   rb(true);e('');let np;
   try{
@@ -936,7 +941,7 @@ async function save(aq){
       const r=doc(db,'meta','counters'),c=await tx.get(r),d=c.exists()?c.data():{},n=(d.patients||0)+1;let h=g('f8'),hn=d.households||0;
       if(!h){hn++;h='HH-'+(1000+hn)}
       tx.set(r,{patients:n,households:hn},{merge:true});
-      np={id:'RHU-'+String(n).padStart(6,'0'),fn:f[0],ln:f[1],mn:g('f9'),sex:f[2],dob:f[3],br:f[4],pu:f[5],tel:g('f7'),hh:h,consent:true,consentBy:U.name,createdDay:new Date().toLocaleDateString('en-CA'),...($('fa1')?{alg:g('fa1'),mh:g('fa2')}:{})};
+      np={id:'RHU-'+String(n).padStart(6,'0'),fn:f[0],ln:f[1],mn:g('f9'),sex:f[2],dob:f[3],br:f[4],pu:f[5],tel:g('f7'),hh:h,consent:true,consentBy:U.name,createdDay:new Date().toLocaleDateString('en-CA'),...($('fa1')?{alg:g('fa1'),mh:g('fa2')}:{}),...(g('f10')?{ph:phFmt(g('f10'))}:{})};
       tx.set(doc(db,'patients',np.id),{...np,createdAt:serverTimestamp()});
     });
     P.push(np);regHH='';await lg('Registered '+np.id);
@@ -1061,13 +1066,14 @@ async function removeUser(id){
 function editP(){pg='edit';R();scrollTo(0,0)}
 function ed(){
   const p=P.find(x=>x.id===pid);
-  return `<h2 style="margin-top:0">Edit patient</h2><div style="color:var(--mu);margin-bottom:10px">${p.id} | ${p.hh}</div><div class="cd"><div class="fm"><div><label>Last name</label><input id="f2" value="${E(p.ln)}"></div><div><label>First name</label><input id="f1" value="${E(p.fn)}"></div><div><label>Middle name (optional)</label><input id="f9" value="${E(p.mn||'')}"></div><div><label>Sex</label><select id="f3"><option value="F" ${p.sex==='F'?'selected':''}>Female</option><option value="M" ${p.sex==='M'?'selected':''}>Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date" value="${E(p.dob)}"></div><div><label>Barangay</label>${brField(p.br)}</div><div><label>Purok</label><div id="f6w">${puField(p.br,p.pu)}</div></div><div><label>Contact number (optional)</label><input id="f7" value="${E(p.tel||'')}"></div>${(LV[U.role]||'basic')==='basic'?'':`<div><label>Allergies (optional)</label><textarea id="fa1" rows="2" maxlength="500">${E(p.alg||'')}</textarea></div><div><label>Medical history (optional)</label><textarea id="fa2" rows="2" maxlength="1000">${E(p.mh||'')}</textarea></div>`}</div><div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="saveEdit()">Save changes</button><button class="bt g" onclick="view('${p.id}',1)">Cancel</button></div></div>`}
+  return `<h2 style="margin-top:0">Edit patient</h2><div style="color:var(--mu);margin-bottom:10px">${p.id} | ${p.hh}</div><div class="cd"><div class="fm"><div><label>Last name</label><input id="f2" value="${E(p.ln)}"></div><div><label>First name</label><input id="f1" value="${E(p.fn)}"></div><div><label>Middle name (optional)</label><input id="f9" value="${E(p.mn||'')}"></div><div><label>Sex</label><select id="f3"><option value="F" ${p.sex==='F'?'selected':''}>Female</option><option value="M" ${p.sex==='M'?'selected':''}>Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date" value="${E(p.dob)}"></div><div><label>Barangay</label>${brField(p.br)}</div><div><label>Purok</label><div id="f6w">${puField(p.br,p.pu)}</div></div><div><label>Contact number (optional)</label><input id="f7" value="${E(p.tel||'')}"></div><div><label>PhilHealth number (optional)</label><input id="f10" inputmode="numeric" maxlength="14" placeholder="12-345678901-2" autocomplete="off" value="${E(p.ph||'')}" oninput="phIn(this)"></div>${(LV[U.role]||'basic')==='basic'?'':`<div><label>Allergies (optional)</label><textarea id="fa1" rows="2" maxlength="500">${E(p.alg||'')}</textarea></div><div><label>Medical history (optional)</label><textarea id="fa2" rows="2" maxlength="1000">${E(p.mh||'')}</textarea></div>`}</div><div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="saveEdit()">Save changes</button><button class="bt g" onclick="view('${p.id}',1)">Cancel</button></div></div>`}
 async function saveEdit(){
   const g=i=>$(i).value.trim(),e=t=>{$('fe').textContent=t},p=P.find(x=>x.id===pid);
-  const ch={fn:g('f1'),ln:g('f2'),mn:g('f9'),sex:g('f3'),dob:g('f4'),br:g('f5'),pu:g('f6'),tel:g('f7')};
+  const ch={fn:g('f1'),ln:g('f2'),mn:g('f9'),sex:g('f3'),dob:g('f4'),br:g('f5'),pu:g('f6'),tel:g('f7'),ph:phFmt(g('f10'))};
   if($('fa1')){ch.alg=g('fa1');ch.mh=g('fa2')}
   if(!ch.fn||!ch.ln||!ch.sex||!ch.dob||!ch.br||!ch.pu)return e('Fill in all fields except the contact number.');
   if(new Date(ch.dob)>new Date())return e('Birthdate cannot be in the future.');
+  if(!phOk(g('f10')))return e('PhilHealth number must have 12 digits, or leave it blank.');
   $('sv').disabled=true;e('');
   try{await updateDoc(doc(db,'patients',p.id),ch);Object.assign(p,ch);await lg('Edited '+p.id);sDone('Changes to '+pn(p)+' were saved.','Patient updated');view(p.id,1)}
   catch(x){$('sv').disabled=false;e(x.code==='permission-denied'?'You do not have permission to edit patients.':'Could not save. Check your connection.')}
@@ -1274,7 +1280,7 @@ async function saveC(){
     // The patient came back: close any earlier open follow-up for this patient.
     let oldFu=[];try{oldFu=(await getDocs(query(collection(db,'visits'),where('pid','==',p.id),where('fuOpen','==',true)))).docs}catch(x){}
     oldFu.forEach(o=>b.update(o.ref,{fuOpen:false,fuDoneBy:U.name,fuDoneAt:serverTimestamp()}));
-    b.set(vr,{pid:p.id,pname:pn(p),d,cc:g('cc'),dx:g('dx'),tx:g('tx'),rx,vitals:vit,referral:ref,...(fu?{fu,fuOpen:true,fun}:{}),by:U.uid,byName:U.name,role:U.role,at:serverTimestamp()});
+    b.set(vr,{pid:p.id,pname:pn(p),d,cc:g('cc'),dx:g('dx'),tx:g('tx'),rx,vitals:vit,referral:ref,...(ref?{refSt:'sent',refAt:d}:{}),...(fu?{fu,fuOpen:true,fun}:{}),by:U.uid,byName:U.name,role:U.role,at:serverTimestamp()});
     const awaiting=needApproval(items);
     if(items.length)b.set(doc(collection(db,'prescriptions')),{pid:p.id,pname:pn(p),vid:vr.id,d,rx,items,status:awaiting?'awaiting':'pending',by:U.uid,byName:U.name,at:serverTimestamp()});
     g('lt').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>b.set(doc(collection(db,'labs')),{pid:p.id,pname:pn(p),vid:vr.id,d,test:t,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()}));
@@ -1665,6 +1671,55 @@ async function imGive(id,k){
       try{await setDoc(doc(db,'immunizations',id+'_'+k),{...rec,at:serverTimestamp()});IM[id+'_'+k]={d};await lg('Immunization '+k+' '+id);imRender();sAlert('The vaccine was recorded, but the vaccine stock was not updated. Publish the latest firestore.rules first.');return}catch(y){}
     }
     er.textContent=x.code==='permission-denied'?'You do not have permission to record vaccines.':'Could not save. Check your connection.'
+  }
+}
+/* ---------- Referrals ---------- */
+let RFL=null,RFE=false,RFF='all',RFQ='';
+const RFW=7,RFS={sent:['wa','Sent'],received:['ok','Received'],returned:['ok','Returned']};
+const rfDays=d=>d?Math.round((new Date(today()+'T00:00:00')-new Date(d+'T00:00:00'))/864e5):0;
+async function loadRef(){
+  try{const s=await getDocs(query(collection(db,'visits'),where('refSt','in',['sent','received','returned'])));RFL=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.refAt||b.d||'').localeCompare(a.refAt||a.d||''));RFE=false}
+  catch(e){RFE=true}
+  if(pg==='ref')R()
+}
+function rfSetF(f){RFF=f;R()}
+function rfSq(v){RFQ=v;const t=$('rft');if(t)t.innerHTML=rfRows()}
+function rfRows(){
+  const s=RFQ.toLowerCase(),l=(RFL||[]).filter(v=>(RFF==='all'||v.refSt===RFF)&&(!s||(v.pname||'').toLowerCase().includes(s)));
+  return l.length?l.map(v=>{
+    const r=v.referral||{},t=RFS[v.refSt]||RFS.sent,w=v.refSt==='sent'?rfDays(v.refAt||v.d):0;
+    return `<tr><td><a href="#" onclick="view('${v.pid}');return false">${E(v.pname)}</a></td><td>${E(r.to||'')}${r.urg&&r.urg!=='Routine'?' '+tgh(E(r.urg),r.urg==='Emergency'?'er':'wa'):''}<small style="display:block;color:var(--mu)">${E(r.why||'')}${v.refNote?'<br>Note: '+E(v.refNote):''}</small></td><td>${E(v.refAt||v.d||'')}${w>=RFW?`<small style="display:block;color:var(--wa)">${w} days waiting</small>`:''}</td><td>${tgh(t[1],t[0])}</td><td style="white-space:nowrap">${v.refSt==='sent'?`<button class="bt g" onclick="rfSet('${v.id}','received')">Mark received</button>`:v.refSt==='received'?`<button class="bt g" onclick="rfSet('${v.id}','returned')">Mark returned</button>`:''}</td></tr>`}).join(''):'<tr><td colspan="5">No matching referrals.</td></tr>'
+}
+function rfp(){
+  const h='<h2 style="margin-top:0">Referrals</h2>';
+  if(RFE)return h+'<div class="cd"><p class="er2" style="margin:0">Could not load referrals. Check your connection.</p></div>';
+  if(RFL===null)return h+'<div class="cd">Loading...</div>';
+  const c=k=>RFL.filter(v=>v.refSt===k).length,wt=RFL.filter(v=>v.refSt==='sent'&&rfDays(v.refAt||v.d)>=RFW).length;
+  const cd=(n,t,w)=>`<div class="cd" style="margin:0;padding:12px"><div style="color:${w?'var(--wa)':'var(--mu)'};font-size:13px">${t}</div><div style="font-size:24px;font-weight:600${w?';color:var(--wa)':''}">${n}</div></div>`;
+  return h+`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px">${cd(c('sent'),'Sent')+cd(c('received'),'Received')+cd(c('returned'),'Returned')+cd(wt,'Waiting '+RFW+'+ days',wt>0)}</div>`
+  +`<div class="cd"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">${[['all','All'],['sent','Sent'],['received','Received'],['returned','Returned']].map(([f,t])=>`<button class="bt ${RFF===f?'':'g'}" onclick="rfSetF('${f}')">${t}</button>`).join('')}<input placeholder="Search patient" value="${E(RFQ)}" oninput="rfSq(this.value)" style="margin-left:auto;max-width:220px"></div><div class="ov"><table><thead><tr><th>Patient</th><th>Referred to and reason</th><th>Date</th><th>Status</th><th></th></tr></thead><tbody id="rft">${rfRows()}</tbody></table></div></div>`
+}
+async function rfSet(id,to){
+  const v=(RFL||[]).find(x=>x.id===id);if(!v)return;
+  if(to==='received'){
+    if(!await sConfirm('Mark the referral of '+v.pname+' to '+((v.referral||{}).to||'the facility')+' as received? Use this when the facility confirmed the patient arrived.','Mark referral received?','Mark received',0))return;
+    return rfSave(v,{refSt:'received'},false)
+  }
+  fmShow('Referral returned: '+v.pname,'Add what the facility sent back (optional).','<label>Note from the facility (optional)</label><textarea id="rfn" rows="3" maxlength="300" placeholder="e.g. Cast done, follow-up in 2 weeks"></textarea><div class="er2" id="rfe"></div>','Mark returned',"rfRet('"+id+"')")
+}
+function rfRet(id){
+  const v=(RFL||[]).find(x=>x.id===id);if(!v)return;
+  const n=(($('rfn')||{}).value||'').trim();fmBusy(true);
+  rfSave(v,{refSt:'returned',...(n?{refNote:n}:{})},true)
+}
+async function rfSave(v,ch,modal){
+  try{
+    await updateDoc(doc(db,'visits',v.id),{...ch,refBy:U.name,refUpAt:serverTimestamp()});
+    Object.assign(v,ch);await lg('Referral '+ch.refSt+' '+v.pid);if(modal)fmClose();R();
+    sDone('The referral of '+v.pname+' was marked as '+ch.refSt+'.','Referral updated')
+  }catch(x){
+    const m=x.code==='permission-denied'?'You do not have permission to update referrals.':'Could not update. Check your connection.';
+    if(modal){fmBusy(false);const e=$('rfe');if(e)e.textContent=m}else sAlert(m)
   }
 }
 /* ---------- Follow-ups ---------- */
