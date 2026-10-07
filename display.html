@@ -29,13 +29,14 @@ h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;let
 .chip{display:flex;flex-direction:column;align-items:center;justify-content:center}
 .chip small{font-size:.3em;font-weight:800;letter-spacing:.06em;line-height:1.2}
 .chip.next{background:var(--next);border-color:#b45309;color:#2b1a00}
+.grp{flex:0 0 100%;margin-top:10px;font-size:clamp(16px,2vw,26px);font-weight:700;color:var(--mu)}
 .card.idle{background:transparent;border-style:dashed;box-shadow:none}
 .card.idle .n,.card.idle .rm{color:var(--mu);opacity:.7}
 .card.idle .n{font-weight:600}
 #recent{display:none;align-items:center;flex-wrap:wrap;gap:10px 18px;padding:10px 32px;background:#fff;border-top:2px solid var(--line);font-size:clamp(18px,2.6vw,34px);font-weight:700}
 #recent .rl{color:var(--mu);font-weight:600;margin-right:6px}
 #recent .rc{background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:2px 14px}
-#recent small{font-size:.6em;font-weight:600;color:var(--mu)}
+#recent small{font-size:.75em;font-weight:700;color:var(--hd)}
 body.idle,body.idle *{cursor:none}
 .tip{margin-top:28px;padding:22px 26px;background:#fff;border-left:8px solid var(--hd2);border-radius:12px;font-size:clamp(20px,2.8vw,38px);font-weight:600;line-height:1.3;width:100%}
 .empty{color:var(--mu);font-size:clamp(18px,2.2vw,28px)}
@@ -71,10 +72,10 @@ const spoken=n=>'P '+String(n||0).padStart(3,'0').split('').map(c=>W[+c]).join('
 const $=id=>document.getElementById(id);
 const day=()=>new Date().toLocaleDateString('en-CA');
 const LANG=new URLSearchParams(location.search).get('lang')==='tl'?'tl':'en';
-const T={next:'Next',idle:'Available',none:'No patient is being called right now.',recent:'Recently called',nobody:'No one is waiting.',off:'No connection – information may be out of date.',con:'Connecting…',upd:'Last update'};
+const T={next:'Next',idle:'Available',none:'No patient is being called right now.',recent:'Please proceed',nobody:'No one is waiting.',off:'No connection – information may be out of date.',con:'Connecting…',upd:'Last update'};
 let maxRoom=+new URLSearchParams(location.search).get('rooms')||0;
 let curDay=day(),unsub=null,soundCfg=null;
-let lastId=null,soundOn=false,first=true,docs=[];const last={},flash={};
+const lastDone={};let lastId=null,soundOn=false,first=true,docs=[];const last={},flash={};
 let ac=null;
 addEventListener('keydown',()=>{if($('snd').style.display==='flex')enableSound()});
 window.enableSound=()=>{
@@ -96,31 +97,42 @@ function say(text,voice){
     try{const u=new SpeechSynthesisUtterance(text);if(voice){u.voice=voice;u.lang=voice.lang}else u.lang='en-US';u.rate=.9;u.onend=u.onerror=()=>res();speechSynthesis.cancel();speechSynthesis.speak(u);setTimeout(res,12000)}catch(e){res()}})
 }
 let chain=Promise.resolve();
-function announce(num,room){
-  const v=LANG==='tl'?tlVoice():null;
-  const txt=v?`Pasyente ${spoken(num)}, pumunta po sa Consultation ${room}.`:`Patient ${spoken(num)}, please proceed to Consultation ${room}.`;
+function announceNext(num,next){
+  const v=LANG==='tl'?tlVoice():null,names=next.map(n=>ST[n]||n).join(v?' at ':' and the ');
+  const txt=v?`Pasyente ${spoken(num)}, pumunta po sa ${names}.`:`Patient ${spoken(num)}, please proceed to the ${names}.`;
+  chain=chain.then(async()=>{if(!soundOn)return;await chime();for(let k=0;k<REPEAT;k++){if(!soundOn)return;if(k)await pause(1500);await say(txt,v)}})
+}
+function announce(num,room,st){
+  const v=LANG==='tl'?tlVoice():null,w=st&&st!=='consult'?(ST[st]||st):null;
+  const txt=v?`Pasyente ${spoken(num)}, pumunta po sa ${w||'Consultation '+room}.`:`Patient ${spoken(num)}, please proceed to ${w?'the '+w:'Consultation '+room}.`;
   chain=chain.then(async()=>{if(!soundOn)return;await chime();for(let k=0;k<REPEAT;k++){if(!soundOn)return;if(k)await pause(1500);await say(txt,v)}})
 }
 function render(){
-  const now=docs.filter(d=>d.status==='in-consult'&&d.room).sort((a,b)=>a.room-b.room||a.num-b.num);
-  const wait=docs.filter(d=>d.status==='waiting').sort((a,b)=>a.num-b.num);
+  const isS=d=>d.station&&d.station!=='consult';
+  const now=docs.filter(d=>d.status==='in-consult'&&(d.room||isS(d))).sort((a,b)=>(a.room||99)-(b.room||99)||a.num-b.num);
+  const wait=docs.filter(d=>d.status==='waiting'&&!isS(d)).sort((a,b)=>a.num-b.num);
   docs.forEach(d=>{const r=+d.room;if(Number.isInteger(r)&&r>maxRoom&&r<=20)maxRoom=r});
-  const card=d=>`<div class="card ${d.id===lastId?'latest':''} ${flash[d.id]>Date.now()?'flash':''}"><div class="rm">Consultation ${d.room}</div><div class="n">${qn(d.num)}</div></div>`;
+  const card=d=>`<div class="card ${d.id===lastId?'latest':''} ${flash[d.id]>Date.now()?'flash':''}"><div class="rm">${isS(d)?(ST[d.station]||d.station):'Consultation '+d.room}</div><div class="n">${qn(d.num)}</div></div>`;
   const idle=r=>`<div class="card idle"><div class="rm">Consultation ${r}</div><div class="n">&mdash;</div><div class="rm">${T.idle}</div></div>`;
   let h='';
-  for(let r=1;r<=maxRoom;r++){const m=now.filter(d=>+d.room===r);h+=m.length?m.map(card).join(''):idle(r)}
-  h+=now.filter(d=>!(Number.isInteger(+d.room)&&+d.room>=1&&+d.room<=maxRoom)).map(card).join('');
+  for(let r=1;r<=maxRoom;r++){const m=now.filter(d=>!isS(d)&&+d.room===r);h+=m.length?m.map(card).join(''):idle(r)}
+  h+=now.filter(d=>isS(d)||!(Number.isInteger(+d.room)&&+d.room>=1&&+d.room<=maxRoom)).map(card).join('');
   $('now').innerHTML=h||`<div class="empty">${T.none}</div>`;
   $('wh').textContent='Waiting'+(wait.length?' ('+wait.length+')':'');
   const shown=wait.slice(0,24);
-  $('wait').innerHTML=wait.length?shown.map((d,i)=>`<div class="chip ${i===0?'next':''}">${qn(d.num)}${i===0?`<small>${T.next}</small>`:''}</div>`).join('')+(wait.length>shown.length?`<div class="chip">+${wait.length-shown.length}</div>`:''):`<div class="empty">${T.nobody}</div><div class="tip" id="tip">${tipNow()}</div>`;
-  const cut=Date.now()-30*60000;
-  const rec=docs.filter(d=>d.status==='done'&&d.calledAt&&d.calledAt.toMillis&&d.calledAt.toMillis()>cut).sort((a,b)=>b.calledAt.toMillis()-a.calledAt.toMillis()).slice(0,4);
+  const grp=['lab','pharmacy','imm'].map(k=>[k,docs.filter(d=>d.status==='waiting'&&d.station===k).sort((a,b)=>a.num-b.num)]).filter(g=>g[1].length);
+  let wh=wait.length?shown.map((d,i)=>`<div class="chip ${i===0?'next':''}">${qn(d.num)}${i===0?`<small>${T.next}</small>`:''}</div>`).join('')+(wait.length>shown.length?`<div class="chip">+${wait.length-shown.length}</div>`:''):'';
+  wh+=grp.map(([k,l])=>`<div class="grp">${ST[k]} (${l.length})</div>`+l.slice(0,8).map(d=>`<div class="chip">${qn(d.num)}</div>`).join('')+(l.length>8?`<div class="chip">+${l.length-8}</div>`:'')).join('');
+  if(!wait.length&&!grp.length)wh=`<div class="empty">${T.nobody}</div><div class="tip" id="tip">${tipNow()}</div>`;
+  $('wait').innerHTML=wh;
+  const cut=Date.now()-10*60000,tm=d=>d.routedAt&&d.routedAt.toMillis?d.routedAt.toMillis():0;
+  const rec=docs.filter(d=>d.status==='waiting'&&isS(d)&&tm(d)>cut).sort((a,b)=>tm(b)-tm(a)).slice(0,6);
   $('recent').style.display=rec.length?'flex':'none';
-  $('recent').innerHTML=rec.length?`<span class="rl">${T.recent}</span>`+rec.map(d=>`<span class="rc">${qn(d.num)}${d.room?` <small>Rm ${d.room}</small>`:''}</span>`).join(''):''
+  $('recent').innerHTML=rec.length?`<span class="rl">${T.recent}</span>`+rec.map(d=>`<span class="rc">${qn(d.num)} <small>→ ${ST[d.station]||d.station}</small></span>`).join(''):''
 }
 const TIPS=['Wash your hands with soap and water for at least 20 seconds.','Drink enough clean water every day, especially in hot weather.','Cover your mouth and nose when you cough or sneeze.','Keep your child\'s vaccination schedule up to date.','Get 7 to 8 hours of sleep each night.','Take your medicines exactly as prescribed by your doctor.'];
 const tipNow=()=>TIPS[Math.floor(Date.now()/12000)%TIPS.length];
+const ST={pharmacy:'Pharmacy',lab:'Laboratory',imm:'Immunization'};
 const conn={err:false,cache:false,ok:false,t:''};
 function setConn(){
   const el=$('st'),bad=conn.err||!navigator.onLine||(conn.cache&&conn.ok);
@@ -142,7 +154,10 @@ unsub=onSnapshot(query(collection(db,'queueDisplay'),where('day','==',curDay)),{
   docs=snap.docs.map(d=>({id:d.id,...d.data()}));
   docs.forEach(d=>{
     const ms=d.calledAt&&d.calledAt.toMillis?d.calledAt.toMillis():0;
-    if(!first&&d.status==='in-consult'&&d.room&&ms>(last[d.id]||0)){flash[d.id]=Date.now()+7000;lastId=d.id;announce(d.num,d.room);setTimeout(render,7100)}
+    if(!first&&d.status==='in-consult'&&(d.room||(d.station&&d.station!=='consult'))&&ms>(last[d.id]||0)){flash[d.id]=Date.now()+7000;lastId=d.id;announce(d.num,d.room,d.station);setTimeout(render,7100)}
+    const dm=d.routedAt&&d.routedAt.toMillis?d.routedAt.toMillis():0;
+    if(!first&&d.status==='waiting'&&d.station&&d.station!=='consult'&&dm>(lastDone[d.id]||0)&&Date.now()-dm<60000)announceNext(d.num,[d.station]);
+    lastDone[d.id]=dm;
     last[d.id]=ms
   });
   first=false;render()
@@ -156,6 +171,6 @@ function fitAnn(){const t=$('annt'),w=$('annw');if(!t||!w)return;const cw=w.clie
 function showAnn(){const a=$('ann'),ok=annData&&annData.text&&(!annData.until||annData.until>Date.now());if(ok){a.style.display='flex';if(annKey!==annData.text){annKey=annData.text;a.innerHTML='<div id="annw"><span id="annt"></span></div>';$('annt').textContent=annData.text;fitAnn()}}else{a.style.display='none';annKey=null}}
 window.addEventListener('resize',fitAnn);
 onSnapshot(doc(db,'announcement','current'),s=>{annData=s.exists()?s.data():null;showAnn()},()=>{});
-function tick(){showAnn();{const t=$('tip');if(t&&t.textContent!==tipNow())t.textContent=tipNow()}const n=new Date();if(n.getSeconds()%30===0)render();if(n.getHours()===3&&n.getMinutes()===0&&performance.now()>120000)location.reload();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==curDay){curDay=day();if(unsub)unsub();first=true;docs=[];Object.keys(last).forEach(k=>delete last[k]);render();sub()}}
+function tick(){showAnn();{const t=$('tip');if(t&&t.textContent!==tipNow())t.textContent=tipNow()}const n=new Date();if(n.getSeconds()%30===0)render();if(n.getHours()===3&&n.getMinutes()===0&&performance.now()>120000)location.reload();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==curDay){curDay=day();if(unsub)unsub();first=true;docs=[];Object.keys(last).forEach(k=>delete last[k]);Object.keys(lastDone).forEach(k=>delete lastDone[k]);render();sub()}}
 tick();setInterval(tick,1000);
 </script></body></html>
