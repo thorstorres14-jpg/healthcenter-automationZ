@@ -24,7 +24,17 @@ h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;let
 @keyframes fl{50%{background:var(--flash)}}
 .wait{display:flex;flex-wrap:wrap;gap:12px;align-content:flex-start}
 .chip{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:8px 20px;font-size:clamp(26px,4vw,56px);font-weight:700;min-width:90px;text-align:center;color:var(--ink)}
-.chip.next{background:var(--next);border-color:var(--next);color:#fff}
+.chip{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.chip small{font-size:.3em;font-weight:800;letter-spacing:.06em;line-height:1.2}
+.chip.next{background:var(--next);border-color:#b45309;color:#2b1a00}
+.card.idle{background:transparent;border-style:dashed;box-shadow:none}
+.card.idle .n,.card.idle .rm{color:var(--mu);opacity:.7}
+.card.idle .n{font-weight:600}
+#recent{display:none;align-items:center;flex-wrap:wrap;gap:10px 18px;padding:10px 32px;background:#fff;border-top:2px solid var(--line);font-size:clamp(18px,2.6vw,34px);font-weight:700}
+#recent .rl{color:var(--mu);font-weight:600;margin-right:6px}
+#recent .rc{background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:2px 14px}
+#recent small{font-size:.6em;font-weight:600;color:var(--mu)}
+body.idle,body.idle *{cursor:none}
 .empty{color:var(--mu);font-size:clamp(18px,2.2vw,28px)}
 #snd{position:fixed;inset:0;background:rgba(18,50,74,.88);display:flex;align-items:center;justify-content:center;z-index:9}
 #snd button{font-size:28px;padding:22px 40px;border:0;border-radius:16px;background:var(--hd2);color:#fff;cursor:pointer}
@@ -33,16 +43,19 @@ h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;let
 #annw{flex:1;min-width:0;overflow:hidden;white-space:nowrap}
 #annt{display:inline-block;will-change:transform;animation:mq 20s linear infinite}
 @keyframes mq{from{transform:translateX(var(--w,100%))}to{transform:translateX(-100%)}}
-#st{position:fixed;right:12px;bottom:8px;font-size:13px;color:var(--mu)}
+#st{display:none;padding:12px 32px;text-align:center;font-weight:700;font-size:clamp(16px,2.4vw,30px);color:#fff}
+#st.off{display:block;background:#b91c1c}
+#st.con{display:block;background:#92400e}
 </style></head><body>
 <div id="snd" style="display:none"><button onclick="enableSound()">Tap to turn on sound and start display</button></div>
 <header><div class="brand"><img id="lgo" alt="" style="display:none"><div><h1 id="fn">Bailen Health Center</h1><div class="sub">Patient Queue</div></div></div><div id="clock"></div></header>
+<div id="st"></div>
 <main>
   <section><h2>Now serving</h2><div class="now" id="now"></div></section>
   <section><h2>Waiting</h2><div class="wait" id="wait"></div></section>
 </main>
+<div id="recent"></div>
 <div id="ann"></div>
-<div id="st">connecting...</div>
 <script type="module">
 import{firebaseConfig as C}from'./firebase-config.js';
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -54,11 +67,13 @@ const spoken=n=>'P '+String(n||0).padStart(3,'0').split('').map(c=>W[+c]).join('
 const $=id=>document.getElementById(id);
 const day=()=>new Date().toLocaleDateString('en-CA');
 const LANG=new URLSearchParams(location.search).get('lang')==='tl'?'tl':'en';
+const T=LANG==='tl'?{next:'Susunod',idle:'Walang tinatawag',none:'Walang tinatawag ngayon.',recent:'Kakatawag lang',nobody:'Walang naghihintay.',off:'Walang koneksyon – maaaring luma ang impormasyon.',con:'Kumokonekta…',upd:'Huling update'}:{next:'Next',idle:'Available',none:'No patient is being called right now.',recent:'Recently called',nobody:'No one is waiting.',off:'No connection – information may be out of date.',con:'Connecting…',upd:'Last update'};
+let maxRoom=+new URLSearchParams(location.search).get('rooms')||0;
 let curDay=day(),unsub=null,soundCfg=null;
 let soundOn=false,first=true,docs=[];const last={},flash={};
 let ac=null;
 window.enableSound=()=>{
-  soundOn=true;$('snd').style.display='none';
+  soundOn=true;$('snd').style.display='none';lock();
   try{ac=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}
   try{speechSynthesis.speak(new SpeechSynthesisUtterance(''))}catch(e){}
 };
@@ -80,13 +95,38 @@ function announce(num,room){
 function render(){
   const now=docs.filter(d=>d.status==='in-consult'&&d.room).sort((a,b)=>a.room-b.room||a.num-b.num);
   const wait=docs.filter(d=>d.status==='waiting').sort((a,b)=>a.num-b.num);
-  $('now').innerHTML=now.length?now.map(d=>`<div class="card ${flash[d.id]>Date.now()?'flash':''}"><div class="rm">Consultation ${d.room}</div><div class="n">${qn(d.num)}</div></div>`).join(''):'<div class="empty">No patient is being called right now.</div>';
+  docs.forEach(d=>{const r=+d.room;if(Number.isInteger(r)&&r>maxRoom&&r<=20)maxRoom=r});
+  const card=d=>`<div class="card ${flash[d.id]>Date.now()?'flash':''}"><div class="rm">Consultation ${d.room}</div><div class="n">${qn(d.num)}</div></div>`;
+  const idle=r=>`<div class="card idle"><div class="rm">Consultation ${r}</div><div class="n">&mdash;</div><div class="rm">${T.idle}</div></div>`;
+  let h='';
+  for(let r=1;r<=maxRoom;r++){const m=now.filter(d=>+d.room===r);h+=m.length?m.map(card).join(''):idle(r)}
+  h+=now.filter(d=>!(Number.isInteger(+d.room)&&+d.room>=1&&+d.room<=maxRoom)).map(card).join('');
+  $('now').innerHTML=h||`<div class="empty">${T.none}</div>`;
   const shown=wait.slice(0,24);
-  $('wait').innerHTML=wait.length?shown.map((d,i)=>`<div class="chip ${i===0?'next':''}">${qn(d.num)}</div>`).join('')+(wait.length>shown.length?`<div class="chip">+${wait.length-shown.length}</div>`:''):'<div class="empty">No one is waiting.</div>'
+  $('wait').innerHTML=wait.length?shown.map((d,i)=>`<div class="chip ${i===0?'next':''}">${qn(d.num)}${i===0?`<small>${T.next}</small>`:''}</div>`).join('')+(wait.length>shown.length?`<div class="chip">+${wait.length-shown.length}</div>`:''):`<div class="empty">${T.nobody}</div>`;
+  const cut=Date.now()-30*60000;
+  const rec=docs.filter(d=>d.status==='done'&&d.calledAt&&d.calledAt.toMillis&&d.calledAt.toMillis()>cut).sort((a,b)=>b.calledAt.toMillis()-a.calledAt.toMillis()).slice(0,4);
+  $('recent').style.display=rec.length?'flex':'none';
+  $('recent').innerHTML=rec.length?`<span class="rl">${T.recent}</span>`+rec.map(d=>`<span class="rc">${qn(d.num)}${d.room?` <small>Rm ${d.room}</small>`:''}</span>`).join(''):''
 }
+const conn={err:false,cache:false,ok:false,t:''};
+function setConn(){
+  const el=$('st'),bad=conn.err||!navigator.onLine||(conn.cache&&conn.ok);
+  if(bad){el.className='off';el.textContent=T.off+(conn.t?' '+T.upd+' '+conn.t:'')}
+  else if(!conn.ok){el.className='con';el.textContent=T.con}
+  else{el.className='';el.textContent=''}
+}
+addEventListener('online',setConn);addEventListener('offline',setConn);setConn();
+let wl=null;
+async function lock(){try{if(wl||document.visibilityState!=='visible')return;wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null})}catch(e){}}
+document.addEventListener('visibilitychange',lock);lock();
+let ct;function showCur(){document.body.classList.remove('idle');clearTimeout(ct);ct=setTimeout(()=>document.body.classList.add('idle'),3000)}
+addEventListener('mousemove',showCur);showCur();
 function sub(){
-unsub=onSnapshot(query(collection(db,'queueDisplay'),where('day','==',curDay)),snap=>{
-  $('st').textContent='';
+unsub=onSnapshot(query(collection(db,'queueDisplay'),where('day','==',curDay)),{includeMetadataChanges:true},snap=>{
+  conn.err=false;conn.cache=snap.metadata.fromCache;
+  if(!snap.metadata.fromCache){conn.ok=true;conn.t=new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'})}
+  setConn();
   docs=snap.docs.map(d=>({id:d.id,...d.data()}));
   docs.forEach(d=>{
     const ms=d.calledAt&&d.calledAt.toMillis?d.calledAt.toMillis():0;
@@ -94,7 +134,7 @@ unsub=onSnapshot(query(collection(db,'queueDisplay'),where('day','==',curDay)),s
     last[d.id]=ms
   });
   first=false;render()
-},()=>{$('st').textContent='connection problem - retrying...'});
+},()=>{conn.err=true;setConn()});
 }
 sub();
 onSnapshot(doc(db,'displayConfig','main'),s=>{const c=s.exists()?s.data():{};if(c.name){$('fn').textContent=c.name;document.title=c.name+' - Queue'}const lg=$('lgo');if(c.logo){lg.src=c.logo;lg.style.display='block'}else lg.style.display='none';soundCfg=s.exists()&&s.data().sound===false?false:true;if(!soundCfg){soundOn=false;$('snd').style.display='none'}else if(!soundOn)$('snd').style.display='flex'},()=>{$('snd').style.display='flex'});
@@ -104,6 +144,6 @@ function fitAnn(){const t=$('annt'),w=$('annw');if(!t||!w)return;const cw=w.clie
 function showAnn(){const a=$('ann'),ok=annData&&annData.text&&(!annData.until||annData.until>Date.now());if(ok){a.style.display='flex';if(annKey!==annData.text){annKey=annData.text;a.innerHTML='<div id="annw"><span id="annt"></span></div>';$('annt').textContent=annData.text;fitAnn()}}else{a.style.display='none';annKey=null}}
 window.addEventListener('resize',fitAnn);
 onSnapshot(doc(db,'announcement','current'),s=>{annData=s.exists()?s.data():null;showAnn()},()=>{});
-function tick(){showAnn();const n=new Date();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==curDay){curDay=day();if(unsub)unsub();first=true;docs=[];Object.keys(last).forEach(k=>delete last[k]);render();sub()}}
+function tick(){showAnn();const n=new Date();if(n.getSeconds()%30===0)render();if(n.getHours()===3&&n.getMinutes()===0&&performance.now()>120000)location.reload();$('clock').innerHTML=n.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'<small>'+n.toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</small>';if(day()!==curDay){curDay=day();if(unsub)unsub();first=true;docs=[];Object.keys(last).forEach(k=>delete last[k]);render();sub()}}
 tick();setInterval(tick,1000);
 </script></body></html>
