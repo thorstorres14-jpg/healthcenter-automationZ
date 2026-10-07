@@ -153,7 +153,7 @@ function pxWatch(){
 let QU=null,QUd='';
 function qWatch(){
   // Live queue: the queue screens update by themselves when someone adds or changes a patient.
-  const on=!!U&&mode==='app'&&dqOn();
+  const on=!!U&&mode==='app'&&(dqOn()||stOn());
   if(!on){if(QU){QU();QU=null;QUd=''}return}
   if(QU&&QUd===today())return;
   if(QU){QU();QU=null}
@@ -166,6 +166,7 @@ function qLive(){
     dqRender();
     if(pg==='queue'){const a=$('qt');if(a&&!vq&&!busy(a))a.innerHTML=qTable()}
     if(pg==='consult'&&!cp){const c=$('cl');if(c&&!busy(c))c.innerHTML=consList()}
+    ['pharmacy','lab','imm'].forEach(k=>{const e=$('sq-'+k);if(e&&!busy(e))e.innerHTML=stList(k)});
   }catch(e){}
 }
 
@@ -1126,6 +1127,30 @@ function hhd(){
 async function fetchQ(){try{const s=await getDocs(query(collection(db,'queue'),where('day','==',today())));Q=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.num||0)-(b.num||0));qmsg=''}catch(e){Q=[];qmsg='Could not load the queue. Check your connection.'}}
 const refreshQ=()=>{const a=$('qt'),c=$('cl');if(a)a.innerHTML=qTable();if(c)c.innerHTML=consList()};
 const STN={consult:'Consultation',imm:'Immunization',lab:'Laboratory',pharmacy:'Pharmacy'},isC=x=>!x.station||x.station==='consult';
+/* Station queues (Pharmacy, Lab, Immunization): call patients on the waiting-area display */
+const SROLE={pharmacy:['pharmacist'],lab:['medtech'],imm:['midwife','doctor']},stOn=()=>['pharmacist','medtech'].includes(U.role);
+const stCard=k=>SROLE[k].includes(U.role)?`<div class="cd ov"><h3 style="margin-top:0">${STN[k]} queue</h3><div id="sq-${k}">${stList(k)}</div></div>`:'';
+function stList(k){
+  const l=Q.filter(x=>x.station===k&&['waiting','in-consult'].includes(x.status));
+  if(!l.length)return '<p style="color:var(--mu)">No one is waiting here.</p>';
+  return `<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${qn(x.num)}</td><td>${E(x.name)}</td><td>${E(x.reason||'')}</td><td><span class="tg ${x.status==='in-consult'?'ok':'wa'}">${x.status==='in-consult'?'Called':'Waiting'}</span>${x.status==='in-consult'&&x.byName?`<br><small style="color:var(--mu)">by ${E(x.byName)}</small>`:''}</td><td>${x.status==='waiting'?`<button class="bt" onclick="stCall('${x.id}')">Call</button>`:`<button class="bt g" onclick="stCall('${x.id}',this)">Call again</button> <button class="bt" onclick="stDone('${x.id}')">Done</button>`}</td></tr>`).join('')}</tbody></table>`}
+async function stCall(id,el){
+  const x=Q.find(e=>e.id===id);if(!x||isC(x)||!SROLE[x.station]||!SROLE[x.station].includes(U.role))return;
+  try{
+    if(x.status!=='in-consult')await updateDoc(doc(db,'queue',id),{status:'in-consult',by:U.uid,byName:U.name,startedAt:serverTimestamp()});
+    await setDoc(doc(db,'queueDisplay',id),{day:x.day,num:x.num,status:'in-consult',room:null,station:x.station,route:x.route||[],calledAt:serverTimestamp()},{merge:true});
+    if(el){const t0=el.textContent;el.textContent='Called';setTimeout(()=>{el.textContent=t0},1500)}
+  }catch(e){sAlert(e.code==='permission-denied'?'You do not have permission to call this patient.':'Could not call the patient. Check your connection.')}
+}
+async function stDone(id){
+  const x=Q.find(e=>e.id===id);if(!x||isC(x)||!SROLE[x.station]||!SROLE[x.station].includes(U.role))return;
+  const r=x.route||[],nx=r[0],rest=r.slice(1);
+  try{
+    await updateDoc(doc(db,'queue',id),nx?{status:'waiting',station:nx,route:rest,by:null,byName:null}:{status:'done'});
+    await setDoc(doc(db,'queueDisplay',id),nx?{day:x.day,num:x.num,status:'waiting',room:null,station:nx,route:rest,routedAt:serverTimestamp()}:{day:x.day,num:x.num,status:'done',room:null,doneAt:serverTimestamp()},{merge:true});
+    await lg('Station done '+x.station+' '+id)
+  }catch(e){sAlert(e.code==='permission-denied'?'You do not have permission to finish this patient.':'Could not save. Check your connection.')}
+}
 const ST={waiting:['wa','Waiting'],'in-consult':['ok','In consultation'],done:['ok','Done'],cancelled:['mt','Cancelled']};
 function qTable(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
@@ -1317,15 +1342,15 @@ async function saveC(){
     if(cq){
       const qx=Q.find(e=>e.id===cq),rest=route.slice(1);
       b.update(doc(db,'queue',cq),route.length?{status:'waiting',station:route[0],route:rest,by:null,byName:null,room:null}:{status:'done'});
-      if(qx)b.set(doc(db,'queueDisplay',cq),route.length?{day:qx.day,num:qx.num,status:'waiting',room:null,station:route[0],route:rest}:{day:qx.day,num:qx.num,status:'done',room:null,doneAt:serverTimestamp()},{merge:true})
+      if(qx)b.set(doc(db,'queueDisplay',cq),route.length?{day:qx.day,num:qx.num,status:'waiting',room:null,station:route[0],route:rest,routedAt:serverTimestamp()}:{day:qx.day,num:qx.num,status:'done',room:null,doneAt:serverTimestamp()},{merge:true})
     }else if(route.length){
       // Patient was seen without a queue entry (for example, back from the lab): give them a place in the next station's queue.
       await fetchQ();
       const ex=Q.find(e=>e.pid===p.id&&['waiting','in-consult'].includes(e.status)),rest=route.slice(1),f={station:route[0],route:rest,status:'waiting',by:null,byName:null,room:null};
-      if(ex){b.update(doc(db,'queue',ex.id),f);b.set(doc(db,'queueDisplay',ex.id),{day:ex.day,num:ex.num,status:'waiting',room:null,station:route[0],route:rest},{merge:true})}
+      if(ex){b.update(doc(db,'queue',ex.id),f);b.set(doc(db,'queueDisplay',ex.id),{day:ex.day,num:ex.num,status:'waiting',room:null,station:route[0],route:rest,routedAt:serverTimestamp()},{merge:true})}
       else{const qr=doc(collection(db,'queue')),num=Q.reduce((m,x)=>Math.max(m,x.num||0),0)+1;
         b.set(qr,{pid:p.id,name:pn(p),age:age(p.dob),sex:p.sex,reason:g('cc'),day:today(),num,by:U.name,at:serverTimestamp(),...f});
-        b.set(doc(db,'queueDisplay',qr.id),{day:today(),num,status:'waiting',room:null,station:route[0],route:rest},{merge:true})}
+        b.set(doc(db,'queueDisplay',qr.id),{day:today(),num,status:'waiting',room:null,station:route[0],route:rest,routedAt:serverTimestamp()},{merge:true})}
     }
     await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;if(awaiting)sAlert('Saved. The prescription was sent to the doctor for approval before it goes to the pharmacy.');else sDone('The consultation was saved.'+(route.length?' The patient was sent to '+route.map(k=>STN[k]).join(', then ')+'.':''),'Consultation saved');view(p.id,1)
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
@@ -1395,7 +1420,7 @@ function stRows(id,v){
 }
 const stTags=v=>{const t=today(),soon=new Date(Date.now()+60*864e5).toLocaleDateString('en-CA'),o=[],bs=bList(v);if(bs.some(b=>b.exp&&b.exp<t))o.push('Expired');else if(bs.some(b=>b.exp&&b.exp<=soon))o.push('Expires soon');if(bUse(v)<=(typeof v.low==='number'?v.low:10))o.push('Low');return o};
 const skey=n=>String(n).trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-const phg=()=>`<h2 style="margin-top:0">Pharmacy</h2><div class="cd ov"><h3 style="margin-top:0">Prescriptions to dispense</h3><div id="phl">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Stock</h3><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="stq" placeholder="Search medicine" oninput="stSearch(this.value)" autocomplete="off" style="max-width:260px"><span id="stfb"></span><button class="bt" style="margin-left:auto" onclick="stAdd()">+ Add medicine</button></div><div class="ov" id="stl" style="margin-top:12px"></div></div><div class="cd ov"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h3 style="margin:0">Stock log</h3><span id="slf"></span></div><div id="sih">Loading...</div></div>`;
+const phg=()=>`<h2 style="margin-top:0">Pharmacy</h2>${stCard('pharmacy')}<div class="cd ov"><h3 style="margin-top:0">Prescriptions to dispense</h3><div id="phl">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Stock</h3><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="stq" placeholder="Search medicine" oninput="stSearch(this.value)" autocomplete="off" style="max-width:260px"><span id="stfb"></span><button class="bt" style="margin-left:auto" onclick="stAdd()">+ Add medicine</button></div><div class="ov" id="stl" style="margin-top:12px"></div></div><div class="cd ov"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h3 style="margin:0">Stock log</h3><span id="slf"></span></div><div id="sih">Loading...</div></div>`;
 function phRender(){
   const l=$('phl'),s=$('stl');if(!l)return;delete l.dataset.dirty;
   l.innerHTML=RX.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Medicines</th><th></th></tr></thead><tbody>${RX.map(r=>{const ln=(r.items||[]).map(rxLn),al=rxAlg2(r),ok=ln.every(x=>x.st==='ok')&&!al.m.some(h=>h.length);return `<tr><td>${E(r.d)}</td><td>${E(r.pname)}${al.p&&algTok(al.p.alg).length?`<div style="font-size:12px;color:var(--er)">Allergies: ${E(al.p.alg)}</div>`:''}</td><td>${(r.items||[]).map((i,k)=>{const x=ln[k],t=RXT[x.st];return E(i.drug+' '+i.dose+', '+i.freq+(i.dur?', '+i.dur:'')+(i.qty?' (#'+i.qty+')':''))+` <span class="tg ${t[0]}">${t[1]}</span>`+(x.k?` <small style="color:var(--mu)">usable: ${x.u}</small>`:'')+(al.m[k].length?' <span class="tg er">Allergy</span>':'')}).join('<br>')}</td><td style="white-space:nowrap">${ok?`<button class="bt" onclick="dispense('${r.id}')">Mark as dispensed</button> <button class="bt g" onclick="rxDspOpen('${r.id}')">Partial / not available</button>`:`<button class="bt" onclick="rxDspOpen('${r.id}')">Review and dispense</button>`}</td></tr>`}).join('')}</tbody></table>`:'<p style="color:var(--mu)">No prescriptions waiting.</p>';
@@ -1627,7 +1652,7 @@ async function setIdle(v){
 }
 /* ---------- Lab ---------- */
 let LB=[],LD=[];
-const lbg=()=>`<h2 style="margin-top:0">Lab</h2><div class="cd ov"><h3 style="margin-top:0">Requests to process</h3><div id="lbl">Loading...</div></div><div class="cd ov"><h3 style="margin-top:0">Done today</h3><div id="lbd"></div></div>`;
+const lbg=()=>`<h2 style="margin-top:0">Lab</h2>${stCard('lab')}<div class="cd ov"><h3 style="margin-top:0">Requests to process</h3><div id="lbl">Loading...</div></div><div class="cd ov"><h3 style="margin-top:0">Done today</h3><div id="lbd"></div></div>`;
 function lbRender(){
   const l=$('lbl'),d=$('lbd');if(!l)return;delete l.dataset.dirty;
   l.innerHTML=LB.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Test</th><th>Result</th><th></th></tr></thead><tbody>${LB.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${E(r.test)}</td><td><input id="lr-${r.id}" placeholder="Result" style="min-width:180px"></td><td><button class="bt" onclick="lbSave('${r.id}')">Save result</button></td></tr>`).join('')}</tbody></table><div class="er2" id="lbe"></div>`:'<p style="color:var(--mu)">No requests waiting.</p>';
@@ -1663,7 +1688,7 @@ async function setLabTests(){
 const VAX=[['bcg','BCG',0],['hepb','Hep B (birth)',0],['penta1','Penta 1',42],['opv1','OPV 1',42],['pcv1','PCV 1',42],['penta2','Penta 2',70],['opv2','OPV 2',70],['pcv2','PCV 2',70],['penta3','Penta 3',98],['opv3','OPV 3',98],['pcv3','PCV 3',98],['ipv1','IPV 1',98],['ipv2','IPV 2',274],['mmr1','MMR 1',274],['mmr2','MMR 2',365]];
 let IM={},imb='';
 const dAge=d=>Math.floor((Date.now()-new Date(d))/864e5);
-const imc=()=>`<h2 style="margin-top:0">Immunization</h2><p style="color:var(--mu);margin-top:-6px">Children under 2 with vaccines due, based on the EPI schedule in the app. Confirm the schedule with your RHU before real use.</p><div class="cd"><h3 style="margin-top:0">Vaccine stock</h3><div id="vxs">Loading...</div></div><div class="cd"><label>Barangay</label><select id="imb" style="max-width:260px" onchange="imSet(this.value)"><option value="">All barangays</option>${[...new Set(P.map(p=>p.br))].sort().map(b=>`<option ${imb===b?'selected':''}>${E(b)}</option>`).join('')}</select></div><div class="cd ov"><div id="iml">Loading...</div></div><div class="cd ov"><h3 style="margin-top:0">Vaccine stock log</h3><div id="vxl">Loading...</div></div>`;
+const imc=()=>`<h2 style="margin-top:0">Immunization</h2>${stCard('imm')}<p style="color:var(--mu);margin-top:-6px">Children under 2 with vaccines due, based on the EPI schedule in the app. Confirm the schedule with your RHU before real use.</p><div class="cd"><h3 style="margin-top:0">Vaccine stock</h3><div id="vxs">Loading...</div></div><div class="cd"><label>Barangay</label><select id="imb" style="max-width:260px" onchange="imSet(this.value)"><option value="">All barangays</option>${[...new Set(P.map(p=>p.br))].sort().map(b=>`<option ${imb===b?'selected':''}>${E(b)}</option>`).join('')}</select></div><div class="cd ov"><div id="iml">Loading...</div></div><div class="cd ov"><h3 style="margin-top:0">Vaccine stock log</h3><div id="vxl">Loading...</div></div>`;
 function imSet(v){imb=v;imRender()}
 function imRender(){
   const el=$('iml');if(!el)return;
