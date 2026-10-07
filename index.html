@@ -190,11 +190,12 @@ function lvWatch(){
   // Other pages
   lvQ('p-imm',ok&&pg==='imm'&&IMR.includes(r)?'1':'',()=>collection(db,'immunizations'),()=>lvDefer('imm',()=>{if(pg==='imm')loadIm()}));
   lvQ('p-rv',ok&&pg==='rp'&&RPR.includes(r)?td:'',()=>query(collection(db,'visits'),where('d','==',td)),()=>lvDefer('rp',()=>{if(pg==='rp'&&RP.d&&RP.to>=today())loadRp()}));
+  lvQ('p-vs',ok&&pg==='imm'&&IMR.includes(r)?'1':'',()=>collection(db,'vxstock'),()=>lvDefer('vs',()=>{if(pg==='imm')loadVs()}));
   lvQ('p-ri',ok&&pg==='rp'&&RPR.includes(r)?'1':'',()=>collection(db,'immunizations'),()=>lvDefer('rp',()=>{if(pg==='rp'&&RP.d&&RP.to>=today())loadRp()}));
   lvQ('p-rr',ok&&pg==='rp'&&(r==='doctor'||r==='midwife')?td:'',()=>query(collection(db,'prescriptions'),where('d','==',td)),()=>lvDefer('rp',()=>{if(pg==='rp'&&RP.d&&RP.to>=today())loadRp()}));
   lvQ('p-us',ok&&(pg==='users'||pg==='dev')&&(r==='admin'||r==='developer')?pg:'',()=>collection(db,'users'),()=>lvDefer('us',()=>{if(pg==='users')loadUsers();else if(pg==='dev')loadDevs()}));
   lvQ('p-au',ok&&pg==='audit'&&isAdm()?'1':'',()=>query(collection(db,'audit'),orderBy('at','desc'),limit(1)),()=>lvDefer('au',()=>{if(pg==='audit')loadAudit()}));
-  lvQ('p-si',ok&&pg==='pharm'&&r==='pharmacist'?'1':'',()=>query(collection(db,'stockin'),orderBy('at','desc'),limit(30)),sn=>{SI=sn.docs.map(d=>d.data());if(pg==='pharm')try{siList()}catch(e){}});
+  lvQ('p-si',ok&&pg==='pharm'&&r==='pharmacist'?'1':'',()=>query(collection(db,'stockin'),orderBy('at','desc'),limit(30)),()=>lvDefer('si',()=>{if(pg==='pharm')loadSi()}));
   // Settings and the signed-in account
   const sn0=o=>JSON.stringify(Object.keys(o||{}).filter(k=>k!=='at'&&k!=='by').sort().map(k=>[k,o[k]]));
   lvOn('set',ok?'1':'',()=>onSnapshot(doc(db,'meta','settings'),sn=>{const n=sn.data()||{};if(sn0(n)===sn0(S))return;S=n;lvDefer('set',()=>lvScroll(R),800)},()=>{}));
@@ -1606,23 +1607,154 @@ async function setLabTests(){
 const VAX=[['bcg','BCG',0],['hepb','Hep B (birth)',0],['penta1','Penta 1',42],['opv1','OPV 1',42],['pcv1','PCV 1',42],['penta2','Penta 2',70],['opv2','OPV 2',70],['pcv2','PCV 2',70],['penta3','Penta 3',98],['opv3','OPV 3',98],['pcv3','PCV 3',98],['ipv1','IPV 1',98],['ipv2','IPV 2',274],['mmr1','MMR 1',274],['mmr2','MMR 2',365]];
 let IM={},imb='';
 const dAge=d=>Math.floor((Date.now()-new Date(d))/864e5);
-const imc=()=>`<h2 style="margin-top:0">Immunization</h2><p style="color:var(--mu);margin-top:-6px">Children under 2 with vaccines due, based on the EPI schedule in the app. Confirm the schedule with your RHU before real use.</p><div class="cd"><label>Barangay</label><select id="imb" style="max-width:260px" onchange="imSet(this.value)"><option value="">All barangays</option>${[...new Set(P.map(p=>p.br))].sort().map(b=>`<option ${imb===b?'selected':''}>${E(b)}</option>`).join('')}</select></div><div class="cd ov"><div id="iml">Loading...</div></div>`;
+const imc=()=>`<h2 style="margin-top:0">Immunization</h2><p style="color:var(--mu);margin-top:-6px">Children under 2 with vaccines due, based on the EPI schedule in the app. Confirm the schedule with your RHU before real use.</p><div class="cd"><h3 style="margin-top:0">Vaccine stock</h3><div id="vxs">Loading...</div></div><div class="cd"><label>Barangay</label><select id="imb" style="max-width:260px" onchange="imSet(this.value)"><option value="">All barangays</option>${[...new Set(P.map(p=>p.br))].sort().map(b=>`<option ${imb===b?'selected':''}>${E(b)}</option>`).join('')}</select></div><div class="cd ov"><div id="iml">Loading...</div></div><div class="cd ov"><h3 style="margin-top:0">Vaccine stock log</h3><div id="vxl">Loading...</div></div>`;
 function imSet(v){imb=v;imRender()}
 function imRender(){
   const el=$('iml');if(!el)return;
   const can=CROLES.includes(U.role),rows=P.filter(p=>p.dob&&dAge(p.dob)>=0&&dAge(p.dob)<=730&&(!imb||p.br===imb)).map(p=>{const a=dAge(p.dob);return{p,due:VAX.filter(v=>a>=v[2]&&!IM[p.id+'_'+v[0]])}}).filter(r=>r.due.length).sort((x,y)=>y.due.length-x.due.length);
-  el.innerHTML=rows.length?`<table><thead><tr><th>Child</th><th>Age</th><th>Purok / Barangay</th><th>Due</th></tr></thead><tbody>${rows.map(({p,due})=>`<tr><td><a href="#" onclick="view('${p.id}');return false">${E(pn(p))}</a></td><td>${age(p.dob)}</td><td>${E(p.pu+', '+p.br)}</td><td>${due.map(v=>can?`<button class="bt g" style="margin:2px" onclick="imGive('${p.id}','${v[0]}')">${v[1]}</button>`:E(v[1])).join(can?'':', ')}</td></tr>`).join('')}</tbody></table><div class="er2" id="ime"></div>`:'<p style="color:var(--mu)">No children with vaccines due.</p>'
+  el.innerHTML=rows.length?`<table><thead><tr><th>Child</th><th>Age</th><th>Purok / Barangay</th><th>Due</th></tr></thead><tbody>${rows.map(({p,due})=>`<tr><td><a href="#" onclick="view('${p.id}');return false">${E(pn(p))}</a></td><td>${age(p.dob)}</td><td>${E(p.pu+', '+p.br)}</td><td>${due.map(v=>can?`<button class="bt g" style="margin:2px" onclick="imGive('${p.id}','${v[0]}')">${v[1]}${vxState(vxKey(v[0]))==='out'?' (no stock)':''}</button>`:E(v[1])).join(can?'':', ')}</td></tr>`).join('')}</tbody></table><div class="er2" id="ime"></div>`:'<p style="color:var(--mu)">No children with vaccines due.</p>'
 }
 async function loadIm(){
+  await loadVs();
   try{const s=await getDocs(collection(db,'immunizations'));IM={};s.docs.forEach(d=>{IM[d.id]=d.data()});imRender()}
   catch(e){const l=$('iml');if(l)l.textContent='Could not load. Check your connection.'}
+  loadVl()
 }
 async function imGive(id,k){
-  const v=VAX.find(x=>x[0]===k),p=P.find(x=>x.id===id),d=await sPrompt('Date given','Date '+v[1]+' was given (YYYY-MM-DD)',today(),'Record');if(d===null)return;
+  const v=VAX.find(x=>x[0]===k),p=P.find(x=>x.id===id),sk=vxKey(k),vn=(VXS.find(x=>x[0]===sk)||[0,v[1]])[1];
+  const d=await sPrompt('Date given','Date '+v[1]+' was given (YYYY-MM-DD)',today(),'Record');if(d===null)return;
   const er=$('ime');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()||d<p.dob){er.textContent='Enter a valid date (not in the future, not before birth).';return}
-  try{await setDoc(doc(db,'immunizations',id+'_'+k),{pid:id,pname:pn(p),vax:k,label:v[1],d,by:U.uid,byName:U.name,at:serverTimestamp()});IM[id+'_'+k]={d};await lg('Immunization '+k+' '+id);sDone('The vaccine was recorded.','Vaccine recorded');imRender()}
-  catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to record vaccines.':'Could not save. Check your connection.'}
+  er.textContent='';
+  const tracked=!VSE&&VS[sk];
+  if(tracked&&bUse(VS[sk])<=0&&!await sConfirm('There is no usable '+vn+' in the vaccine stock. Record the vaccine anyway? The stock will not change.','No stock recorded','Record anyway',0))return;
+  const rec={pid:id,pname:pn(p),vax:k,label:v[1],d,by:U.uid,byName:U.name};
+  let used=false,ss=null;
+  try{
+    await runTransaction(db,async tx=>{
+      used=false;ss=null;
+      const ir=doc(db,'immunizations',id+'_'+k),isn=await tx.get(ir);if(isn.exists())throw{code:'dup'};
+      let sr=null,ssn=null;
+      if(!VSE){sr=doc(db,'vxstock',sk);ssn=await tx.get(sr)}
+      tx.set(ir,{...rec,at:serverTimestamp()});
+      if(ssn&&ssn.exists()){
+        const cur=ssn.data();
+        if(bUse(cur)>=1){
+          const np=bPack(bTake(bList(cur),1));
+          tx.update(sr,{...np,at:serverTimestamp()});
+          tx.set(doc(collection(db,'vxlog')),{key:sk,name:cur.name,type:'out',reason:'Given: '+v[1],note:'',qty:-1,after:np.qty,ref:id+'_'+k,d:today(),by:U.uid,byName:U.name,at:serverTimestamp()});
+          ss={...cur,...np};used=true
+        }
+      }
+    });
+    IM[id+'_'+k]={d};if(used)VS[sk]=ss;await lg('Immunization '+k+' '+id);
+    sDone(used?'The vaccine was recorded. 1 dose of '+vn+' was taken from stock ('+bUse(ss)+' left).':'The vaccine was recorded.','Vaccine recorded');
+    imRender();vxRender();if(used)loadVl()
+  }catch(x){
+    if(x.code==='dup'){er.textContent='This vaccine was already recorded for this child.';loadIm();return}
+    if(x.code==='permission-denied'&&!VSE){
+      // The stock rules may not be published yet: still record the vaccine, but tell the user the stock was not changed.
+      try{await setDoc(doc(db,'immunizations',id+'_'+k),{...rec,at:serverTimestamp()});IM[id+'_'+k]={d};await lg('Immunization '+k+' '+id);imRender();sAlert('The vaccine was recorded, but the vaccine stock was not updated. Publish the latest firestore.rules first.');return}catch(y){}
+    }
+    er.textContent=x.code==='permission-denied'?'You do not have permission to record vaccines.':'Could not save. Check your connection.'
+  }
+}
+/* ---------- Vaccine stock ---------- */
+const VXS=[['bcg','BCG'],['hepb','Hep B'],['penta','Pentavalent (Penta)'],['opv','OPV'],['pcv','PCV'],['ipv','IPV'],['mmr','MMR']];
+const vxKey=k=>String(k).replace(/\d+$/,'');
+let VS={},VSE=false,VL=[],VLE=false;
+const vxState=k=>{const v=VS[k];return VSE||!v?null:bUse(v)<=0?'out':'ok'};
+const VLT={in:['ok','Received'],out:['wa','Given'],adj:['er','Adjustment']};
+async function loadVs(){
+  try{const s=await getDocs(collection(db,'vxstock'));VS={};s.docs.forEach(d=>{VS[d.id]=d.data()});VSE=false}
+  catch(e){VSE=true}
+  vxRender()
+}
+async function loadVl(){
+  try{const s=await getDocs(query(collection(db,'vxlog'),orderBy('at','desc'),limit(40)));VL=s.docs.map(d=>d.data());VLE=false}
+  catch(e){VLE=true}
+  vlRender()
+}
+function vxRender(){
+  const el=$('vxs');if(!el)return;
+  if(VSE){el.innerHTML='<p class="er2" style="margin:0">Could not load the vaccine stock. Publish the latest firestore.rules first. Vaccines can still be recorded, but the stock will not change.</p>';return}
+  const can=CROLES.includes(U.role),t=today();
+  el.innerHTML=`<div class="ov"><table><thead><tr><th>Vaccine</th><th>Doses on hand</th><th>Batches (lot | expiry | doses)</th><th>Status</th>${can?'<th></th>':''}</tr></thead><tbody>${VXS.map(([k,n])=>{
+    const v=VS[k],bs=v?bSort(bList(v)):[],tg=!v?'<span class="tg wa">Not tracked</span>':(stTags(v).map(x=>`<span class="tg wa">${x}</span>`).join(' ')||'<span class="tg ok">OK</span>');
+    return `<tr><td>${E(n)}</td><td>${v?bUse(v)+(bExpQ(v)?' <small style="color:var(--mu)">(+'+bExpQ(v)+' expired)</small>':''):'-'}</td><td>${bs.length?bs.map(b=>E((b.lot||'no lot')+' | '+(b.exp?b.exp:'no expiry')+' | '+b.qty)+(b.exp&&b.exp<t?' <span class="tg er">Expired</span>':'')).join('<br>'):'-'}</td><td>${tg}</td>${can?`<td style="white-space:nowrap"><button class="bt g" onclick="vxIn('${k}')">Receive</button>${bs.length?` <button class="bt g" onclick="vxAdj('${k}')">Adjust</button>`:''}</td>`:''}</tr>`}).join('')}</tbody></table></div><p style="color:var(--mu);font-size:13px;margin:8px 0 0">Counted in doses. Recording a vaccine below takes 1 dose from the batch that expires first. A vaccine that is not tracked is recorded without changing any stock.</p>`
+}
+function vlRender(){
+  const el=$('vxl');if(!el)return;
+  if(VLE){el.innerHTML='<p class="er2" style="margin:0">Could not load the log. Publish the latest firestore.rules first.</p>';return}
+  el.innerHTML=VL.length?`<table><thead><tr><th>Date</th><th>Type</th><th>Vaccine</th><th>Doses</th><th>Reason / note</th><th>By</th></tr></thead><tbody>${VL.map(r=>`<tr><td>${E(r.d)}</td><td><span class="tg ${(VLT[r.type]||['wa'])[0]}">${E((VLT[r.type]||['',r.type])[1])}</span></td><td>${E(r.name)}</td><td>${r.qty>0?'+':''}${r.qty}</td><td>${E(r.reason||'')}${r.note?'<br><small style="color:var(--mu)">'+E(r.note)+'</small>':''}</td><td>${E(r.byName||'')}</td></tr>`).join('')}</tbody></table><p style="color:var(--mu);font-size:13px;margin:8px 0 0">Showing the latest ${VL.length}.</p>`:'<p style="color:var(--mu)">Nothing recorded yet.</p>'
+}
+function vxIn(k){
+  const n=VXS.find(x=>x[0]===k)[1],v=VS[k];
+  fmShow('Receive vaccine: '+n,v?bUse(v)+' doses on hand now.':'This vaccine is not tracked yet. Receiving doses starts tracking it.',`<div class="fm"><div><label>Doses received</label><input id="vzq" type="number" min="1" step="1"></div><div><label>Date received</label><input id="vzd" type="date" value="${today()}" max="${today()}"></div><div><label>Lot number (optional)</label><input id="vzl" maxlength="40" autocomplete="off"></div><div><label>Expiry date (optional)</label><input id="vzx" type="date"></div><div><label>Source</label><select id="vzs"><option>DOH</option><option>LGU</option><option>Other</option></select></div><div><label>Low-stock level (doses)</label><input id="vzo" type="number" min="0" value="${v&&typeof v.low==='number'?v.low:20}"></div></div><div class="er2" id="vze"></div>`,'Save',"vxInSave('"+k+"')")
+}
+async function vxInSave(k){
+  const n=VXS.find(x=>x[0]===k)[1],er=$('vze'),q=Number($('vzq').value),d=$('vzd').value,x=$('vzx').value,lot=$('vzl').value.trim(),src=$('vzs').value,lo=$('vzo').value===''?20:Number($('vzo').value);
+  if(!Number.isInteger(q)||q<1){er.textContent='Enter the number of doses received (a whole number, 1 or more).';return}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()){er.textContent='Enter a valid date received (not in the future).';return}
+  if(x&&x<d){er.textContent='The expiry date cannot be before the date received.';return}
+  if(!isFinite(lo)||lo<0){er.textContent='Enter a valid low-stock level.';return}
+  er.textContent='';fmBusy(true);let saved=null;
+  try{
+    await runTransaction(db,async tx=>{
+      const r=doc(db,'vxstock',k),sn=await tx.get(r),cur=sn.exists()?sn.data():{name:n},b={id:bid(),qty:q,exp:x,lot,d,src},p=bPack(bList(cur).concat([b]));
+      tx.set(r,{name:n,low:lo,...p,at:serverTimestamp()});
+      tx.set(doc(collection(db,'vxlog')),{key:k,name:n,type:'in',reason:src,note:(lot?'Lot '+lot:'')+(x?(lot?', ':'')+'expiry '+x:''),qty:q,after:p.qty,batch:b.id,d,by:U.uid,byName:U.name,at:serverTimestamp()});
+      saved={name:n,low:lo,...p}
+    });
+    await lg('Vaccine stock in '+n+' +'+q);VS[k]=saved;fmClose();vxRender();loadVl();imRender();
+    sDone('Added '+q+' doses of '+n+'. Now '+bUse(saved)+' usable doses.','Vaccine stock saved')
+  }catch(e){fmBusy(false);er.textContent=e.code==='permission-denied'?'You do not have permission to update vaccine stock. Publish the latest firestore.rules first.':'Could not save. Check your connection.'}
+}
+const VAR=['Wastage (opened vial)','Expired','Cold chain problem','Damaged or broken','Lost or missing','Count correction','Other'];
+let vad='';
+function vxAdj(k){
+  const v=VS[k];if(!v)return;
+  if(!bList(v).length){sAlert('There are no doses to adjust. Use Receive to add stock first.');return}
+  vad=k;vaRender()
+}
+function vaRender(){
+  const v=VS[vad];if(!v){fmClose();return}
+  const bs=bSort(bList(v)),t=today(),ex=!!(bs[0].exp&&bs[0].exp<t);
+  fmShow('Adjust vaccine stock: '+v.name,'Use this for wastage, expired or damaged doses, or a count correction. Every change is saved in the vaccine stock log.',`<div class="fm"><div><label>Batch</label><select id="vab" onchange="vaChg(1)">${bs.map(b=>`<option value="${E(b.id)}">${b.qty} doses | ${E(b.lot||'no lot')} | ${b.exp?'expires '+E(b.exp):'no expiry'}${b.exp&&b.exp<t?' | EXPIRED':''}</option>`).join('')}</select></div><div><label>Reason</label><select id="var" onchange="vaChg(1)">${VAR.map(r=>`<option${r===(ex?'Expired':'Wastage (opened vial)')?' selected':''}>${r}</option>`).join('')}</select></div><div><label id="vaql">Doses to remove</label><input id="vaq" type="number" min="0" step="1" oninput="vaChg()"></div><div><label>Note <span id="van2" style="color:var(--mu)">(optional)</span></label><input id="van" maxlength="200" autocomplete="off"></div></div><div id="vasum" style="color:var(--mu);font-size:14px;margin-top:8px"></div><div class="er2" id="vae"></div>`,'Save adjustment','vxAdjSave()');
+  vaChg(1)
+}
+function vaChg(reset){
+  const v=VS[vad];if(!v||!$('vab'))return;
+  const b=bList(v).find(x=>x.id===$('vab').value),r=$('var').value,cnt=r==='Count correction',qe=$('vaq');
+  if(!b)return;
+  $('vaql').textContent=cnt?'Actual doses counted in this batch':'Doses to remove';
+  $('van2').textContent=(cnt||r==='Other')?'(required)':'(optional)';
+  if(reset)qe.value=(cnt||r==='Expired')?b.qty:'';
+  const n=Number(qe.value),ok=qe.value!==''&&Number.isInteger(n)&&n>=0,nq=ok?(cnt?n:b.qty-n):-1;
+  $('vasum').textContent=nq>=0?'This batch: '+b.qty+' to '+nq+' doses.':''
+}
+async function vxAdjSave(){
+  const k=vad,v=VS[k],er=$('vae');if(!v)return;
+  const bi=$('vab').value,r=$('var').value,cnt=r==='Count correction',nv=$('vaq').value,n=Number(nv),note=$('van').value.trim();
+  if(nv===''||!Number.isInteger(n)||n<0){er.textContent='Enter a whole number, 0 or more.';return}
+  if(!cnt&&n<1){er.textContent='Enter how many doses to remove (1 or more).';return}
+  if((cnt||r==='Other')&&!note){er.textContent='Add a short note explaining this adjustment.';return}
+  er.textContent='';fmBusy(true);let saved=null,chg=0;
+  try{
+    await runTransaction(db,async tx=>{
+      const ref=doc(db,'vxstock',k),sn=await tx.get(ref);if(!sn.exists())throw{code:'gone'};
+      const cur=sn.data(),bs=bList(cur),b=bs.find(x=>x.id===bi);if(!b)throw{code:'batch'};
+      const nq=cnt?n:b.qty-n;if(nq<0)throw{code:'neg'};
+      chg=nq-b.qty;if(!chg)throw{code:'same'};
+      const p=bPack(bs.map(x=>x.id===bi?{...x,qty:nq}:x));
+      tx.update(ref,{...p,at:serverTimestamp()});
+      tx.set(doc(collection(db,'vxlog')),{key:k,name:cur.name,type:'adj',reason:r,note,qty:chg,after:p.qty,batch:bi,d:today(),by:U.uid,byName:U.name,at:serverTimestamp()});
+      saved={...cur,...p}
+    });
+    await lg('Vaccine stock adjust '+v.name+' '+(chg>0?'+':'')+chg+' ('+r+')');
+    VS[k]=saved;vad='';fmClose();vxRender();loadVl();imRender();
+    sDone((chg<0?'Removed '+(-chg):'Added '+chg)+' doses for '+v.name+'. Now '+bUse(saved)+' usable doses.','Adjustment saved')
+  }catch(e){fmBusy(false);er.textContent=e.code==='permission-denied'?'You do not have permission to adjust vaccine stock. Publish the latest firestore.rules first.':e.code==='gone'?'That vaccine is no longer in the list.':e.code==='batch'?'That batch changed. Close this window and try again.':e.code==='neg'?'You cannot remove more than the batch has.':e.code==='same'?'The quantity is the same as now, so nothing was changed.':'Could not save. Check your connection.'}
 }
 function viewAs(r){
   if(!U.real)U.real=U.role;
@@ -1647,5 +1779,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
