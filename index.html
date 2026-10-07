@@ -81,7 +81,7 @@ const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doct
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
 const IMR=['doctor','midwife','bhw','admin','developer'];
 const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['rp','Reports',0,['doctor','midwife','developer']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk']],['audit','Audit log',0,['admin','developer']]];
-let RXL=[],Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
+let RXL=[],RSK=null,Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
 let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false,bk=[];
 const today=()=>new Date().toLocaleDateString('en-CA');
 const isAdm=()=>U.role==='admin'||U.role==='developer';
@@ -454,7 +454,7 @@ async function loadPd(){
   }catch(e){PD.ok=false;const s=$('pds');if(s)s.innerHTML='<div class="cd">Could not load. Check your connection.</div>';return}
   pdRender();
   try{const s=await getDocs(query(collection(db,'stockin'),orderBy('at','desc'),limit(3)));PD.si=s.docs.map(d=>d.data())}catch(e){PD.si=false}
-  try{const s=await getDocs(query(collection(db,'prescriptions'),where('dispensedAt','>=',new Date(new Date().setHours(0,0,0,0)))));PD.dpl=s.docs.map(d=>d.data()).filter(r=>r.status==='dispensed');PD.dp=PD.dpl.length}catch(e){PD.dp=null;PD.dpl=[]}
+  try{const s=await getDocs(query(collection(db,'prescriptions'),where('dispensedAt','>=',new Date(new Date().setHours(0,0,0,0)))));PD.dpl=s.docs.map(d=>d.data()).filter(r=>r.status==='dispensed'||r.status==='partial');PD.dp=PD.dpl.length}catch(e){PD.dp=null;PD.dpl=[]}
   pdRender()
 }
 function pdRender(){
@@ -792,9 +792,10 @@ async function view(id,np){
   pid=id;pg='prof';lg('Viewed '+id);R();scrollTo(0,0);
   const lv=LV[U.role]||'basic',h=$('hist'),PR=lv==='full'&&(U.role==='doctor'||canRx());if(lv==='basic')return;if(lv==='full')loadLabH(id);
   try{
-    const s=await getDocs(query(collection(db,lv==='full'?'visits':'prescriptions'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||((b.at?.seconds||0)-(a.at?.seconds||0)));VH=l;
+    const s=await getDocs(query(collection(db,lv==='full'?'visits':'prescriptions'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||((b.at?.seconds||0)-(a.at?.seconds||0)));VH=l;RXM={};
+    if(lv==='full'){try{(await getDocs(query(collection(db,'prescriptions'),where('pid','==',id)))).docs.forEach(d=>{const r=d.data();RXM[(r.d||'')+'|'+(r.rx||'')]=r})}catch(e){}}
     const vt=v=>{const a=v.vitals||{},o=[];if(a.bps!=null&&a.bpd!=null)o.push('BP '+a.bps+'/'+a.bpd);if(a.t!=null)o.push('T '+a.t+'°C');if(a.pr!=null)o.push('PR '+a.pr);if(a.rr!=null)o.push('RR '+a.rr);if(a.o2!=null)o.push('SpO2 '+a.o2+'%');if(a.wt!=null)o.push(a.wt+' kg');if(a.ht!=null)o.push(a.ht+' cm');return o.join(', ')};
-    h.innerHTML=l.length?`<table><thead><tr><th>Date</th>${lv==='full'?'<th>Vitals</th><th>Complaint</th><th>Diagnosis</th>':''}<th>Prescription</th>${lv==='full'?'<th>Referral</th>':'<th>Status</th>'}${PR?'<th></th>':''}</tr></thead><tbody>${l.map((v,vi)=>`<tr><td>${E(v.d)}</td>${lv==='full'?`<td>${E(vt(v))}</td><td>${E(v.cc)}</td><td>${E(v.dx)}${v.tx?`<br><small style="color:var(--mu)">${E(v.tx)}</small>`:''}</td>`:''}<td>${E(v.rx||'')}</td>${lv==='full'?`<td>${v.referral?E(v.referral.to+' ('+v.referral.urg+'): '+v.referral.why):''}</td>`:`<td>${E(v.status||'')}</td>`}${PR?`<td style="white-space:nowrap">${v.rx&&canRx()?`<button class="bt g" onclick="printRx(${vi})">Print Rx</button> `:''}${U.role==='doctor'?`<button class="bt g" onclick="certOpen(${vi})">Med. certificate</button>`:''}</td>`:''}</tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No records yet. Consultations will appear here once they are recorded.</p>';
+    h.innerHTML=l.length?`<table><thead><tr><th>Date</th>${lv==='full'?'<th>Vitals</th><th>Complaint</th><th>Diagnosis</th>':''}<th>Prescription</th>${lv==='full'?'<th>Referral</th>':'<th>Status</th>'}${PR?'<th></th>':''}</tr></thead><tbody>${l.map((v,vi)=>`<tr><td>${E(v.d)}</td>${lv==='full'?`<td>${E(vt(v))}</td><td>${E(v.cc)}</td><td>${E(v.dx)}${v.tx?`<br><small style="color:var(--mu)">${E(v.tx)}</small>`:''}</td>`:''}<td>${E(v.rx||'')}${lv==='full'?rxFlag(RXM[v.d+'|'+v.rx],1):''}</td>${lv==='full'?`<td>${v.referral?E(v.referral.to+' ('+v.referral.urg+'): '+v.referral.why):''}</td>`:`<td>${E(rxStLbl(v))}</td>`}${PR?`<td style="white-space:nowrap">${v.rx&&canRx()?`<button class="bt g" onclick="printRx(${vi})">Print Rx</button> `:''}${U.role==='doctor'?`<button class="bt g" onclick="certOpen(${vi})">Med. certificate</button>`:''}</td>`:''}</tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No records yet. Consultations will appear here once they are recorded.</p>';
   }catch(e){h.textContent='Could not load records. Check your connection.'}
 }
 const regFields=hm=>{const hs=[...new Set(P.map(x=>x.hh))];return `<div class="fm"><div><label>Last name</label><input id="f2"></div><div><label>First name</label><input id="f1"></div><div><label>Middle name (optional)</label><input id="f9"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date"></div><div><label>Barangay</label>${brField(hm.br||'')}</div><div><label>Purok</label><div id="f6w">${puField(hm.br||'',hm.pu||'')}</div></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option ${h===regHH?'selected':''}>${h}</option>`).join('')}</select></div></div>`+`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label>`};
@@ -1091,13 +1092,24 @@ function cSearch(v){
   const s=v.trim().toLowerCase(),r=$('cres');if(!s){r.innerHTML='';return}
   const l=P.filter(p=>(pn(p)+' '+p.id).toLowerCase().includes(s)).slice(0,6);
   r.innerHTML=l.length?`<div class="ov"><table><tbody>${l.map(p=>`<tr><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td><td><button class="bt" onclick="startC('${p.id}')">Consult</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">No match.</p>'}
+async function rxStock(){if(RSK)return;try{const s=await getDocs(collection(db,'stock'));RSK={};s.docs.forEach(d=>{RSK[d.id]=d.data()})}catch(e){RSK=false}}
+function rxChk(name,qty){
+  if(!RSK||!name)return null;const k=RSK[skey(name)];if(!k)return['wa','Not in the pharmacy stock list'];
+  const u=bUse(k),n=Number(qty)||0;if(u<=0)return['er','Out of stock in the pharmacy'];if(n>0&&u<n)return['wa','Only '+u+' in stock'];return['ok','In stock ('+u+')']
+}
+function rxWarn(){
+  const w=$('rmw');if(!w)return;const c=rxChk($('rm1').value.trim(),$('rm5').value);
+  w.innerHTML=c?`<span class="tg ${c[0]}">${E(c[1])}</span>`+(c[0]!=='ok'?' <small style="color:var(--mu)">You can still prescribe it.</small>':''):''
+}
 function rxListHtml(){
-  return RXL.length?`<div class="ov"><table><thead><tr><th>Medicine</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Qty</th><th></th></tr></thead><tbody>${RXL.map((i,k)=>`<tr><td>${E(i.drug)}</td><td>${E(i.dose)}</td><td>${E(i.freq)}</td><td>${E(i.dur||'')}</td><td>${E(i.qty||'')}</td><td style="white-space:nowrap"><button type="button" class="bt g" onclick="rxOpen(${k})">Edit</button> <button type="button" class="bt g dn" onclick="rmRx(${k})">Remove</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu);margin:0 0 8px">No medicine added yet.</p>'
+  if(RSK===null)rxStock().then(rxPaint);
+  return RXL.length?`<div class="ov"><table><thead><tr><th>Medicine</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Qty</th><th></th></tr></thead><tbody>${RXL.map((i,k)=>`<tr><td>${E(i.drug)}${(c=>c&&c[0]!=='ok'?`<br><span class="tg ${c[0]}">${E(c[1])}</span>`:'')(rxChk(i.drug,i.qty))}</td><td>${E(i.dose)}</td><td>${E(i.freq)}</td><td>${E(i.dur||'')}</td><td>${E(i.qty||'')}</td><td style="white-space:nowrap"><button type="button" class="bt g" onclick="rxOpen(${k})">Edit</button> <button type="button" class="bt g dn" onclick="rmRx(${k})">Remove</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu);margin:0 0 8px">No medicine added yet.</p>'
 }
 const rxPaint=()=>{const l=$('rxs');if(l)l.innerHTML=rxListHtml()};
 function rxOpen(k){
   const i=k==null?{}:RXL[k],f=(id,l,ph,v,t)=>`<div><label>${l}</label><input id="${id}" ${t||''} placeholder="${ph}" value="${E(v||'')}" autocomplete="off"></div>`;
-  fmShow(k==null?'Add medicine':'Edit medicine','',`<div class="fm" style="grid-template-columns:1fr">${f('rm1','Medicine','e.g. Paracetamol',i.drug)}${f('rm2','Dose','e.g. 500 mg',i.dose)}${f('rm3','Frequency','e.g. 3x a day',i.freq)}${f('rm4','Duration (optional)','e.g. 7 days',i.dur)}${f('rm5','Qty (optional)','e.g. 21',i.qty,'type="number" min="1"')}</div><div class="er2" id="rme"></div>`,k==null?'Add':'Save',`rxSave(${k==null?-1:k})`);
+  fmShow(k==null?'Add medicine':'Edit medicine','',`<div class="fm" style="grid-template-columns:1fr">${f('rm1','Medicine','e.g. Paracetamol',i.drug,'list="rml" oninput="rxWarn()"')}<div id="rmw" style="margin-top:-6px"></div><datalist id="rml">${RSK?Object.values(RSK).map(v=>`<option value="${E(v.name)}">`).join(''):''}</datalist>${f('rm2','Dose','e.g. 500 mg',i.dose)}${f('rm3','Frequency','e.g. 3x a day',i.freq)}${f('rm4','Duration (optional)','e.g. 7 days',i.dur)}${f('rm5','Qty (optional)','e.g. 21',i.qty,'type="number" min="1" oninput="rxWarn()"')}</div><div class="er2" id="rme"></div>`,k==null?'Add':'Save',`rxSave(${k==null?-1:k})`);
+  rxStock().then(()=>{const dl=$('rml');if(dl&&RSK)dl.innerHTML=Object.values(RSK).map(v=>`<option value="${E(v.name)}">`).join('');rxWarn()});
   const o=$('fmo');if(o)o.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();$('fmok').click()}})
 }
 function rxSave(k){
@@ -1143,7 +1155,51 @@ async function saveC(){
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
 }
 /* ---------- Pharmacy ---------- */
-let RX=[],SK={};
+let RX=[],SK={},RXM={};
+const RXT={ok:['ok','In stock'],low:['wa','Not enough'],out:['er','Out of stock'],nolist:['wa','Not in stock list']};
+function rxLn(i){const k=SK[skey(i.drug||'')],n=Number(i.qty)||0,u=k?bUse(k):null;let st='ok';if(!k)st='nolist';else if(u<=0)st='out';else if(n>0&&u<n)st='low';return{k,n,u,st}}
+const rxStLbl=r=>({pending:'Pending',awaiting:'Awaiting approval',rejected:'Rejected',dispensed:'Dispensed',partial:(r.results||[]).some(x=>x.st==='given'||x.given>0)?'Partly dispensed':'Not available'}[r.status]||r.status||'');
+function rxFlag(r,withBtn){
+  if(!r||r.status!=='partial')return '';const it=r.items||[];
+  const l=(r.results||[]).map((x,k)=>x.st==='given'||!it[k]?'':`<div>${E(it[k].drug)}: ${x.st==='partial'?'only '+x.given+' of '+(it[k].qty||'?')+' given':'not available'}${x.note?' ('+E(x.note)+')':''}</div>`).join('');
+  return `<div style="color:var(--er);font-size:13px;margin-top:4px"><b>Not fully dispensed</b>${l}${withBtn&&CROLES.includes(U.role)?`<button type="button" class="bt g" style="margin-top:6px" onclick="startC('${r.pid}')">Prescribe replacement</button>`:''}</div>`
+}
+async function rxFinish(id,res){
+  const r=RX.find(x=>x.id===id);if(!r)return;
+  const it=r.items||[],need={};
+  it.forEach((i,k)=>{const g=res[k].given;if(i.drug&&g>0){const key=skey(i.drug);need[key]=(need[key]||0)+g}});
+  const status=res.every(x=>x.st==='given')?'dispensed':'partial';
+  fmBusy(true);
+  try{
+    await runTransaction(db,async tx=>{
+      const ks=Object.keys(need).filter(k=>SK[k]),sn=await Promise.all(ks.map(k=>tx.get(doc(db,'stock',k))));
+      ks.forEach((k,i)=>{if(sn[i].exists()){const d=sn[i].data();if(bUse(d)<need[k])throw new Error('stock');tx.update(doc(db,'stock',k),{...bPack(bTake(bList(d),need[k])),at:serverTimestamp()})}});
+      tx.update(doc(db,'prescriptions',id),{status,results:res,dispensedBy:U.name,dispensedAt:serverTimestamp()})
+    });
+    fmClose();await lg((status==='dispensed'?'Dispensed ':'Partly dispensed ')+id);
+    sDone(status==='dispensed'?'The prescription was marked as dispensed.':'Saved. Medicines that were not fully given are flagged for the doctor.',status==='dispensed'?'Dispensed':'Partly dispensed');await loadPh()
+  }catch(x){fmBusy(false);if(x.message==='stock'){fmClose();await loadPh();sAlert('The stock changed while you were working. Please review the prescription again.')}else sAlert(x.code==='permission-denied'?'You do not have permission to dispense.':'Could not update. Check your connection.')}
+}
+function rxDspOpen(id){
+  const r=RX.find(x=>x.id===id);if(!r)return;
+  const body=(r.items||[]).map((i,k)=>{const x=rxLn(i),t=RXT[x.st],def=x.st==='ok'?'given':x.st==='low'?'partial':'none';
+    return `<div class="cd" style="margin:0 0 10px;padding:12px"><b>${E(i.drug)}</b> ${E(i.dose)}, ${E(i.freq)}${i.dur?', '+E(i.dur):''} <span class="tg ${t[0]}">${t[1]}</span><div style="color:var(--mu);font-size:13px">Prescribed: ${i.qty?E(i.qty):'no quantity'} | Usable stock: ${x.k?x.u:'not tracked'}</div><div class="fm" style="margin-top:8px;grid-template-columns:1fr"><div><label>Action</label><select id="dz${k}" onchange="rxDspChg(${k})"><option value="given"${def==='given'?' selected':''}>${i.qty?'Give full quantity':'Give'}</option><option value="partial"${def==='partial'?' selected':''}>Give partial quantity</option><option value="none"${def==='none'?' selected':''}>Not available</option></select></div><div id="dqw${k}" style="display:${def==='partial'?'block':'none'}"><label>Quantity given</label><input id="dq${k}" type="number" min="1" value="${def==='partial'&&x.u>0?x.u:''}"></div><div><label>Note for the doctor (optional)</label><input id="dn${k}" placeholder="e.g. out of stock, advise to buy outside" autocomplete="off"></div></div></div>`}).join('');
+  fmShow('Dispense: '+r.pname,r.d,`<p style="color:var(--mu);font-size:13px;margin:0 0 10px">Medicines marked partial or not available are flagged to the doctor so a replacement can be prescribed.</p>${body}<div class="er2" id="dze"></div>`,'Confirm',`rxDspGo('${id}')`)
+}
+const rxDspChg=k=>{$('dqw'+k).style.display=$('dz'+k).value==='partial'?'block':'none'};
+function rxDspGo(id){
+  const r=RX.find(x=>x.id===id),er=$('dze'),res=[];if(!r)return;
+  for(let k=0;k<(r.items||[]).length;k++){
+    const i=r.items[k],x=rxLn(i),st=$('dz'+k).value,note=$('dn'+k).value.trim();let g=null;
+    if(st==='given'){g=Number(i.qty)||null}
+    else if(st==='partial'){g=Number($('dq'+k).value);if(!(g>=1))return er.textContent='Enter the quantity given for '+i.drug+'.';if(i.qty&&g>=Number(i.qty))return er.textContent='For '+i.drug+', the partial quantity must be less than '+i.qty+'. Choose Give full quantity instead.'}
+    else g=0;
+    if(x.k&&g>x.u)return er.textContent='Only '+x.u+' of '+i.drug+' can be used from stock.';
+    res.push({st,given:g,note})
+  }
+  rxFinish(id,res)
+}
+
 function bid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function bList(v){if(Array.isArray(v.batches))return v.batches.filter(b=>b.qty>0);return v.qty>0?[{id:'legacy',qty:v.qty,exp:v.exp||'',d:'',src:'Earlier stock'}]:[]}
 function bSort(bs){return bs.slice().sort((a,b)=>(a.exp||'9999-99-99').localeCompare(b.exp||'9999-99-99'))}
@@ -1164,7 +1220,7 @@ const skey=n=>String(n).trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(
 const phg=()=>`<h2 style="margin-top:0">Pharmacy</h2><div class="cd ov"><h3 style="margin-top:0">Prescriptions to dispense</h3><div id="phl">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Stock</h3><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="stq" placeholder="Search medicine" oninput="stSearch(this.value)" autocomplete="off" style="max-width:260px"><span id="stfb"></span><button class="bt" style="margin-left:auto" onclick="stAdd()">+ Add medicine</button></div><div class="ov" id="stl" style="margin-top:12px"></div></div><div class="cd ov"><h3 style="margin-top:0">Stock in history</h3><div id="sih">Loading...</div></div>`;
 function phRender(){
   const l=$('phl'),s=$('stl');if(!l)return;
-  l.innerHTML=RX.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Medicines</th><th></th></tr></thead><tbody>${RX.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${(r.items||[]).map(i=>{const k=SK[skey(i.drug||'')];return E(i.drug+' '+i.dose+', '+i.freq+(i.dur?', '+i.dur:'')+(i.qty?' (#'+i.qty+')':''))+(k?` <small style="color:var(--mu)">stock: ${bUse(k)}</small>`:'')}).join('<br>')}</td><td><button class="bt" onclick="dispense('${r.id}')">Mark as dispensed</button></td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No prescriptions waiting.</p>';
+  l.innerHTML=RX.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Medicines</th><th></th></tr></thead><tbody>${RX.map(r=>{const ln=(r.items||[]).map(rxLn),ok=ln.every(x=>x.st==='ok');return `<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${(r.items||[]).map((i,k)=>{const x=ln[k],t=RXT[x.st];return E(i.drug+' '+i.dose+', '+i.freq+(i.dur?', '+i.dur:'')+(i.qty?' (#'+i.qty+')':''))+` <span class="tg ${t[0]}">${t[1]}</span>`+(x.k?` <small style="color:var(--mu)">usable: ${x.u}</small>`:'')}).join('<br>')}</td><td style="white-space:nowrap">${ok?`<button class="bt" onclick="dispense('${r.id}')">Mark as dispensed</button> <button class="bt g" onclick="rxDspOpen('${r.id}')">Partial / not available</button>`:`<button class="bt" onclick="rxDspOpen('${r.id}')">Review and dispense</button>`}</td></tr>`}).join('')}</tbody></table>`:'<p style="color:var(--mu)">No prescriptions waiting.</p>';
   const all=Object.entries(SK),att=all.filter(([,v])=>stTags(v).length).length,k=stFilt();
   const fb=[['all','All'],['low','Low'],['exp','Expiring']];
   $('stfb').innerHTML=fb.map(([f,t])=>`<button class="bt ${stf===f?'':'g'}" onclick="stFlt('${f}')">${t}</button>`).join(' ');
@@ -1291,18 +1347,8 @@ async function seSave(){
 }
 async function dispense(id){
   const r=RX.find(x=>x.id===id);if(!r)return;
-  const need={};(r.items||[]).forEach(i=>{const n=Number(i.qty);if(i.drug&&n>0){const k=skey(i.drug);need[k]=(need[k]||0)+n}});
-  const low=Object.entries(need).filter(([k,n])=>SK[k]&&bUse(SK[k])<n).map(([k,n])=>SK[k].name+' ('+bUse(SK[k])+' usable, '+n+' needed)');
-  if(low.length&&!await sConfirm('Not enough unexpired stock for: '+low.join(', ')+'. Expired batches are not counted. Dispense anyway?','Dispense anyway?','Dispense anyway',0))return;
-  try{
-    await runTransaction(db,async tx=>{
-      const ks=Object.keys(need).filter(k=>SK[k]),sn=await Promise.all(ks.map(k=>tx.get(doc(db,'stock',k))));
-      // Take from the batch that expires first (FEFO). Expired batches are never used.
-      ks.forEach((k,i)=>{if(sn[i].exists()){const p=bPack(bTake(bList(sn[i].data()),need[k]));tx.update(doc(db,'stock',k),{...p,at:serverTimestamp()})}});
-      tx.update(doc(db,'prescriptions',id),{status:'dispensed',dispensedBy:U.name,dispensedAt:serverTimestamp()})
-    });
-    await lg('Dispensed '+id);sDone('The prescription was marked as dispensed.','Dispensed');await loadPh()
-  }catch(x){sAlert(x.code==='permission-denied'?'You do not have permission to dispense.':'Could not update. Check your connection.')}
+  const res=(r.items||[]).map(i=>({st:'given',given:Number(i.qty)||null,note:''}));
+  await rxFinish(id,res)
 }
 const idleMin=()=>typeof S.idleMin==='number'?S.idleMin:10;
 const devCard=()=>{setTimeout(loadDevs,0);return `<div class="cd"><h3 style="margin-top:0">Developer accounts</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Developers have full control of the system and its settings. Only add people you trust. You cannot remove your own account.</p><div id="dvl" class="ov">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Add developer</h3><div class="fm"><div><label>Last name</label><input id="da1"></div><div><label>First name</label><input id="da2"></div><div><label>Middle name (optional)</label><input id="da3"></div><div><label>Email</label><input id="da4" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="da5" type="text" autocomplete="off"></div></div><div class="er2" id="dae"></div><button class="bt" id="dab" style="margin-top:12px" onclick="addDev()">Create developer account</button></div>`};
@@ -1417,5 +1463,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{qNew,rxOpen,rxSave,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
