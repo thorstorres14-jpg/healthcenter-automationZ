@@ -125,8 +125,9 @@ function render(){
   wh+=grp.map(([k,l])=>`<div class="grp">${ST[k]} (${l.length})</div>`+l.slice(0,8).map(d=>`<div class="chip">${qn(d.num)}</div>`).join('')+(l.length>8?`<div class="chip">+${l.length-8}</div>`:'')).join('');
   if(!wait.length&&!grp.length)wh=`<div class="empty">${T.nobody}</div><div class="tip" id="tip">${tipNow()}</div>`;
   $('wait').innerHTML=wh;
-  const cut=Date.now()-10*60000,tm=d=>d.routedAt&&d.routedAt.toMillis?d.routedAt.toMillis():0;
-  const rec=docs.filter(d=>d.status==='waiting'&&isS(d)&&tm(d)>cut).sort((a,b)=>tm(b)-tm(a)).slice(0,6);
+  const cut=Date.now()-10*60000,tm=d=>d.calledAt&&d.calledAt.toMillis?d.calledAt.toMillis():0;
+  // "Please proceed" strip: only patients that a station has just called.
+  const rec=docs.filter(d=>d.status==='in-consult'&&isS(d)&&tm(d)>cut).sort((a,b)=>tm(b)-tm(a)).slice(0,6);
   $('recent').style.display=rec.length?'flex':'none';
   $('recent').innerHTML=rec.length?`<span class="rl">${T.recent}</span>`+rec.map(d=>`<span class="rc">${qn(d.num)} <small>→ ${ST[d.station]||d.station}</small></span>`).join(''):''
 }
@@ -155,9 +156,7 @@ unsub=onSnapshot(query(collection(db,'queueDisplay'),where('day','==',curDay)),{
   docs.forEach(d=>{
     const ms=d.calledAt&&d.calledAt.toMillis?d.calledAt.toMillis():0;
     if(!first&&d.status==='in-consult'&&(d.room||(d.station&&d.station!=='consult'))&&ms>(last[d.id]||0)){flash[d.id]=Date.now()+7000;lastId=d.id;announce(d.num,d.room,d.station);setTimeout(render,7100)}
-    const dm=d.routedAt&&d.routedAt.toMillis?d.routedAt.toMillis():0;
-    if(!first&&d.status==='waiting'&&d.station&&d.station!=='consult'&&dm>(lastDone[d.id]||0)&&Date.now()-dm<60000)announceNext(d.num,[d.station]);
-    lastDone[d.id]=dm;
+    // Sending a patient to a station does not announce anything here. The announcement happens only when the station staff press Call.
     last[d.id]=ms
   });
   first=false;render()
