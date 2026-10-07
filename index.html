@@ -80,7 +80,7 @@ const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
 const IMR=['doctor','midwife','bhw','admin','developer'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['audit','Audit log',0,['admin','developer']]];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['ann','Announcement',0,[]],['dev','Developer',0,['developer']],['users','Users',0,['admin','developer']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk']],['audit','Audit log',0,['admin','developer']]];
 let Q=[],cp=null,cq=null,hhSel=null,regHH='',qmsg='';
 let U=null,S={},P=[],pg='dash',pid=null,q='',msg='',t=Date.now(),mode='boot',setting=false,bk=[];
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -272,7 +272,7 @@ function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}${n[0]==='pharm'?pxBadge():''}</button>`).join('');
   return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['dvt','dlr','u5','sr'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
@@ -500,6 +500,133 @@ function drModal(k){
   if(!Array.isArray(DR.lr))return['Lab results back','',drMu('Could not load this list. Check your connection.'),null];
   return['Lab results back',nN(DR.lr.length,'result')+' in the last 7 days'+(typeof DR.lp==='number'?', '+DR.lp+' still pending':''),dmList(DR.lr,r=>dmrc(E(r.pname),E(r.test)+': '+E(r.result||''),E(r.d||''),"dmClose();view('"+r.pid+"')")),null]
 }
+/* ---------- Import / Export (patients, CSV) ---------- */
+const ioNorm=h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const IO_COL={ln:['lastname','last','surname','apelyido','ln'],fn:['firstname','first','givenname','pangalan','fn'],mn:['middlename','middle','mn','middleinitial'],sex:['sex','gender','kasarian'],dob:['birthdate','birthday','dob','dateofbirth','kapanganakan'],br:['barangay','brgy','br'],pu:['purok','street','streets','purokstreet','pu'],tel:['contact','contactnumber','contactno','phone','mobile','cellphone','tel','telephone'],hh:['household','householdid','hh','householdno']};
+let IOR=null,IO=null;
+function csvParse(t){
+  t=t.replace(/^﻿/,'');
+  const first=t.split(/\r?\n/)[0]||'',cnt=c=>first.split(c).length-1,tb=cnt('\t'),cm=cnt(','),sc=cnt(';');
+  const d=tb>cm&&tb>sc?'\t':sc>cm?';':',',rows=[];let r=[],f='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===d){r.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);f='';rows.push(r);r=[]}
+    else f+=c}
+  if(f!==''||r.length){r.push(f);rows.push(r)}
+  return rows.filter(x=>x.some(y=>String(y).trim()!==''))
+}
+function ioDate(v,fmt){
+  v=String(v||'').trim();if(!v)return'';let y,mo,d,m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m){y=+m[1];mo=+m[2];d=+m[3]}
+  else{m=v.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);if(!m)return null;
+    const a=+m[1],b=+m[2];y=+m[3];if(m[3].length<=2)y+=y<=new Date().getFullYear()%100?2000:1900;
+    if(fmt==='dmy'){d=a;mo=b}else{mo=a;d=b}}
+  const dt=new Date(y,mo-1,d);if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d)return null;
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0')
+}
+const ioSex=v=>{v=String(v||'').trim().toLowerCase();return['m','male','lalaki','boy'].includes(v)?'M':['f','female','babae','girl'].includes(v)?'F':''};
+function ioAnalyze(rows,fmt){
+  if(rows.length<2)return{fatal:'The file has no patient rows.'};
+  if(rows.length>3001)return{fatal:'The file has more than 3000 rows. Please split it into smaller files.'};
+  const hdr=rows[0].map(ioNorm),col={},vcol={};
+  hdr.forEach((h,i)=>{for(const k in IO_COL)if(IO_COL[k].includes(h)&&col[k]===undefined)col[k]=i;for(const v of VAX)if((h===ioNorm(v[0])||h===ioNorm(v[1]))&&vcol[v[0]]===undefined)vcol[v[0]]=i});
+  const miss=[['ln','last_name'],['fn','first_name'],['sex','sex'],['dob','birthdate'],['br','barangay']].filter(x=>col[x[0]]===undefined).map(x=>x[1]);
+  if(miss.length)return{fatal:'The file is missing these columns: '+miss.join(', ')+'. Download the template to see the correct column names.'};
+  const key=p=>[p.ln,p.fn,p.dob].map(x=>String(x).toLowerCase().replace(/\s+/g,' ').trim()).join('|');
+  const have=new Set(P.map(key)),seen=new Set(),pl=places(),canV=CROLES.includes(U.role),ok=[],bad=[],dup=[];let nopu=0,vaxN=0,offList=new Set();
+  rows.slice(1).forEach((r,i)=>{
+    const g=k=>col[k]===undefined?'':String(r[col[k]]==null?'':r[col[k]]).trim().replace(/\s+/g,' '),line=i+2,err=[];
+    const p={ln:g('ln'),fn:g('fn'),mn:g('mn'),sex:ioSex(g('sex')),dob:ioDate(g('dob'),fmt),br:g('br'),pu:g('pu'),tel:g('tel'),hh:g('hh'),vax:[]};
+    if(!p.ln)err.push('last name missing');if(!p.fn)err.push('first name missing');
+    if(!p.sex)err.push('sex must be M or F');
+    if(p.dob===null)err.push('birthdate not understood');else if(!p.dob)err.push('birthdate missing');else if(p.dob>today())err.push('birthdate is in the future');
+    if(!p.br)err.push('barangay missing');
+    else if(pl.length){const m=pl.find(b=>b.name.toLowerCase()===p.br.toLowerCase());if(m)p.br=m.name;else offList.add(p.br)}
+    if(canV&&p.dob)for(const k in vcol){const raw=String(r[vcol[k]]==null?'':r[vcol[k]]).trim();if(!raw)continue;const d=ioDate(raw,fmt),lb=VAX.find(v=>v[0]===k)[1];
+      if(!d)err.push(lb+' date not understood');else if(d>today()||d<p.dob)err.push(lb+' date is not valid');else p.vax.push([k,d])}
+    const nm=(p.ln+', '+p.fn).replace(/^, |, $/g,'')||'(no name)';
+    if(err.length){bad.push({line,nm,why:err.join(', ')});return}
+    const kk=key(p);
+    if(have.has(kk)){dup.push({line,nm,why:'already registered'});return}
+    if(seen.has(kk)){dup.push({line,nm,why:'repeated in this file'});return}
+    seen.add(kk);if(!p.pu){p.pu='Not recorded';nopu++}
+    vaxN+=p.vax.length;ok.push(p)
+  });
+  return{ok,bad,dup,nopu,vaxN,vaxCols:Object.keys(vcol).length>0,canV,offList:[...offList]}
+}
+function ioFile(el){
+  const f=el.files&&el.files[0];if(!f)return;
+  f.text().then(t=>{IOR=csvParse(t);ioShow()}).catch(()=>{const p=$('iop');if(p)p.innerHTML='<p class="er2">Could not read that file.</p>'})
+}
+function ioShow(){
+  const el=$('iop');if(!el||!IOR)return;
+  const a=IO=ioAnalyze(IOR,$('iof').value);
+  if(a.fatal){el.innerHTML=`<p class="er2">${E(a.fatal)}</p>`;return}
+  const lst=(t,arr)=>arr.length?`<details style="margin-top:8px"><summary style="cursor:pointer">${t} (${arr.length})</summary>${arr.slice(0,15).map(x=>`<div style="font-size:13px;color:var(--mu);padding:3px 0">Row ${x.line}: ${E(x.nm)}: ${E(x.why)}</div>`).join('')}${arr.length>15?`<p style="color:var(--mu);font-size:13px;margin:4px 0 0">and ${arr.length-15} more</p>`:''}</details>`:'';
+  const note=t=>`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">${t}</p>`;
+  el.innerHTML=`<div class="dqs" style="margin-top:12px"><div><b>${a.ok.length}</b><small>Ready to import</small></div><div><b>${a.dup.length}</b><small>Skipped (duplicates)</small></div><div><b>${a.bad.length}</b><small>Need fixing</small></div></div>`
+   +lst('Rows that need fixing',a.bad)+lst('Skipped duplicates',a.dup)
+   +(a.nopu?note(a.nopu+' patient'+(a.nopu===1?'':'s')+' have no purok. They will be saved as "Not recorded".'):'')
+   +(a.offList.length?note('Barangay not in your list: '+E(a.offList.slice(0,5).join(', '))+(a.offList.length>5?' and more':'')+'. They will still be saved as typed.'):'')
+   +(a.vaxCols&&a.canV?note(a.vaxN+' vaccine date'+(a.vaxN===1?'':'s')+' will be recorded.'):a.vaxCols?note('Vaccine dates in the file are skipped. Only a doctor or midwife account can record vaccines.'):'')
+   +`<div class="er2" id="ioe"></div><div style="margin-top:12px"><button class="bt" id="iob" onclick="ioRun()" ${a.ok.length?'':'disabled'}>Import ${a.ok.length} patient${a.ok.length===1?'':'s'}</button></div>`
+}
+async function ioRun(){
+  const er=$('ioe'),b=$('iob'),say=m=>{if(er)er.textContent=m};
+  if(!IO||!IO.ok||!IO.ok.length)return;
+  if(!canReg())return say('You do not have permission to register patients.');
+  if(!$('ioc').checked)return say('Confirm the consent box first.');
+  const L=IO.ok,n=L.length;
+  if(!await sConfirm('Register '+n+' patient'+(n===1?'':'s')+' from this file? You cannot undo this in bulk.','Import patients','Import',0))return;
+  b.disabled=true;say('');
+  const exist=new Set(P.map(x=>x.hh)),grp=new Map();let nh=0;
+  const lab=L.map((p,i)=>{const h=p.hh;if(h&&exist.has(h))return{old:h};const k=h?'g:'+h.toLowerCase():'u:'+i;if(!grp.has(k))grp.set(k,nh++);return{k}});
+  let s0=0,h0=0,done=0;
+  try{
+    await runTransaction(db,async tx=>{const r=doc(db,'meta','counters'),c=await tx.get(r),d=c.exists()?c.data():{};s0=d.patients||0;h0=d.households||0;tx.set(r,{patients:s0+n,households:h0+nh},{merge:true})});
+    const day=today();let ops=[],pend=[];
+    const flush=async()=>{if(!ops.length)return;const wb=writeBatch(db);ops.forEach(([r,d])=>wb.set(r,d));await wb.commit();pend.forEach(x=>P.push(x));done+=pend.length;ops=[];pend=[];b.textContent='Importing... '+done+' of '+n};
+    for(let i=0;i<n;i++){
+      const p=L[i],id='RHU-'+String(s0+i+1).padStart(6,'0'),hh=lab[i].old||'HH-'+(1000+h0+1+grp.get(lab[i].k));
+      const np={id,fn:p.fn,ln:p.ln,mn:p.mn,sex:p.sex,dob:p.dob,br:p.br,pu:p.pu,tel:p.tel,hh,consent:true,consentBy:U.name,createdDay:day,imported:true};
+      ops.push([doc(db,'patients',id),{...np,createdAt:serverTimestamp()}]);pend.push(np);
+      p.vax.forEach(([k,d])=>ops.push([doc(db,'immunizations',id+'_'+k),{pid:id,pname:pn(np),vax:k,label:VAX.find(v=>v[0]===k)[1],d,by:U.uid,byName:U.name,at:serverTimestamp()}]));
+      if(ops.length>=400)await flush()
+    }
+    await flush();
+    await lg('Imported '+n+' patients from CSV');IO=null;IOR=null;
+    await sDone(n+' patient'+(n===1?' was':'s were')+' registered.','Import finished');go('patients')
+  }catch(x){
+    await lg('Import stopped after '+done+' of '+n);
+    b.disabled=false;b.textContent='Import';
+    say((x.code==='permission-denied'?'You do not have permission to import.':'Could not finish. Check your connection.')+' '+done+' of '+n+' patients were saved. Upload the same file again to continue: patients already saved are skipped as duplicates.')
+  }
+}
+function ioDl(name,rows){
+  const cell=v=>{v=String(v==null?'':v);if(/^(=|@|[+\-][^\d])/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"'};
+  const blob=new Blob(['﻿'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)
+}
+function ioTemplate(){
+  const br=places().length?places()[0].name:'San Isidro',vk=VAX.map(v=>v[0]);
+  ioDl('patient-import-template.csv',[['last_name','first_name','middle_name','sex','birthdate','barangay','purok','contact','household',...vk],
+    ['Dela Cruz','Maria','Santos','F','2025-03-14',br,'Purok 1','09171234567','FAM-1','2025-03-15','2025-03-15','2025-04-27',...vk.slice(3).map(()=>'')],
+    ['Dela Cruz','Ramon','Reyes','M','1985-07-02',br,'Purok 1','','FAM-1',...vk.map(()=>'')]])
+}
+async function ioExport(){
+  if(!isAdm())return;
+  if(!await sConfirm('The file will contain personal information of '+P.length+' patients. Keep it safe. Do not send it through chat or social media.','Download patient list','Download',0))return;
+  const rows=[['patient_id','last_name','first_name','middle_name','sex','birthdate','barangay','purok','contact','household','registered']].concat(P.slice().sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).map(p=>[p.id,p.ln,p.fn,p.mn||'',p.sex,p.dob,p.br,p.pu||'',p.tel||'',p.hh,p.createdDay||'']));
+  ioDl('patients-'+today()+'.csv',rows);await lg('Exported patient list ('+P.length+' patients)')
+}
+const iop=()=>{
+  const imp=canReg(),ex=isAdm();
+  return `<h2 style="margin-top:0">Import / Export</h2>`
+  +(imp?`<div class="cd"><h3 style="margin-top:0">Import patients from a file</h3><p style="color:var(--mu);margin-top:0">For moving your paper or Excel records into the system. Save your list as a CSV file, then upload it here. Patients already in the system are skipped, so it is safe to upload a corrected file again.</p><ol style="color:var(--mu);font-size:14px;margin:0 0 12px;padding-left:20px"><li>Download the template and fill it in (or match its column names).</li><li>Required: last_name, first_name, sex (M/F), birthdate, barangay. Purok, contact and household are optional.</li><li>Same household value (for example FAM-1) puts people in one household.${CROLES.includes(U.role)?' Vaccine columns take the date given.':''}</li></ol><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><button class="bt g" onclick="ioTemplate()">Download template</button><label style="margin:0;font-size:14px">Dates like 03/14/2025 are</label><select id="iof" style="width:auto" onchange="ioShow()"><option value="mdy">Month/Day/Year</option><option value="dmy">Day/Month/Year</option></select></div><label style="display:flex;gap:8px;align-items:flex-start;margin:0 0 12px;font-size:14px"><input id="ioc" type="checkbox" style="width:auto;margin-top:4px"><span>The patients in this file were informed and consented to the health center recording their data (Data Privacy Act).</span></label><input type="file" id="iofile" accept=".csv,.txt,text/csv" onchange="ioFile(this)"><div id="iop"></div></div>`:`<div class="cd"><h3 style="margin-top:0">Import patients</h3><p style="color:var(--mu);margin:0">Your account is not allowed to register patients, so it cannot import. Ask the developer to allow admins to add patients.</p></div>`)
+  +(ex?`<div class="cd"><h3 style="margin-top:0">Export patient list</h3><p style="color:var(--mu);margin-top:0">Downloads all registered patients as a CSV file you can open in Excel. Use it as a backup or to hand over records. Every download is written to the audit log.</p><button class="bt" onclick="ioExport()">Download patient list (CSV)</button></div>`:'')
+};
 /* ---------- Dialogs: replace the browser alert and confirm popups ---------- */
 const DLI={err:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',ok:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/>',ask:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/>',del:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'};
 const DLC={err:['#fde4e1','var(--er)'],ok:['#dcf3e4','var(--ok)'],ask:['#fff1d6','var(--wa)'],del:['#fde4e1','var(--er)']};
@@ -1156,5 +1283,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
+Object.assign(window,{ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
