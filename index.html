@@ -41,7 +41,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid #14807f55;border-color
 .dmo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:100}
 .dmc{background:var(--cd);border-radius:12px;max-width:480px;width:100%;max-height:80vh;display:flex;flex-direction:column}
 .dmh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:14px 16px 8px}.dmh b{font-size:17px;display:block}.dmh small{color:var(--mu);font-size:13px}
-.dmb{overflow:auto;padding:0 16px}.dmr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--bd);font-size:14px}.dmr small{display:block;color:var(--mu);font-size:12px}
+.dmb{overflow:auto;padding:0 16px}.dmr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--bd);font-size:14px}.dmr small{display:block;color:var(--mu);font-size:12px}.dmr.cl{cursor:pointer}.dmr.cl:hover{background:rgba(0,0,0,.04)}.dmr.cl>span:first-child{color:var(--pr);font-weight:600}.dmr.cl:focus-visible{outline:2px solid var(--pr);outline-offset:-2px}
 .dmf{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--bd)}
 .dlo{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:200}
 .dlc{background:var(--cd);border-radius:12px;max-width:380px;width:100%;padding:18px 20px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
@@ -64,7 +64,8 @@ label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
 .er2{color:var(--er);font-size:13px;margin-top:6px}.er2.ok2{color:var(--ok)}
 .lg{max-width:440px;margin:0 auto;padding:24px 14px}
 .hm{display:none}
-@media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;width:75%;z-index:5;display:none}.sb.open{display:flex}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px}}
+.sbc,.sbx{display:none}
+@media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;width:75%;z-index:5;display:none}.sb.open{display:flex}.sb.open~.sbx{display:block;position:fixed;top:0;right:0;bottom:0;left:0;z-index:4;background:rgba(0,0,0,.45)}.sbc{display:inline-block;margin-left:auto;flex:none;background:transparent;border:0;color:#fff;font-size:28px;line-height:1;padding:4px 8px;cursor:pointer}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px}}
 </style></head><body><div id="root"></div>
 <script type="module">
 import{firebaseConfig as C}from'./firebase-config.js';
@@ -250,11 +251,12 @@ function certGo(i){
 function navPush(){if(pg==='reg'||pg==='edit')return;bk.push({pg,pid,hhSel});history.pushState({bk:1},'')}
 function goBack(def){if(bk.length)history.back();else go(def)}
 function backLbl(def){const e=bk[bk.length-1];if(!e)return def;if(e.pg==='prof')return'previous patient';if(e.pg==='hhd')return'household '+e.hhSel;const n=NAV.find(x=>x[0]===e.pg);return n?n[1]:def}
+addEventListener('keydown',e=>{if(e.key==='Escape'){const b=document.getElementById('sb');if(b)b.classList.remove('open')}});
 addEventListener('popstate',()=>{const e=bk.pop();if(!e)return;if(e.pg==='prof')return view(e.pid,1);hhSel=e.hhSel;go(e.pg,1)});
 function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
   const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
-  return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1></div>${nav}</nav><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
+  return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
 function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
@@ -356,6 +358,17 @@ const sCard=(k,v,l,sb)=>`<div class="dsc cl" role="button" tabindex="0" onclick=
 const tgh=(t,c)=>`<span class="tg ${c}">${t}</span>`;
 const stTg=v=>stTags(v).map(t=>tgh(t,t==='Expired'?'er':'wa')).join(' ');
 const dmr=(a,b,c)=>`<div class="dmr"><span>${a}${b?`<small>${b}</small>`:''}</span><span>${c||''}</span></div>`;
+const dmrc=(a,b,c,fn)=>`<div class="dmr cl" role="button" tabindex="0" onclick="${fn}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${fn}}"><span>${a}${b?`<small>${b}</small>`:''}</span><span>${c||''}</span></div>`;
+const mSub=v=>{const n=bList(v).length;return bUse(v)+' on hand, '+n+(n===1?' batch':' batches')+(v.exp?', earliest expiry '+E(v.exp):'')};
+function dmMed(id,from){
+  const v=PD.sk[id];if(!v)return;
+  const t=today(),soon=new Date(Date.now()+60*864e5).toLocaleDateString('en-CA'),bs=bSort(bList(v)),lo=typeof v.low==='number'?v.low:10,xq=bExpQ(v);
+  const rows=bs.length?bs.map(b=>dmr(E(b.qty+(b.qty===1?' unit':' units')),'Received '+(b.d?E(b.d):'date not recorded')+(b.src?', '+E(b.src):''),(b.exp&&b.exp<t?tgh('Expired','er')+' ':b.exp&&b.exp<=soon?tgh('Expires soon','wa')+' ':'')+(b.exp?'Exp. '+E(b.exp):'No expiry'))).join(''):'<p style="color:var(--mu)">No batches on hand.</p>';
+  const note='<p style="color:var(--mu);font-size:13px;margin:0 0 8px">Low-stock level: '+lo+'.'+(xq?' '+xq+' expired and not counted as on hand.':'')+' Stock is used from the earliest expiry first.</p>';
+  const n=bs.length;
+  dmShow(v.name,bUse(v)+' on hand, '+n+(n===1?' batch':' batches'),note+rows,['Open Pharmacy',"dmGo('pharm')"]);
+  const f=document.querySelector('#dmo .dmf .bt.g');if(from&&f){f.textContent='Back';f.onclick=()=>dmOpen(from)}
+}
 const dmList=(arr,fn)=>{const sh=arr.slice(0,20);return(sh.length?sh.map(fn).join(''):'<p style="color:var(--mu)">Nothing to show.</p>')+(arr.length>20?`<p style="color:var(--mu);font-size:13px">and ${arr.length-20} more</p>`:'')};
 const pSub=p=>E(age(p.dob)+' / '+p.sex+', '+p.br);
 const nN=(n,w)=>n+' '+w+(n===1?'':'s');
@@ -386,7 +399,7 @@ function dmOpen(k){
     else{const sk=Object.entries(PD.sk).sort(k==='med'?(a,b)=>String(a[1].name).localeCompare(b[1].name):(a,b)=>stTags(b[1]).length-stTags(a[1]).length||String(a[1].name).localeCompare(b[1].name));
       const a=k==='med'?sk:k==='low'?sk.filter(([,v])=>stTags(v).includes('Low')):sk.filter(([,v])=>stTags(v).some(x=>x!=='Low'));
       T={med:'Medicines',low:'Low stock',exp:'Expired or expiring'}[k];S=nN(a.length,'medicine');
-      B=dmList(a,([,v])=>dmr(E(v.name),bUse(v)+' on hand'+(v.exp?', expiry '+E(v.exp):''),stTg(v)));btn=['Open Pharmacy',`dmGo('pharm','${k==='low'?'low':k==='exp'?'exp':'all'}')`]}
+      B=dmList(a,([id,v])=>dmrc(E(v.name),mSub(v),stTg(v),"dmMed('"+id+"','"+k+"')"));btn=['Open Pharmacy',`dmGo('pharm','${k==='low'?'low':k==='exp'?'exp':'all'}')`]}
   }
   else if(k==='lbp'||k==='lbd'){
     if(!PL.ok){T='Still loading';B='<p style="color:var(--mu)">Try again in a moment.</p>'}
@@ -416,7 +429,7 @@ function pdRender(){
   const more=(n,m)=>n>m?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${n-m} more</p>`:'';
   const r=$('pdr'),k=$('pdk'),i=$('pdi');
   if(r)r.innerHTML=`<div class="dh" style="margin-top:0"><b>Prescriptions to dispense</b><span><a href="#" onclick="go('pharm');return false">Open Pharmacy</a></span></div>`+(PD.rx.length?PD.rx.slice(0,5).map(x=>dmr(E(x.pname),rxDrugs(x),rxTg(x))).join('')+more(PD.rx.length,5):'<p style="color:var(--mu);margin:6px 0 0">No prescriptions waiting.</p>');
-  if(k)k.innerHTML=`<div class="dh" style="margin-top:0"><b>Stock needing attention</b><span>${att.length?nN(att.length,'item'):''}</span></div>`+(att.length?att.slice(0,5).map(([,v])=>dmr(E(v.name),bUse(v)+' on hand'+(v.exp?', expiry '+E(v.exp):''),stTg(v))).join('')+more(att.length,5):`<p style="color:var(--ok);margin:6px 0 0">${sk.length?'All stock looks fine.':'No stock recorded yet.'}</p>`);
+  if(k)k.innerHTML=`<div class="dh" style="margin-top:0"><b>Stock needing attention</b><span>${att.length?nN(att.length,'item'):''}</span></div>`+(att.length?att.slice(0,5).map(([id,v])=>dmrc(E(v.name),mSub(v),stTg(v),"dmMed('"+id+"','')")).join('')+more(att.length,5):`<p style="color:var(--ok);margin:6px 0 0">${sk.length?'All stock looks fine.':'No stock recorded yet.'}</p>`);
   if(i)i.innerHTML=`<div class="dh" style="margin-top:0"><b>Recent stock in</b><span>Latest 3</span></div>`+(PD.si===undefined?'<p style="color:var(--mu);margin:6px 0 0">Loading...</p>':PD.si===false?'<p style="color:var(--mu);margin:6px 0 0">Could not load. Publish the latest firestore.rules first.</p>':PD.si.length?PD.si.map(x=>dmr(E(x.name),E(x.d+', '+(x.src||'')),'+'+x.qty)).join(''):'<p style="color:var(--mu);margin:6px 0 0">No stock in recorded yet.</p>')
 }
 function mtDash(){
@@ -824,7 +837,14 @@ function bUse(v){const t=today();return bList(v).filter(b=>!b.exp||b.exp>=t).red
 function bExpQ(v){const t=today();return bList(v).filter(b=>b.exp&&b.exp<t).reduce((n,b)=>n+b.qty,0)}
 function bPack(bs){bs=bSort(bs.filter(b=>b.qty>0));return{batches:bs,qty:bs.reduce((n,b)=>n+b.qty,0),exp:bs.map(b=>b.exp).filter(Boolean)[0]||''}}
 function bTake(bs,n){const t=today(),o=bSort(bs).map(b=>({...b}));for(const b of o){if(n<=0)break;if(b.exp&&b.exp<t)continue;const u=Math.min(b.qty,n);b.qty-=u;n-=u}return o}
-function bBox(v){const t=today(),bs=bSort(bList(v));return bs.length?bs.map(b=>b.qty+' &middot; '+(b.exp?E(b.exp):'no expiry')+(b.exp&&b.exp<t?' <span class="tg er">Expired</span>':'')).join('<br>'):'-'}
+function stRows(id,v){
+  const t=today(),bs=bSort(bList(v)),rs=bs.length>1?' rowspan="'+bs.length+'"':'';
+  const tg=stTags(v).map(x=>`<span class="tg wa">${x}</span>`).join(' ')||'<span class="tg ok">OK</span>';
+  const head=`<td${rs}>${E(v.name)}</td><td${rs}>${bUse(v)}${bExpQ(v)?' <small style="color:var(--mu)">(+'+bExpQ(v)+' expired)</small>':''}</td>`;
+  const tail=`<td${rs}>${tg}</td><td${rs}><button class="bt g" onclick="siOpen('${id}')">Stock in</button> <button class="bt g" onclick="stFill('${id}')">Edit</button></td>`;
+  const cells=b=>b?`<td>${b.qty}</td><td>${b.exp?E(b.exp):'No expiry'}${b.exp&&b.exp<t?' <span class="tg er">Expired</span>':''}</td><td>${b.d?E(b.d):'-'}</td>`:'<td>-</td><td>-</td><td>-</td>';
+  return bs.length?bs.map((b,n)=>'<tr>'+(n?'':head)+cells(b)+(n?'':tail)+'</tr>').join(''):'<tr>'+head+cells(null)+tail+'</tr>'
+}
 const stTags=v=>{const t=today(),soon=new Date(Date.now()+60*864e5).toLocaleDateString('en-CA'),o=[],bs=bList(v);if(bs.some(b=>b.exp&&b.exp<t))o.push('Expired');else if(bs.some(b=>b.exp&&b.exp<=soon))o.push('Expires soon');if(bUse(v)<=(typeof v.low==='number'?v.low:10))o.push('Low');return o};
 const skey=n=>String(n).trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 const phg=()=>`<h2 style="margin-top:0">Pharmacy</h2><div class="cd ov"><h3 style="margin-top:0">Prescriptions to dispense</h3><div id="phl">Loading...</div></div><div class="cd"><h3 style="margin-top:0">Stock</h3><div class="fm"><div><label>Medicine</label><input id="sn"></div><div><label>Quantity received</label><input id="sq" type="number" min="0"></div><div><label>Expiry date (optional)</label><input id="sx" type="date"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div><button class="bt" style="margin-top:10px" onclick="stSave()">Save stock</button><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px"><input id="stq" placeholder="Search medicine" oninput="stSearch(this.value)" autocomplete="off" style="max-width:260px"><span id="stfb"></span></div><div class="ov" id="stl" style="margin-top:12px"></div></div><div id="sif"></div><div id="sef"></div><div class="cd ov"><h3 style="margin-top:0">Stock in history</h3><div id="sih">Loading...</div></div>`;
@@ -834,7 +854,7 @@ function phRender(){
   const all=Object.entries(SK),att=all.filter(([,v])=>stTags(v).length).length,k=stFilt();
   const fb=[['all','All'],['low','Low'],['exp','Expiring']];
   $('stfb').innerHTML=fb.map(([f,t])=>`<button class="bt ${stf===f?'':'g'}" onclick="stFlt('${f}')">${t}</button>`).join(' ');
-  s.innerHTML=all.length?`<p style="color:var(--mu);margin-top:0">${att?att+' item(s) need attention (low stock or expiry).':'All stock looks fine.'}</p>`+(k.length?`<table><thead><tr><th>Medicine</th><th>On hand</th><th>Batches (qty, expiry)</th><th>Status</th><th></th></tr></thead><tbody>${k.map(([id,v])=>`<tr><td>${E(v.name)}</td><td>${bUse(v)}${bExpQ(v)?' <small style="color:var(--mu)">(+'+bExpQ(v)+' expired)</small>':''}</td><td>${bBox(v)}</td><td>${stTags(v).map(t=>`<span class="tg wa">${t}</span>`).join(' ')||'<span class="tg ok">OK</span>'}</td><td><button class="bt g" onclick="siOpen('${id}')">Stock in</button> <button class="bt g" onclick="stFill('${id}')">Edit</button></td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No medicine matches.</p>'):'<p style="color:var(--mu)">No stock recorded yet.</p>'
+  s.innerHTML=all.length?`<p style="color:var(--mu);margin-top:0">${att?att+' item(s) need attention (low stock or expiry).':'All stock looks fine.'}</p>`+(k.length?`<table><thead><tr><th>Medicine</th><th>On hand</th><th>Batch qty</th><th>Expiry</th><th>Received</th><th>Status</th><th></th></tr></thead><tbody>${k.map(([id,v])=>stRows(id,v)).join('')}</tbody></table>`:'<p style="color:var(--mu)">No medicine matches.</p>'):'<p style="color:var(--mu)">No stock recorded yet.</p>'
 }
 let SI=[],stq='',stf='all',sio=null,sed='';
 function stFilt(){const q=stq.trim().toLowerCase();return Object.entries(SK).filter(([,v])=>(!q||String(v.name).toLowerCase().includes(q))&&(stf==='all'||(stf==='low'&&stTags(v).includes('Low'))||(stf==='exp'&&stTags(v).some(t=>t!=='Low')))).sort((a,b)=>stTags(b[1]).length-stTags(a[1]).length||a[1].name.localeCompare(b[1].name))}
@@ -1071,5 +1091,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{goBack,dmOpen,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
+Object.assign(window,{goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,addRx,rmRx,saveC,cancelC});
 </script></body></html>
