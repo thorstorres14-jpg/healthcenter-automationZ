@@ -66,6 +66,22 @@ label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
 .hm{display:none}
 .sbc,.sbx{display:none}
 @media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;height:auto;width:75%;z-index:5;display:none;overflow-y:auto}.sb.open{display:flex}.sb.open~.sbx{display:block;position:fixed;top:0;right:0;bottom:0;left:0;z-index:4;background:rgba(0,0,0,.45)}.sbc{display:inline-block;margin-left:auto;flex:none;background:transparent;border:0;color:#fff;font-size:28px;line-height:1;padding:4px 8px;cursor:pointer}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px}}
+input[type=date]{cursor:pointer;padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235b6b7a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M16 3v4M8 3v4M3 11h18'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:16px}
+input[type=date]::-webkit-calendar-picker-indicator{display:none}
+.dpp{position:fixed;z-index:100000;width:288px;background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.dpp-h{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.dpp-h select{width:auto;flex:1;min-width:0;padding:6px 6px;font-size:14px}
+.dpp-h button{flex:none;width:32px;height:32px;border:1px solid var(--bd);border-radius:8px;background:var(--cd);font-size:18px;line-height:1;cursor:pointer;padding:0}
+.dpp-w,.dpp-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.dpp-w{font-size:12px;color:var(--mu);margin-bottom:2px}
+.dpp-g button{height:34px;border:0;border-radius:8px;background:transparent;font-size:14px;cursor:pointer;padding:0}
+.dpp-g button:hover:not(:disabled){background:var(--bg)}
+.dpp-g button:disabled{color:#a9b4bd;cursor:default}
+.dpp-g button.tdy{box-shadow:inset 0 0 0 1px var(--pr)}
+.dpp-g button.sel{background:var(--pr);color:var(--pt);font-weight:600}
+.dpp-f{display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid var(--bd);padding-top:8px}
+.dpp-f button{border:0;background:transparent;color:var(--pr);font-weight:600;cursor:pointer;padding:4px 8px;border-radius:8px}
+.dpp-f button:disabled{color:#a9b4bd;cursor:default}
 </style></head><body><div id="root"></div>
 <script type="module">
 import{firebaseConfig as C}from'./firebase-config.js';
@@ -920,7 +936,7 @@ const phDigits=v=>String(v||'').replace(/\D/g,'').slice(0,12);
 const phFmt=v=>{const d=phDigits(v);return d.length>2?d.slice(0,2)+'-'+d.slice(2,11)+(d.length>11?'-'+d.slice(11):''):d};
 const phOk=v=>!v||phDigits(v).length===12;
 function phIn(el){el.value=phFmt(el.value)}
-const regFields=hm=>{const hs=[...new Set(P.map(x=>x.hh))];return `<div class="fm"><div><label>Last name</label><input id="f2"></div><div><label>First name</label><input id="f1"></div><div><label>Middle name (optional)</label><input id="f9"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date"></div><div><label>Barangay</label>${brField(hm.br||'')}</div><div><label>Purok</label><div id="f6w">${puField(hm.br||'',hm.pu||'')}</div></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>PhilHealth number (optional)</label><input id="f10" inputmode="numeric" maxlength="14" placeholder="12-345678901-2" autocomplete="off" oninput="phIn(this)"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option ${h===regHH?'selected':''}>${h}</option>`).join('')}</select></div>${(LV[U.role]||'basic')==='basic'?'':'<div><label>Allergies (optional)</label><input id="fa1" maxlength="500" placeholder="e.g. Penicillin, shrimp" autocomplete="off"></div><div><label>Medical history (optional)</label><input id="fa2" maxlength="1000" placeholder="e.g. Hypertension, diabetes" autocomplete="off"></div>'}</div>`+`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label>`};
+const regFields=hm=>{const hs=[...new Set(P.map(x=>x.hh))];return `<div class="fm"><div><label>Last name</label><input id="f2"></div><div><label>First name</label><input id="f1"></div><div><label>Middle name (optional)</label><input id="f9"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date" max="${today()}"></div><div><label>Barangay</label>${brField(hm.br||'')}</div><div><label>Purok</label><div id="f6w">${puField(hm.br||'',hm.pu||'')}</div></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>PhilHealth number (optional)</label><input id="f10" inputmode="numeric" maxlength="14" placeholder="12-345678901-2" autocomplete="off" oninput="phIn(this)"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option ${h===regHH?'selected':''}>${h}</option>`).join('')}</select></div>${(LV[U.role]||'basic')==='basic'?'':'<div><label>Allergies (optional)</label><input id="fa1" maxlength="500" placeholder="e.g. Penicillin, shrimp" autocomplete="off"></div><div><label>Medical history (optional)</label><input id="fa2" maxlength="1000" placeholder="e.g. Hypertension, diabetes" autocomplete="off"></div>'}</div>`+`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label>`};
 function reg(){const hm=P.find(x=>x.hh===regHH)||{};return `<h2 style="margin-top:0">Register patient</h2><div class="cd">${regFields(hm)}<div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="save()">Save patient</button><button class="bt" id="sv2" onclick="save(true)">Register and add to queue</button><button class="bt g" onclick="go('patients')">Cancel</button></div></div>`}
 function qNew(){
   const t=(($('qsrch')||{}).value||'').trim(),m=t.split(','),ln=m[0].trim(),fn=(m[1]||'').trim();
@@ -1066,7 +1082,7 @@ async function removeUser(id){
 function editP(){pg='edit';R();scrollTo(0,0)}
 function ed(){
   const p=P.find(x=>x.id===pid);
-  return `<h2 style="margin-top:0">Edit patient</h2><div style="color:var(--mu);margin-bottom:10px">${p.id} | ${p.hh}</div><div class="cd"><div class="fm"><div><label>Last name</label><input id="f2" value="${E(p.ln)}"></div><div><label>First name</label><input id="f1" value="${E(p.fn)}"></div><div><label>Middle name (optional)</label><input id="f9" value="${E(p.mn||'')}"></div><div><label>Sex</label><select id="f3"><option value="F" ${p.sex==='F'?'selected':''}>Female</option><option value="M" ${p.sex==='M'?'selected':''}>Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date" value="${E(p.dob)}"></div><div><label>Barangay</label>${brField(p.br)}</div><div><label>Purok</label><div id="f6w">${puField(p.br,p.pu)}</div></div><div><label>Contact number (optional)</label><input id="f7" value="${E(p.tel||'')}"></div><div><label>PhilHealth number (optional)</label><input id="f10" inputmode="numeric" maxlength="14" placeholder="12-345678901-2" autocomplete="off" value="${E(p.ph||'')}" oninput="phIn(this)"></div>${(LV[U.role]||'basic')==='basic'?'':`<div><label>Allergies (optional)</label><textarea id="fa1" rows="2" maxlength="500">${E(p.alg||'')}</textarea></div><div><label>Medical history (optional)</label><textarea id="fa2" rows="2" maxlength="1000">${E(p.mh||'')}</textarea></div>`}</div><div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="saveEdit()">Save changes</button><button class="bt g" onclick="view('${p.id}',1)">Cancel</button></div></div>`}
+  return `<h2 style="margin-top:0">Edit patient</h2><div style="color:var(--mu);margin-bottom:10px">${p.id} | ${p.hh}</div><div class="cd"><div class="fm"><div><label>Last name</label><input id="f2" value="${E(p.ln)}"></div><div><label>First name</label><input id="f1" value="${E(p.fn)}"></div><div><label>Middle name (optional)</label><input id="f9" value="${E(p.mn||'')}"></div><div><label>Sex</label><select id="f3"><option value="F" ${p.sex==='F'?'selected':''}>Female</option><option value="M" ${p.sex==='M'?'selected':''}>Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date" max="${today()}" value="${E(p.dob)}"></div><div><label>Barangay</label>${brField(p.br)}</div><div><label>Purok</label><div id="f6w">${puField(p.br,p.pu)}</div></div><div><label>Contact number (optional)</label><input id="f7" value="${E(p.tel||'')}"></div><div><label>PhilHealth number (optional)</label><input id="f10" inputmode="numeric" maxlength="14" placeholder="12-345678901-2" autocomplete="off" value="${E(p.ph||'')}" oninput="phIn(this)"></div>${(LV[U.role]||'basic')==='basic'?'':`<div><label>Allergies (optional)</label><textarea id="fa1" rows="2" maxlength="500">${E(p.alg||'')}</textarea></div><div><label>Medical history (optional)</label><textarea id="fa2" rows="2" maxlength="1000">${E(p.mh||'')}</textarea></div>`}</div><div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="saveEdit()">Save changes</button><button class="bt g" onclick="view('${p.id}',1)">Cancel</button></div></div>`}
 async function saveEdit(){
   const g=i=>$(i).value.trim(),e=t=>{$('fe').textContent=t},p=P.find(x=>x.id===pid);
   const ch={fn:g('f1'),ln:g('f2'),mn:g('f9'),sex:g('f3'),dob:g('f4'),br:g('f5'),pu:g('f6'),tel:g('f7'),ph:phFmt(g('f10'))};
@@ -1256,7 +1272,7 @@ ${ahCard(p,true)}
 <div class="cd"><h3 style="margin-top:0">Consultation</h3><label>Chief complaint</label><textarea id="cc" rows="2"></textarea><label style="margin-top:10px">Diagnosis</label><textarea id="dx" rows="2"></textarea><label style="margin-top:10px">Treatment / notes (optional)</label><textarea id="tx" rows="3"></textarea></div>
 <div class="cd"><h3 style="margin-top:0">Lab tests (optional)</h3><input id="lt" list="ltl" placeholder="e.g. CBC, Urinalysis (separate with commas)"><datalist id="ltl">${labList().map(t=>`<option value="${E(t)}">`).join('')}</datalist></div>
 <div class="cd"><h3 style="margin-top:0">Prescription</h3><div id="rxs">${rxListHtml()}</div><button type="button" class="bt g" style="margin-top:4px" onclick="rxOpen()">Add medicine</button></div>
-<div class="cd"><h3 style="margin-top:0">Follow-up (optional)</h3><div class="fm"><div><label>Come back on</label><input id="fu1" type="date" min="${today()}"></div><div><label>Reason (optional)</label><input id="fu2" maxlength="120" placeholder="e.g. BP recheck, lab results" autocomplete="off"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${[[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month']].map(([n,l])=>`<button type="button" class="bt g" onclick="fuQuick(${n})">${l}</button>`).join('')}<button type="button" class="bt g" onclick="$('fu1').value=''">Clear</button></div></div>
+<div class="cd"><h3 style="margin-top:0">Follow-up (optional)</h3><div class="fm"><div><label>Come back on</label><input id="fu1" type="date" min="${dstr(-1)}"></div><div><label>Reason (optional)</label><input id="fu2" maxlength="120" placeholder="e.g. BP recheck, lab results" autocomplete="off"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${[[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month']].map(([n,l])=>`<button type="button" class="bt g" onclick="fuQuick(${n})">${l}</button>`).join('')}<button type="button" class="bt g" onclick="$('fu1').value=''">Clear</button></div></div>
 <div class="cd"><label style="display:flex;gap:8px;align-items:center"><input id="rf" type="checkbox" style="width:auto" onchange="$('rfb').style.display=this.checked?'grid':'none'"><span>Refer this patient to another facility</span></label><div class="fm" id="rfb" style="display:none;margin-top:10px"><div><label>Refer to</label><input id="rf1" placeholder="e.g. Provincial Hospital"></div><div><label>Reason</label><input id="rf2"></div><div><label>Urgency</label><select id="rf3"><option>Routine</option><option>Urgent</option><option>Emergency</option></select></div></div></div>
 <div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button>${cq?`<button class="bt g" onclick="recallQ('${cq}',this)">Call again</button><button class="bt g" onclick="releaseQ('${cq}')">Return to waiting list</button>`:''}</div>`}
 function cancelC(){go('consult')}
@@ -1923,5 +1939,63 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
+/* ---------- Date picker (replaces the browser's own) ---------- */
+const DPMN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+let DPS=null;
+const dpIso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const dpPar=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')?new Date(+v.slice(0,4),+v.slice(5,7)-1,+v.slice(8,10)):null;
+function dpClose(){const o=document.getElementById('dpp');if(o)o.remove();DPS=null}
+function dpPlace(){
+  const o=document.getElementById('dpp');if(!o||!DPS)return;
+  if(!document.body.contains(DPS.el)){dpClose();return}
+  const r=DPS.el.getBoundingClientRect(),h=o.offsetHeight,w=o.offsetWidth;
+  let top=r.bottom+6;const left=Math.min(Math.max(8,r.left),Math.max(8,innerWidth-w-8));
+  if(top+h>innerHeight-8&&r.top-h-6>8)top=r.top-h-6;
+  o.style.top=Math.max(8,top)+'px';o.style.left=left+'px'
+}
+function dpDraw(){
+  const o=document.getElementById('dpp');if(!o||!DPS)return;
+  const {y,m,mn,mx,el}=DPS,ty=new Date().getFullYear(),td=today();
+  const y0=mn?+mn.slice(0,4):ty-110,y1=mx?+mx.slice(0,4):(mn?ty+10:ty),yrs=[];
+  for(let k=y0;k<=y1;k++)yrs.push(k);
+  if(!yrs.includes(y))yrs.push(y);
+  yrs.sort((a,b)=>mn?a-b:b-a);
+  const sel=dpPar(el.value),selIso=sel?dpIso(sel):'',first=new Date(y,m,1).getDay(),n=new Date(y,m+1,0).getDate(),tOff=(mn&&td<mn)||(mx&&td>mx);
+  let g='';for(let i=0;i<first;i++)g+='<span></span>';
+  for(let d=1;d<=n;d++){const iso=dpIso(new Date(y,m,d)),off=(mn&&iso<mn)||(mx&&iso>mx);g+=`<button type="button" class="${iso===td?'tdy ':''}${iso===selIso?'sel':''}" data-d="${iso}" ${off?'disabled':''}>${d}</button>`}
+  o.innerHTML=`<div class="dpp-h"><button type="button" data-dp="prev" aria-label="Previous month">&#8249;</button><select data-dp="m" aria-label="Month">${DPMN.map((x,i)=>`<option value="${i}" ${i===m?'selected':''}>${x}</option>`).join('')}</select><select data-dp="y" aria-label="Year">${yrs.map(k=>`<option ${k===y?'selected':''}>${k}</option>`).join('')}</select><button type="button" data-dp="next" aria-label="Next month">&#8250;</button></div><div class="dpp-w"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div><div class="dpp-g">${g}</div><div class="dpp-f"><button type="button" data-dp="today" ${tOff?'disabled':''}>Today</button><button type="button" data-dp="clear">Clear</button></div>`;
+  dpPlace()
+}
+function dpOpen(el){
+  if(el.disabled||el.readOnly)return;
+  dpClose();
+  const mn=el.min||'',mx=el.max||'',td=today(),base=dpPar(el.value)||(mx&&mx<td?dpPar(mx):null)||(mn&&mn>td?dpPar(mn):null)||dpPar(td);
+  DPS={el,y:base.getFullYear(),m:base.getMonth(),mn,mx};
+  const o=document.createElement('div');o.id='dpp';o.className='dpp';o.setAttribute('role','dialog');o.setAttribute('aria-label','Choose a date');
+  document.body.appendChild(o);dpDraw()
+}
+function dpPick(iso){
+  const el=DPS&&DPS.el;dpClose();if(!el)return;
+  el.value=iso;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));el.focus()
+}
+document.addEventListener('click',e=>{
+  const t=e.target,el=t.closest&&t.closest('input[type="date"]');
+  if(el){e.preventDefault();dpOpen(el);return}
+  const o=document.getElementById('dpp');if(!o)return;
+  if(!o.contains(t)){dpClose();return}
+  const b=t.closest('button');if(!b||b.disabled||!DPS)return;
+  const a=b.dataset.dp,d=b.dataset.d;
+  if(d)dpPick(d);
+  else if(a==='prev'||a==='next'){const k=new Date(DPS.y,DPS.m+(a==='next'?1:-1),1);DPS.y=k.getFullYear();DPS.m=k.getMonth();dpDraw()}
+  else if(a==='today')dpPick(today());
+  else if(a==='clear')dpPick('')
+},true);
+document.addEventListener('change',e=>{
+  const s=e.target;if(!DPS||!s.dataset||!s.dataset.dp)return;
+  if(s.dataset.dp==='m')DPS.m=+s.value;else if(s.dataset.dp==='y')DPS.y=+s.value;else return;
+  dpDraw()
+});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
+addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
 Object.assign(window,{phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
