@@ -162,7 +162,7 @@ const anyBusy=()=>{const a=document.activeElement;return !!a&&/^(INPUT|SELECT|TE
 const LT={};
 function lvDefer(key,fn,ms){clearTimeout(LT[key]);let n=0;const go=()=>{if(!U||mode!=='app')return;if(anyBusy()&&n++<15){LT[key]=setTimeout(go,2000);return}try{fn()}catch(e){}};LT[key]=setTimeout(go,ms||600)}
 const lvScroll=f=>{const y=scrollY;f();scrollTo(0,y)};
-function dashRefresh(){lvDefer('dash',()=>{if(pg!=='dash')return;if(alOn())loadAl();if(U.role==='doctor')loadDr();if(U.role==='pharmacist')loadPd();if(U.role==='medtech')loadMt();if($('dxs'))loadDx()})}
+function dashRefresh(){lvDefer('dash',()=>{if(pg!=='dash')return;if(alOn())loadAl();if(CROLES.includes(U.role))loadFu();if(U.role==='doctor')loadDr();if(U.role==='pharmacist')loadPd();if(U.role==='medtech')loadMt();if($('dxs'))loadDx()})}
 function dashRepaint(){lvDefer('dashp',()=>{if(pg==='dash')lvScroll(R)})}
 let PPS={pid:'',sig:''};
 function pLive(){
@@ -847,7 +847,8 @@ function dash(){
   if(dq)setTimeout(()=>fetchQ().then(dqRender),0);
   if(al)setTimeout(()=>{alRender();loadAl()},0);
   if(U.role==='doctor'){DR={vt:undefined,lr:undefined,lp:undefined};setTimeout(()=>{drRender();loadDr()},0)}
-  const qaH=dq||al?`<div class="dgh">${dq?'<div class="cd" id="dq">Loading queue...</div>':''}${al?'<div class="cd" id="dal"></div>':''}${U.role==='doctor'?'<div class="cd" id="drl"></div>':''}</div>`:'';
+  if(CROLES.includes(U.role))setTimeout(()=>{fuRender();loadFu()},0);
+  const qaH=dq||al?`<div class="dgh">${dq?'<div class="cd" id="dq">Loading queue...</div>':''}${al?'<div class="cd" id="dal"></div>':''}${U.role==='doctor'?'<div class="cd" id="drl"></div>':''}${CROLES.includes(U.role)?'<div class="cd" id="ful"></div>':''}</div>`:'';
   return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Dashboard</h2>${canReg()?`<button class="bt" onclick="go('reg')">Register patient</button>`:''}</div><p style="color:var(--mu);margin:6px 0 14px">${DNOTE[U.role]||''}</p><div class="dh"><b>Overview</b><span>${new Date().toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric'})}</span></div><div class="dst" ${U.role==='doctor'?'id="drs"':''}>${keys.map(k=>sCard(k,M[k][0],M[k][1],M[k][2])).join('')}</div>${qaH}${showDx?dxCard():(brCard||gc?`<div class="dgh">${brCard}${gc}</div>`:'')}`}
 let pSortK='id',pSortD=1;
 const pAgeQ=v=>{v=v.trim();let m=v.match(/^(\d{1,3})\s*-\s*(\d{1,3})$/);if(m)return{lo:Math.min(+m[1],+m[2]),hi:Math.max(+m[1],+m[2])};m=v.match(/^(?:age\s*)?(\d{1,3})\s*(?:y|yo|y\/o|yrs?|years?)?$/i);if(m)return{lo:+m[1],hi:+m[1]};return null};
@@ -911,7 +912,8 @@ async function view(id,np,quiet){
     const s=await getDocs(query(collection(db,lv==='full'?'visits':'prescriptions'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||((b.at?.seconds||0)-(a.at?.seconds||0)));VH=l;RXM={};
     if(lv==='full'){try{(await getDocs(query(collection(db,'prescriptions'),where('pid','==',id)))).docs.forEach(d=>{const r=d.data();RXM[(r.d||'')+'|'+(r.rx||'')]=r})}catch(e){}}
     const vt=v=>{const a=v.vitals||{},o=[];if(a.bps!=null&&a.bpd!=null)o.push('BP '+a.bps+'/'+a.bpd);if(a.t!=null)o.push('T '+a.t+'°C');if(a.pr!=null)o.push('PR '+a.pr);if(a.rr!=null)o.push('RR '+a.rr);if(a.o2!=null)o.push('SpO2 '+a.o2+'%');if(a.wt!=null)o.push(a.wt+' kg');if(a.ht!=null)o.push(a.ht+' cm');return o.join(', ')};
-    h.innerHTML=l.length?`<table><thead><tr><th>Date</th>${lv==='full'?'<th>Vitals</th><th>Complaint</th><th>Diagnosis</th>':''}<th>Prescription</th>${lv==='full'?'<th>Referral</th>':'<th>Status</th>'}${PR?'<th></th>':''}</tr></thead><tbody>${l.map((v,vi)=>`<tr><td>${E(v.d)}</td>${lv==='full'?`<td>${E(vt(v))}</td><td>${E(v.cc)}</td><td>${E(v.dx)}${v.tx?`<br><small style="color:var(--mu)">${E(v.tx)}</small>`:''}</td>`:''}<td>${E(v.rx||'')}${lv==='full'?rxFlag(RXM[v.d+'|'+v.rx],1):''}</td>${lv==='full'?`<td>${v.referral?E(v.referral.to+' ('+v.referral.urg+'): '+v.referral.why):''}</td>`:`<td>${E(rxStLbl(v))}</td>`}${PR?`<td style="white-space:nowrap">${v.rx&&canRx()?`<button class="bt g" onclick="printRx(${vi})">Print Rx</button> `:''}${U.role==='doctor'?`<button class="bt g" onclick="certOpen(${vi})">Med. certificate</button>`:''}</td>`:''}</tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No records yet. Consultations will appear here once they are recorded.</p>';
+    const fo=lv==='full'?l.find(v=>v.fuOpen&&v.fu):null;
+    h.innerHTML=l.length?`${fo?`<div style="color:var(--wa);margin:0 0 8px"><b>Follow-up due:</b> ${E(fo.fu)}${fo.fun?' ('+E(fo.fun)+')':''}</div>`:''}<table><thead><tr><th>Date</th>${lv==='full'?'<th>Vitals</th><th>Complaint</th><th>Diagnosis</th>':''}<th>Prescription</th>${lv==='full'?'<th>Referral</th>':'<th>Status</th>'}${PR?'<th></th>':''}</tr></thead><tbody>${l.map((v,vi)=>`<tr><td>${E(v.d)}</td>${lv==='full'?`<td>${E(vt(v))}</td><td>${E(v.cc)}</td><td>${E(v.dx)}${v.tx?`<br><small style="color:var(--mu)">${E(v.tx)}</small>`:''}${v.fu?`<br><small style="color:var(--mu)">Follow-up: ${E(v.fu)}${v.fun?' ('+E(v.fun)+')':''}${v.fuOpen?'':' (done)'}</small>`:''}</td>`:''}<td>${E(v.rx||'')}${lv==='full'?rxFlag(RXM[v.d+'|'+v.rx],1):''}</td>${lv==='full'?`<td>${v.referral?E(v.referral.to+' ('+v.referral.urg+'): '+v.referral.why):''}</td>`:`<td>${E(rxStLbl(v))}</td>`}${PR?`<td style="white-space:nowrap">${v.rx&&canRx()?`<button class="bt g" onclick="printRx(${vi})">Print Rx</button> `:''}${U.role==='doctor'?`<button class="bt g" onclick="certOpen(${vi})">Med. certificate</button>`:''}</td>`:''}</tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No records yet. Consultations will appear here once they are recorded.</p>';
   }catch(e){h.textContent='Could not load records. Check your connection.'}
 }
 const regFields=hm=>{const hs=[...new Set(P.map(x=>x.hh))];return `<div class="fm"><div><label>Last name</label><input id="f2"></div><div><label>First name</label><input id="f1"></div><div><label>Middle name (optional)</label><input id="f9"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date"></div><div><label>Barangay</label>${brField(hm.br||'')}</div><div><label>Purok</label><div id="f6w">${puField(hm.br||'',hm.pu||'')}</div></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option ${h===regHH?'selected':''}>${h}</option>`).join('')}</select></div>${(LV[U.role]||'basic')==='basic'?'':'<div><label>Allergies (optional)</label><input id="fa1" maxlength="500" placeholder="e.g. Penicillin, shrimp" autocomplete="off"></div><div><label>Medical history (optional)</label><input id="fa2" maxlength="1000" placeholder="e.g. Hypertension, diabetes" autocomplete="off"></div>'}</div>`+`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label>`};
@@ -1248,6 +1250,7 @@ ${ahCard(p,true)}
 <div class="cd"><h3 style="margin-top:0">Consultation</h3><label>Chief complaint</label><textarea id="cc" rows="2"></textarea><label style="margin-top:10px">Diagnosis</label><textarea id="dx" rows="2"></textarea><label style="margin-top:10px">Treatment / notes (optional)</label><textarea id="tx" rows="3"></textarea></div>
 <div class="cd"><h3 style="margin-top:0">Lab tests (optional)</h3><input id="lt" list="ltl" placeholder="e.g. CBC, Urinalysis (separate with commas)"><datalist id="ltl">${labList().map(t=>`<option value="${E(t)}">`).join('')}</datalist></div>
 <div class="cd"><h3 style="margin-top:0">Prescription</h3><div id="rxs">${rxListHtml()}</div><button type="button" class="bt g" style="margin-top:4px" onclick="rxOpen()">Add medicine</button></div>
+<div class="cd"><h3 style="margin-top:0">Follow-up (optional)</h3><div class="fm"><div><label>Come back on</label><input id="fu1" type="date" min="${today()}"></div><div><label>Reason (optional)</label><input id="fu2" maxlength="120" placeholder="e.g. BP recheck, lab results" autocomplete="off"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${[[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month']].map(([n,l])=>`<button type="button" class="bt g" onclick="fuQuick(${n})">${l}</button>`).join('')}<button type="button" class="bt g" onclick="$('fu1').value=''">Clear</button></div></div>
 <div class="cd"><label style="display:flex;gap:8px;align-items:center"><input id="rf" type="checkbox" style="width:auto" onchange="$('rfb').style.display=this.checked?'grid':'none'"><span>Refer this patient to another facility</span></label><div class="fm" id="rfb" style="display:none;margin-top:10px"><div><label>Refer to</label><input id="rf1" placeholder="e.g. Provincial Hospital"></div><div><label>Reason</label><input id="rf2"></div><div><label>Urgency</label><select id="rf3"><option>Routine</option><option>Urgent</option><option>Emergency</option></select></div></div></div>
 <div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button>${cq?`<button class="bt g" onclick="recallQ('${cq}',this)">Call again</button><button class="bt g" onclick="releaseQ('${cq}')">Return to waiting list</button>`:''}</div>`}
 function cancelC(){go('consult')}
@@ -1259,6 +1262,8 @@ async function saveC(){
   if(!g('cc')||!g('dx'))return e('Enter the chief complaint and the diagnosis.');
   const items=RXL.map(i=>({...i}));
   if(items.some(i=>!i.dose||!i.freq))return e('Each medicine needs a dose and a frequency.');
+  const fu=g('fu1'),fun=g('fu2');
+  if(fu&&(!/^\d{4}-\d{2}-\d{2}$/.test(fu)||isNaN(new Date(fu))||fu<=today()))return e('Pick a follow-up date after today, or clear it.');
   const ref=$('rf').checked?{to:g('rf1'),why:g('rf2'),urg:g('rf3')}:null;
   if(ref&&(!ref.to||!ref.why))return e('Enter where and why you are referring the patient.');
   Object.keys(vit).forEach(k=>{if(vit[k]===null)delete vit[k]});
@@ -1266,7 +1271,10 @@ async function saveC(){
   $('cs2').disabled=true;e('');
   try{
     const b=writeBatch(db),vr=doc(collection(db,'visits')),d=today();
-    b.set(vr,{pid:p.id,pname:pn(p),d,cc:g('cc'),dx:g('dx'),tx:g('tx'),rx,vitals:vit,referral:ref,by:U.uid,byName:U.name,role:U.role,at:serverTimestamp()});
+    // The patient came back: close any earlier open follow-up for this patient.
+    let oldFu=[];try{oldFu=(await getDocs(query(collection(db,'visits'),where('pid','==',p.id),where('fuOpen','==',true)))).docs}catch(x){}
+    oldFu.forEach(o=>b.update(o.ref,{fuOpen:false,fuDoneBy:U.name,fuDoneAt:serverTimestamp()}));
+    b.set(vr,{pid:p.id,pname:pn(p),d,cc:g('cc'),dx:g('dx'),tx:g('tx'),rx,vitals:vit,referral:ref,...(fu?{fu,fuOpen:true,fun}:{}),by:U.uid,byName:U.name,role:U.role,at:serverTimestamp()});
     const awaiting=needApproval(items);
     if(items.length)b.set(doc(collection(db,'prescriptions')),{pid:p.id,pname:pn(p),vid:vr.id,d,rx,items,status:awaiting?'awaiting':'pending',by:U.uid,byName:U.name,at:serverTimestamp()});
     g('lt').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>b.set(doc(collection(db,'labs')),{pid:p.id,pname:pn(p),vid:vr.id,d,test:t,status:'pending',by:U.uid,byName:U.name,at:serverTimestamp()}));
@@ -1659,6 +1667,34 @@ async function imGive(id,k){
     er.textContent=x.code==='permission-denied'?'You do not have permission to record vaccines.':'Could not save. Check your connection.'
   }
 }
+/* ---------- Follow-ups ---------- */
+let FU=null,FUE=false,FUALL=false;
+const fuDays=d=>Math.round((new Date(d+'T00:00:00')-new Date(today()+'T00:00:00'))/864e5);
+function fuQuick(n){const el=$('fu1');if(el)el.value=new Date(Date.now()+n*864e5).toLocaleDateString('en-CA')}
+async function loadFu(){
+  try{const s=await getDocs(query(collection(db,'visits'),where('fuOpen','==',true)));FU=s.docs.map(d=>({id:d.id,...d.data()})).filter(v=>v.fu).sort((a,b)=>a.fu.localeCompare(b.fu));FUE=false}
+  catch(e){FUE=true}
+  fuRender()
+}
+function fuAll(){FUALL=!FUALL;fuRender()}
+function fuRender(){
+  const el=$('ful');if(!el)return;
+  const head=n=>`<div class="dh" style="margin-top:0"><b>Follow-ups due</b><span>${n}</span></div>`;
+  if(FUE){el.innerHTML=head('')+'<p class="er2">Could not load follow-ups. Check your connection.</p>';return}
+  if(FU===null){el.innerHTML=head('')+'<p style="color:var(--mu);margin:6px 0 0">Loading...</p>';return}
+  const due=FU.filter(v=>fuDays(v.fu)<=7),od=FU.filter(v=>fuDays(v.fu)<0).length,list=FUALL?FU:due,show=list.slice(0,FUALL?50:8);
+  const tg=v=>{const n=fuDays(v.fu);return n<0?`<span class="tg er">Overdue ${-n} day${n===-1?'':'s'}</span>`:n===0?'<span class="tg wa">Today</span>':`<span class="tg ok">${n===1?'Tomorrow':'In '+n+' days'}</span>`};
+  el.innerHTML=head(due.length?due.length+' this week'+(od?', '+od+' overdue':''):'')
+   +(show.length?show.map(v=>`<div class="dqr"><span><a href="#" onclick="view('${v.pid}');return false">${E(v.pname)}</a>${v.fun?' <small style="color:var(--mu)">'+E(v.fun)+'</small>':''}<small style="display:block;color:var(--mu)">${E(v.fu)}</small></span><span style="white-space:nowrap">${tg(v)} <button class="bt g" onclick="fuDone('${v.id}')">Done</button></span></div>`).join(''):'<p style="color:var(--ok);margin:6px 0 0">No follow-ups due this week.</p>')
+   +(list.length>show.length?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${list.length-show.length} more</p>`:'')
+   +(FU.length>due.length||FUALL?`<p style="margin:8px 0 0;font-size:13px"><a href="#" onclick="fuAll();return false">${FUALL?'Show only this week':'Show all upcoming ('+FU.length+')'}</a></p>`:'')
+}
+async function fuDone(id){
+  const v=(FU||[]).find(x=>x.id===id);if(!v)return;
+  if(!await sConfirm('Mark the follow-up of '+v.pname+' ('+v.fu+') as done? Use this if the patient already came back or no longer needs it.','Mark follow-up done?','Mark done',0))return;
+  try{await updateDoc(doc(db,'visits',id),{fuOpen:false,fuDoneBy:U.name,fuDoneAt:serverTimestamp()});FU=FU.filter(x=>x.id!==id);await lg('Follow-up done '+v.pid);fuRender()}
+  catch(x){sAlert(x.code==='permission-denied'?'You do not have permission to update follow-ups.':'Could not update. Check your connection.')}
+}
 /* ---------- Vaccine stock ---------- */
 const VXS=[['bcg','BCG'],['hepb','Hep B'],['penta','Pentavalent (Penta)'],['opv','OPV'],['pcv','PCV'],['ipv','IPV'],['mmr','MMR']];
 const vxKey=k=>String(k).replace(/\d+$/,'');
@@ -1779,5 +1815,5 @@ async function loadAudit(){
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
-Object.assign(window,{rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
