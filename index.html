@@ -316,7 +316,7 @@ function dxRender(){
   el.innerHTML=`<div class="dh"><b>Disease cases</b><span><select id="dxp" style="width:auto;padding:4px 8px" onchange="dxPer(this.value)">${[[7,'Last 7 days'],[30,'Last 30 days'],[90,'Last 90 days']].map(([v,t])=>`<option value="${v}" ${dxDays===v?'selected':''}>${t}</option>`).join('')}</select></span></div><div class="cd" style="padding:10px 14px"><div style="display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center"><b style="font-size:14px">Watch list, last 7 days</b>${alH}</div><details style="margin-top:6px"><summary style="cursor:pointer;font-size:13px;color:var(--mu)">How the alerts work</summary><p style="color:var(--mu);font-size:13px;margin:6px 0 0"><b>Watch</b>: at least ${DX_WATCH} cases of the same disease in 7 days, and at least double the usual weekly count (average of the 4 weeks before). <b>High</b>: at least ${DX_HIGH} cases and well above the usual range (more than the average plus 2 standard deviations). <b>Cluster</b>: ${DX_WATCH} or more cases of the same disease from one barangay in 7 days. <b>Report</b>: any case of a disease monitored by DOH surveillance (for example dengue, typhoid, leptospirosis, measles). These are early warnings from typed diagnoses, not a confirmed outbreak. Confirm with the municipal health officer. Use standard names (for example "Dengue" or "URTI") for accurate counts.</p></details></div><div class="dgh"><div class="cd"><h3 style="margin-top:0">Most common diagnoses</h3>${topH}</div><div class="cd"><h3 style="margin-top:0">Ages affected</h3>${ageH}</div>${DXB}${visH}</div>`
 }
 /* ---------- Dashboard: queue, alerts, sex, visits per day ---------- */
-let DXAL=null,ALR={},ALd=false,ALrole='';
+let DXAL=null,ALR={},ALd=false,ALrole='',STA={};
 const dqOn=()=>QROLES.includes(U.role)||canVitals()||bhwF();
 const alOn=()=>['doctor','midwife','bhw','admin','developer'].includes(U.role);
 function dqRender(){
@@ -328,7 +328,7 @@ function dqRender(){
 }
 async function loadAl(){
   const r=U.role,t={},j=[],run=(k,f)=>f().then(v=>{t[k]=v}).catch(()=>{});
-  if(['pharmacist','doctor','midwife','admin','developer'].includes(r))j.push(run('sk',async()=>{const s=await getDocs(collection(db,'stock'));return s.docs.map(d=>d.data()).filter(v=>stTags(v).length)}));
+  if(['pharmacist','doctor','midwife','admin','developer'].includes(r))j.push(run('sk',async()=>{const s=await getDocs(collection(db,'stock'));STA={};s.docs.forEach(d=>{STA[d.id]=d.data()});return s.docs.map(d=>({id:d.id,...d.data()})).filter(v=>stTags(v).length)}));
   if(IMR.includes(r))j.push(run('vx',async()=>{const s=await getDocs(collection(db,'immunizations')),m={};s.docs.forEach(d=>{m[d.id]=1});return P.filter(p=>p.dob&&dAge(p.dob)>=0&&dAge(p.dob)<=730).filter(p=>VAX.some(v=>dAge(p.dob)>=v[2]&&!m[p.id+'_'+v[0]])).length}));
   if(r==='doctor')j.push(run('ap',async()=>(await getDocs(query(collection(db,'prescriptions'),where('status','==','awaiting')))).size));
   if(r==='pharmacist')j.push(run('rx',async()=>(await getDocs(query(collection(db,'prescriptions'),where('status','==','pending')))).size));
@@ -340,13 +340,13 @@ function alRender(){
   const head=n=>`<div class="dh" style="margin-top:0"><b>Alerts and notifications</b><span>${n}</span></div>`;
   if(!ALd||ALrole!==U.role){el.innerHTML=head('')+'<p style="color:var(--mu);margin:6px 0 0">Loading alerts...</p>';return}
   const A=ALR,it=[],pl=(n,w)=>n+' '+(n===1?w:w==='child'?'children':w+'s'),RED='var(--er)',AMB='var(--wa)',BLU='#1a4f8b';
-  if(A.sk&&A.sk.length){const bad=A.sk.some(v=>stTags(v).includes('Expired')||bUse(v)<=0);it.push({c:bad?RED:AMB,t:'Medicine stock',d:pl(A.sk.length,'medicine')+(A.sk.length===1?' needs':' need')+' attention: '+A.sk.slice(0,2).map(v=>E(v.name)+' ('+stTags(v).join(', ').toLowerCase()+')').join(', ')+(A.sk.length>2?' and '+(A.sk.length-2)+' more':''),go:U.role==='pharmacist'?'pharm':''})}
+  if(A.sk&&A.sk.length){const bad=A.sk.some(v=>stTags(v).includes('Expired')||bUse(v)<=0);it.push({c:bad?RED:AMB,t:'Medicine stock',d:pl(A.sk.length,'medicine')+(A.sk.length===1?' needs':' need')+' attention: '+A.sk.slice(0,2).map(v=>E(v.name)+' ('+stTags(v).join(', ').toLowerCase()+')').join(', ')+(A.sk.length>2?' and '+(A.sk.length-2)+' more':''),on:"dmOpen('att')"})}
   if(A.vx>0)it.push({c:AMB,t:'Vaccines due',d:pl(A.vx,'child')+' under 2 with vaccines due',go:'imm'});
   if(A.ap>0)it.push({c:AMB,t:'Rx approvals',d:pl(A.ap,'prescription')+' waiting for your approval',go:'appr'});
   if(A.rx>0)it.push({c:AMB,t:'Prescriptions',d:pl(A.rx,'prescription')+' waiting to be dispensed',go:'pharm'});
   if(A.lb>0)it.push({c:AMB,t:'Lab requests',d:pl(A.lb,'request')+' waiting for results',go:'lab'});
   if(['developer','doctor','midwife'].includes(U.role)&&DXAL&&DXAL.length){const a=DXAL[0];it.push({c:a.high?RED:(a.watch||a.pid)?AMB:BLU,t:'Disease watch',d:E(a.n)+': '+a.cur+' this week'+(a.cl.length?', cluster in '+E(a.cl[0][0]):'')+(DXAL.length>1?' and '+(DXAL.length-1)+' more':''),go:''})}
-  el.innerHTML=head(it.length?it.length+' active':'')+(it.length?it.map(x=>`<div class="dal ${x.go?'cl':''}" style="border-color:${x.c}" ${x.go?`onclick="go('${x.go}')"`:''}><b>${x.t}</b><small>${x.d}</small></div>`).join(''):'<p style="color:var(--ok);margin:6px 0 0">No alerts right now.</p>')
+  el.innerHTML=head(it.length?it.length+' active':'')+(it.length?it.map(x=>`<div class="dal ${x.go||x.on?'cl':''}" style="border-color:${x.c}" ${x.on?`onclick="${x.on}"`:x.go?`onclick="go('${x.go}')"`:''}><b>${x.t}</b><small>${x.d}</small></div>`).join(''):'<p style="color:var(--ok);margin:6px 0 0">No alerts right now.</p>')
 }
 const genCard=()=>{const m=P.filter(x=>x.sex==='M').length,f=P.filter(x=>x.sex==='F').length,t=m+f,fp=t?Math.round(f/t*100):0,mp=t?100-fp:0;
   return `<div class="cd"><h3 style="margin-top:0">Patients by sex</h3><div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--bd)"><i style="width:${fp}%;background:var(--pr)"></i><i style="width:${mp}%;background:#1a4f8b"></i></div><div class="dlg" style="margin-top:8px"><div><em style="background:var(--pr)"></em>Female<span>${f} (${fp}%)</span></div><div><em style="background:#1a4f8b"></em>Male<span>${m} (${mp}%)</span></div></div></div>`};
@@ -361,12 +361,12 @@ const dmr=(a,b,c)=>`<div class="dmr"><span>${a}${b?`<small>${b}</small>`:''}</sp
 const dmrc=(a,b,c,fn)=>`<div class="dmr cl" role="button" tabindex="0" onclick="${fn}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${fn}}"><span>${a}${b?`<small>${b}</small>`:''}</span><span>${c||''}</span></div>`;
 const mSub=v=>{const n=bList(v).length;return bUse(v)+' on hand, '+n+(n===1?' batch':' batches')+(v.exp?', earliest expiry '+E(v.exp):'')};
 function dmMed(id,from){
-  const v=PD.sk[id];if(!v)return;
+  const v=(PD.sk&&PD.sk[id])||STA[id];if(!v)return;
   const t=today(),soon=new Date(Date.now()+60*864e5).toLocaleDateString('en-CA'),bs=bSort(bList(v)),lo=typeof v.low==='number'?v.low:10,xq=bExpQ(v);
   const rows=bs.length?bs.map(b=>dmr(E(b.qty+(b.qty===1?' unit':' units')),'Received '+(b.d?E(b.d):'date not recorded')+(b.src?', '+E(b.src):''),(b.exp&&b.exp<t?tgh('Expired','er')+' ':b.exp&&b.exp<=soon?tgh('Expires soon','wa')+' ':'')+(b.exp?'Exp. '+E(b.exp):'No expiry'))).join(''):'<p style="color:var(--mu)">No batches on hand.</p>';
   const note='<p style="color:var(--mu);font-size:13px;margin:0 0 8px">Low-stock level: '+lo+'.'+(xq?' '+xq+' expired and not counted as on hand.':'')+' Stock is used from the earliest expiry first.</p>';
   const n=bs.length;
-  dmShow(v.name,bUse(v)+' on hand, '+n+(n===1?' batch':' batches'),note+rows,['Open Pharmacy',"dmGo('pharm')"]);
+  dmShow(v.name,bUse(v)+' on hand, '+n+(n===1?' batch':' batches'),note+rows,U.role==='pharmacist'?['Open Pharmacy',"dmGo('pharm')"]:null);
   const f=document.querySelector('#dmo .dmf .bt.g');if(from&&f){f.textContent='Back';f.onclick=()=>dmOpen(from)}
 }
 const dmList=(arr,fn)=>{const sh=arr.slice(0,20);return(sh.length?sh.map(fn).join(''):'<p style="color:var(--mu)">Nothing to show.</p>')+(arr.length>20?`<p style="color:var(--mu);font-size:13px">and ${arr.length-20} more</p>`:'')};
@@ -401,6 +401,7 @@ function dmOpen(k){
       T={med:'Medicines',low:'Low stock',exp:'Expired or expiring'}[k];S=nN(a.length,'medicine');
       B=dmList(a,([id,v])=>dmrc(E(v.name),mSub(v),stTg(v),"dmMed('"+id+"','"+k+"')"));btn=['Open Pharmacy',`dmGo('pharm','${k==='low'?'low':k==='exp'?'exp':'all'}')`]}
   }
+  else if(k==='att'){const a=(ALR.sk||[]).slice().sort((x,y)=>stTags(y).length-stTags(x).length||String(x.name).localeCompare(String(y.name)));T='Medicine stock';S=nN(a.length,'medicine')+(a.length===1?' needs':' need')+' attention';B=dmList(a,v=>dmrc(E(v.name),mSub(v),stTg(v),"dmMed('"+v.id+"','att')"));btn=U.role==='pharmacist'?['Open Pharmacy',"dmGo('pharm')"]:null}
   else if(k==='lbp'||k==='lbd'){
     if(!PL.ok){T='Still loading';B='<p style="color:var(--mu)">Try again in a moment.</p>'}
     else{const a=k==='lbp'?PL.p:PL.d;T=k==='lbp'?'Lab requests to process':'Lab results done today';S=nN(a.length,k==='lbp'?'request':'result');B=dmList(a,r=>dmr(E(r.pname),E(r.test)+(k==='lbd'&&r.result?': '+E(r.result):'')));btn=['Open Lab',"dmGo('lab')"]}
