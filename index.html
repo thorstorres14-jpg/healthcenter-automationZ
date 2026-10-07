@@ -19,7 +19,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid #14807f55;border-color
 .dt button{white-space:nowrap}
 .lgl{display:block;height:84px;max-width:100%;object-fit:contain;margin:0 auto 12px}
 .nv{display:flex;justify-content:space-between;padding:9px 12px;border-radius:8px;cursor:pointer;color:var(--nt);border:0;background:none;text-align:left;width:100%}
-.nv.on{background:var(--na);color:#fff}.nv.dis{opacity:.45;cursor:default}.nv small{font-size:11px}
+.nv.on{background:var(--na);color:#fff}.nv.dis{opacity:.45;cursor:default}.nv small{font-size:11px}.nbd{display:inline-block;min-width:20px;padding:1px 6px;border-radius:99px;background:#e5484d;color:#fff;font-size:12px;font-weight:600;line-height:18px;text-align:center}.hm .nbd{margin-left:6px}
 .mn{flex:1;min-width:0}
 .tb{display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--cd);border-bottom:1px solid var(--bd);justify-content:space-between}
 .ct{padding:20px;max-width:1100px}
@@ -71,7 +71,7 @@ label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
 import{firebaseConfig as C}from'./firebase-config.js';
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import{initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,getDoc,setDoc,updateDoc,deleteDoc,addDoc,collection,getDocs,query,orderBy,limit,where,runTransaction,writeBatch,serverTimestamp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import{initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,getDoc,setDoc,updateDoc,deleteDoc,addDoc,collection,getDocs,query,orderBy,limit,where,runTransaction,writeBatch,onSnapshot,serverTimestamp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 const app=initializeApp(C),auth=getAuth(app);
 const db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
 const $=i=>document.getElementById(i);
@@ -114,7 +114,22 @@ onAuthStateChanged(auth,async u=>{
   try{const d=await getDoc(doc(db,'users',u.uid));if(d.exists()&&d.data().active!==false){U={uid:u.uid,...d.data()};try{S=(await getDoc(doc(db,'meta','settings'))).data()||{}}catch(e){S={}}mode='app';pg='dash';msg='';t=Date.now();await loadP().catch(()=>{})}else mode='orphan'}catch(e){mode='orphan'}
   R();
 });
-function R(){$('root').innerHTML=mode==='boot'?'<div class="lg">Loading...</div>':mode==='app'?shell():mode==='orphan'?orphan():authForm(mode==='setup')}
+let PXN=0,PXU=null;
+const pxBadge=()=>U&&U.role==='pharmacist'&&PXN>0?`<span class="nbd pxb" aria-label="${PXN} to dispense">${PXN>99?'99+':PXN}</span>`:'';
+function pxPaint(){
+  document.querySelectorAll('.pxb').forEach(e=>e.remove());
+  const h=pxBadge();if(!h)return;
+  const nb=[...document.querySelectorAll('.sb .nv')].find(b=>(b.getAttribute('onclick')||'').includes("'pharm'")),mb=document.querySelector('.tb .hm');
+  if(nb)nb.insertAdjacentHTML('beforeend',h);if(mb)mb.insertAdjacentHTML('beforeend',h)
+}
+function pxWatch(){
+  // Live count of prescriptions waiting to be dispensed (pharmacist only).
+  const on=!!U&&mode==='app'&&U.role==='pharmacist';
+  if(!on){if(PXU){PXU();PXU=null}PXN=0;return}
+  if(PXU)return;
+  PXU=onSnapshot(query(collection(db,'prescriptions'),where('status','==','pending')),sn=>{PXN=sn.size;pxPaint()},()=>{})
+}
+function R(){$('root').innerHTML=mode==='boot'?'<div class="lg">Loading...</div>':mode==='app'?shell():mode==='orphan'?orphan():authForm(mode==='setup');pxWatch()}
 const orphan=()=>`<div class="lg"><div class="cd"><h3 style="margin-top:0">Account not active</h3><p>Your account has no access yet, or it was deactivated. Ask the administrator for help.</p><button class="bt" onclick="out()">Sign out</button></div></div>`;
 async function loadLoginLogo(){try{const d=await getDoc(doc(db,'displayConfig','main')),c=d.exists()?d.data():null,i=$('lgl');if(i&&c&&c.logo){i.src=c.logo;i.style.display='block'}}catch(e){}}
 const authForm=s=>{setTimeout(loadLoginLogo,0);return `<div class="lg"><div class="cd"><img id="lgl" class="lgl" alt="" style="display:none"><h2 style="margin-top:0;text-align:center">Bailen Health Center System</h2><p style="color:var(--mu);margin-top:-8px">${s?'First-time setup: create the developer account.':'Sign in with your staff account.'}</p>${msg?`<div class="tg wa" style="display:block;margin-bottom:10px">${E(msg)}</div>`:''}${s?'<label>Last name</label><input id="nl" autocomplete="family-name"><label style="margin-top:10px">First name</label><input id="nf" autocomplete="given-name"><label style="margin-top:10px">Middle name (optional)</label><input id="nmid" autocomplete="additional-name">':''}<label style="margin-top:10px">Email</label><input id="em" type="email" autocomplete="username"><label style="margin-top:10px">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="er2" id="le"></div><button class="bt" style="width:100%;margin-top:12px" onclick="${s?'doSetup()':'doLogin()'}">${s?'Create developer account':'Sign in'}</button></div></div>`};
@@ -255,8 +270,8 @@ addEventListener('keydown',e=>{if(e.key==='Escape'){const b=document.getElementB
 addEventListener('popstate',()=>{const e=bk.pop();if(!e)return;if(e.pg==='prof')return view(e.pid,1);hhSel=e.hhSel;go(e.pg,1)});
 function shell(){
   const cur=pg==='hhd'?'hh':(pg==='prof'||pg==='reg'||pg==='edit')?'patients':pg;
-  const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}</button>`).join('');
-  return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
+  const nav=NAV.filter(n=>!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())).map(n=>n[2]?`<button class="nv dis"><span>${n[1]}</span><small>Soon</small></button>`:`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${n[0]}')">${n[1]}${n[0]==='pharm'?pxBadge():''}</button>`).join('');
+  return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
 function page(){if((['users','audit'].includes(pg)&&!isAdm())||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&U.role!=='medtech')||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
