@@ -129,7 +129,25 @@ function pxWatch(){
   if(PXU)return;
   PXU=onSnapshot(query(collection(db,'prescriptions'),where('status','==','pending')),sn=>{PXN=sn.size;pxPaint()},()=>{})
 }
-function R(){$('root').innerHTML=mode==='boot'?'<div class="lg">Loading...</div>':mode==='app'?shell():mode==='orphan'?orphan():authForm(mode==='setup');pxWatch()}
+let QU=null,QUd='';
+function qWatch(){
+  // Live queue: the queue screens update by themselves when someone adds or changes a patient.
+  const on=!!U&&mode==='app'&&dqOn();
+  if(!on){if(QU){QU();QU=null;QUd=''}return}
+  if(QU&&QUd===today())return;
+  if(QU){QU();QU=null}
+  QUd=today();
+  QU=onSnapshot(query(collection(db,'queue'),where('day','==',QUd)),sn=>{Q=sn.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.num||0)-(b.num||0));qmsg='';qLive()},()=>{})
+}
+function qLive(){
+  const busy=el=>{const a=document.activeElement;return !!a&&el.contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)};
+  try{
+    dqRender();
+    if(pg==='queue'){const a=$('qt');if(a&&!vq&&!busy(a))a.innerHTML=qTable()}
+    if(pg==='consult'&&!cp){const c=$('cl');if(c&&!busy(c))c.innerHTML=consList()}
+  }catch(e){}
+}
+function R(){$('root').innerHTML=mode==='boot'?'<div class="lg">Loading...</div>':mode==='app'?shell():mode==='orphan'?orphan():authForm(mode==='setup');pxWatch();qWatch()}
 const orphan=()=>`<div class="lg"><div class="cd"><h3 style="margin-top:0">Account not active</h3><p>Your account has no access yet, or it was deactivated. Ask the administrator for help.</p><button class="bt" onclick="out()">Sign out</button></div></div>`;
 async function loadLoginLogo(){try{const d=await getDoc(doc(db,'displayConfig','main')),c=d.exists()?d.data():null,i=$('lgl');if(i&&c&&c.logo){i.src=c.logo;i.style.display='block'}}catch(e){}}
 const authForm=s=>{setTimeout(loadLoginLogo,0);return `<div class="lg"><div class="cd"><img id="lgl" class="lgl" alt="" style="display:none"><h2 style="margin-top:0;text-align:center">Bailen Health Center System</h2><p style="color:var(--mu);margin-top:-8px">${s?'First-time setup: create the developer account.':'Sign in with your staff account.'}</p>${msg?`<div class="tg wa" style="display:block;margin-bottom:10px">${E(msg)}</div>`:''}${s?'<label>Last name</label><input id="nl" autocomplete="family-name"><label style="margin-top:10px">First name</label><input id="nf" autocomplete="given-name"><label style="margin-top:10px">Middle name (optional)</label><input id="nmid" autocomplete="additional-name">':''}<label style="margin-top:10px">Email</label><input id="em" type="email" autocomplete="username"><label style="margin-top:10px">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="er2" id="le"></div><button class="bt" style="width:100%;margin-top:12px" onclick="${s?'doSetup()':'doLogin()'}">${s?'Create developer account':'Sign in'}</button></div></div>`};
