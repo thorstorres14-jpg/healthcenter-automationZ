@@ -886,7 +886,7 @@ function fmShow(t,sub,body,ok,fn){
 }
 function stAdd(){
   sio=null;sed='';
-  fmShow('Add medicine','If the medicine is already in the list, the quantity is added as a new batch.',`<div class="fm"><div><label>Medicine</label><input id="sn" autocomplete="off"></div><div><label>Quantity received</label><input id="sq" type="number" min="0" step="1"></div><div><label>Expiry date (optional)</label><input id="sx" type="date"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div>`,'Save stock','stSave()')
+  fmShow('Add medicine','If the medicine is already in the list, the quantity is added as a new batch.',`<div class="fm"><div><label>Medicine</label><input id="sn" autocomplete="off"></div><div><label>Quantity received</label><input id="sq" type="number" min="0" step="1"></div><div><label>Date received</label><input id="sd" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date (optional)</label><input id="sx" type="date"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div>`,'Save stock','stSave()')
 }
 function siOpen(k){sed='';sio=k;siRender()}
 function siClose(){sio=null;fmClose()}
@@ -930,28 +930,30 @@ async function loadPh(){
   }catch(e){const l=$('phl');if(l)l.textContent='Could not load. Check your connection.'}
 }
 async function stSave(){
-  const n=$('sn').value.trim(),v=$('sq').value,q=Number(v),x=$('sx').value,lo=$('sl').value===''?10:Number($('sl').value),er=$('se'),k=skey(n);
+  const n=$('sn').value.trim(),v=$('sq').value,q=Number(v),x=$('sx').value,d=$('sd').value,lo=$('sl').value===''?10:Number($('sl').value),er=$('se'),k=skey(n);
   if(!k){er.textContent='Enter the medicine name.';return}
   if(v===''||!Number.isInteger(q)||q<0){er.textContent='Enter a valid quantity (a whole number, 0 or more).';return}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()){er.textContent='Enter a valid date received (not in the future).';return}
+  if(x&&x<d){er.textContent='The expiry date cannot be before the date received.';return}
   if(!isFinite(lo)||lo<0){er.textContent='Enter a valid low-stock level.';return}
   er.textContent='';
   const ex=SK[k];
   if(ex){
     // Already in the list: add the quantity as a new batch. Never overwrite the existing stock.
     if(q<1){er.textContent='This medicine is already in the list. Enter 1 or more to add a batch, or use Edit to correct the stock.';return}
-    if(!await sConfirm(ex.name+' is already in the stock list ('+bUse(ex)+' on hand). Add '+q+' as a new batch'+(x?' expiring '+x:'')+'?','Already in the list','Add batch',0))return
+    if(!await sConfirm(ex.name+' is already in the stock list ('+bUse(ex)+' on hand). Add '+q+' as a new batch received '+d+(x?', expiring '+x:'')+'?','Already in the list','Add batch',0))return
   }
   let saved=null,added=false;fmBusy(true);
   try{
     await runTransaction(db,async tx=>{
       const r=doc(db,'stock',k),sn=await tx.get(r);
       if(sn.exists()){
-        const cur=sn.data(),b={id:bid(),qty:q,exp:x,d:today(),src:'Manual entry'},p=bPack(bList(cur).concat([b]));
+        const cur=sn.data(),b={id:bid(),qty:q,exp:x,d,src:'Manual entry'},p=bPack(bList(cur).concat([b]));
         tx.update(r,{...p,at:serverTimestamp()});
-        tx.set(doc(collection(db,'stockin')),{key:k,name:cur.name,qty:q,d:today(),exp:x,src:'Manual entry',batch:b.id,by:U.uid,byName:U.name,at:serverTimestamp()});
+        tx.set(doc(collection(db,'stockin')),{key:k,name:cur.name,qty:q,d,exp:x,src:'Manual entry',batch:b.id,by:U.uid,byName:U.name,at:serverTimestamp()});
         saved={...cur,...p};added=true
       }else{
-        const p=bPack([{id:bid(),qty:q,exp:x,d:today(),src:'Opening stock'}]);
+        const p=bPack([{id:bid(),qty:q,exp:x,d,src:'Opening stock'}]);
         tx.set(r,{name:n,low:lo,...p,at:serverTimestamp()});
         saved={name:n,low:lo,...p}
       }
