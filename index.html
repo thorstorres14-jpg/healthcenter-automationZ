@@ -501,8 +501,8 @@ function dqRender(){
   const el=$('dq');if(!el)return;
   const head=`<div class="dh" style="margin-top:0"><b>Today's queue</b><span><a href="#" onclick="go('queue');return false">Open queue</a></span></div>`;
   if(qmsg){el.innerHTML=head+`<p class="er2">${E(qmsg)}</p>`;return}
-  const w=Q.filter(x=>x.status==='waiting'&&isC(x)),c=Q.filter(x=>x.status==='in-consult'&&isC(x)),d=Q.filter(x=>x.status==='done'),sn=Q.filter(x=>!isC(x)&&['waiting','in-consult'].includes(x.status)),act=[...c,...w],show=act.slice(0,5);
-  el.innerHTML=head+`<div class="dqs"><div><b>${w.length}</b><small>Waiting</small></div><div><b>${c.length}</b><small>In consultation</small></div><div><b>${sn.length}</b><small>At stations</small></div><div><b>${d.length}</b><small>Done</small></div></div>`+(show.length?show.map(x=>{const st=ST[x.status]||['wa',x.status];return `<div class="dqr"><span><b>${qn(x.num)}</b> ${E(x.name)}</span><span class="tg ${st[0]}">${st[1]}${x.status==='in-consult'&&x.room?' | Room '+E(x.room):''}</span></div>`}).join(''):'<p style="color:var(--mu);margin:6px 0 0">No one is waiting right now.</p>')+(act.length>5?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${act.length-5} more</p>`:'')
+  const w=Q.filter(x=>x.status==='waiting'&&isC(x)),c=Q.filter(x=>x.status==='in-consult'&&isC(x)&&!x.called),d=Q.filter(x=>x.status==='done'),sn=Q.filter(x=>!isC(x)&&['waiting','in-consult'].includes(x.status)),act=[...Q.filter(x=>x.status==='in-consult'&&isC(x)),...w],show=act.slice(0,5);
+  el.innerHTML=head+`<div class="dqs"><div><b>${w.length}</b><small>Waiting</small></div><div><b>${c.length}</b><small>In consultation</small></div><div><b>${sn.length}</b><small>At stations</small></div><div><b>${d.length}</b><small>Done</small></div></div>`+(show.length?show.map(x=>{const st=stOf(x);return `<div class="dqr"><span><b>${qn(x.num)}</b> ${E(x.name)}</span><span class="tg ${st[0]}">${st[1]}${x.status==='in-consult'&&x.room?' | Room '+E(x.room):''}</span></div>`}).join(''):'<p style="color:var(--mu);margin:6px 0 0">No one is waiting right now.</p>')+(act.length>5?`<p style="color:var(--mu);font-size:13px;margin:8px 0 0">and ${act.length-5} more</p>`:'')
 }
 async function loadAl(){
   const r=U.role,t={},j=[],run=(k,f)=>f().then(v=>{t[k]=v}).catch(()=>{});
@@ -1208,11 +1208,12 @@ async function stDone(id){
   }catch(e){sAlert(e.code==='permission-denied'?'You do not have permission to finish this patient.':'Could not save. Check your connection.')}
 }
 const ST={waiting:['wa','Waiting'],'in-consult':['ok','In consultation'],done:['ok','Done'],cancelled:['mt','Cancelled']};
+const stOf=x=>isC(x)&&x.status==='in-consult'&&x.called?['wa','Called']:(ST[x.status]||['wa',x.status]);
 function qTable(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   if(!Q.length)return '<p style="color:var(--mu)">No one in the queue yet today.</p>';
-  return roomBar()+`<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Vitals</th><th>Status</th><th></th></tr></thead><tbody>${Q.map(x=>{const st=ST[x.status]||['wa',x.status],open=x.status==='waiting'||x.status==='in-consult';
-    return `<tr><td>${qn(x.num)}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a></td><td>${E(x.reason||'')}${isC(x)?'':`<br><small style="color:var(--mu)">At ${STN[x.station]||E(x.station)}</small>`}</td><td>${E(vsum(x.vitals))||'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}</td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${open&&isC(x)&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='in-consult'&&isC(x)&&CROLES.includes(U.role)?`<button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}`}).join('')}</tbody></table>`}
+  return roomBar()+`<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Vitals</th><th>Status</th><th></th></tr></thead><tbody>${Q.map(x=>{const st=stOf(x),open=x.status==='waiting'||x.status==='in-consult';
+    return `<tr><td>${qn(x.num)}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a></td><td>${E(x.reason||'')}${isC(x)?'':`<br><small style="color:var(--mu)">At ${STN[x.station]||E(x.station)}</small>`}</td><td>${E(vsum(x.vitals))||'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}</td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${x.status==='waiting'&&isC(x)&&CROLES.includes(U.role)?`<button class="bt" onclick="callQ('${x.id}')">Call</button> `:''}${open&&isC(x)&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='in-consult'&&isC(x)&&CROLES.includes(U.role)?`<button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}`}).join('')}</tbody></table>`}
 const qpg=()=>`<h2 style="margin-top:0">Queue</h2><p style="color:var(--mu);margin-top:-6px">${new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>${canReg()?`<div class="cd"><h3 style="margin-top:0">Add patient to queue</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="qsrch" placeholder="Search patient by name or ID" oninput="qSearch(this.value)" autocomplete="off" style="flex:1;min-width:200px"><button type="button" class="bt" onclick="qNew()">+ New patient</button></div><div id="qres" style="margin-top:8px"></div><div class="er2" id="qe"></div></div>`:''}<div class="cd ov"><div id="qt">${qTable()}</div></div>`;
 function qSearch(v){
   const s=v.trim().toLowerCase(),r=$('qres');if(!s){r.innerHTML='';return}
@@ -1285,20 +1286,21 @@ async function qCancel(id){
   catch(x){sAlert('Could not update the queue ('+(x.code||x.message)+').')}
 }
 const qWho=x=>x.status==='in-consult'&&x.byName?`<br><small style="color:var(--mu)">with ${E(x.byName)}${x.room?' | Room '+x.room:''}</small>`:'';
-async function claimQ(id,room){
+async function claimQ(id,room,call){
   const r=doc(db,'queue',id);
   return runTransaction(db,async t=>{
     const s=await t.get(r);if(!s.exists())throw{code:'gone'};const d=s.data();
     if(!['waiting','in-consult'].includes(d.status)||(d.station&&d.station!=='consult'))throw{code:'closed'};
     if(d.status==='in-consult'&&d.by&&d.by!==U.uid)throw{code:'taken',who:d.byName};
-    if(d.status!=='in-consult'||d.by!==U.uid){t.update(r,{status:'in-consult',by:U.uid,byName:U.name,room,startedAt:serverTimestamp()});t.set(doc(db,'queueDisplay',id),{day:d.day,num:d.num,status:'in-consult',room,calledAt:serverTimestamp()},{merge:true})}
+    if(d.status==='in-consult'&&d.by===U.uid&&!call&&d.called)t.update(r,{called:false});
+    if(d.status!=='in-consult'||d.by!==U.uid){t.update(r,{status:'in-consult',by:U.uid,byName:U.name,room,called:!!call,startedAt:serverTimestamp()});t.set(doc(db,'queueDisplay',id),{day:d.day,num:d.num,status:'in-consult',room,calledAt:serverTimestamp()},{merge:true})}
   })
 }
-async function claimUI(id,room){
-  try{await claimQ(id,room);return true}
-  catch(e){sAlert(e.code==='taken'?'This patient is already being seen by '+(e.who||'another staff member')+'.':(e.code==='closed'||e.code==='gone')?'This patient is no longer waiting in the queue.':'Could not start the consultation. Check your connection.');await fetchQ();refreshQ();return false}
+async function claimUI(id,room,call){
+  try{await claimQ(id,room,call);return true}
+  catch(e){sAlert(e.code==='taken'?'This patient is already being seen by '+(e.who||'another staff member')+'.':(e.code==='closed'||e.code==='gone')?'This patient is no longer waiting in the queue.':call?'Could not call the patient. Check your connection.':'Could not start the consultation. Check your connection.');await fetchQ();refreshQ();return false}
 }
-const busyMine=id=>Q.filter(e=>e.status==='in-consult'&&e.by===U.uid&&e.id!==id);
+const busyMine=id=>Q.filter(e=>e.status==='in-consult'&&e.by===U.uid&&e.id!==id&&!e.called);
 const roomOk=id=>{
   const r=curRoom();if(!r){sAlert('Choose your room first.');return null}
   const oc=Q.find(e=>e.status==='in-consult'&&e.room===r&&e.id!==id&&e.by!==U.uid);
@@ -1316,6 +1318,13 @@ async function startC(id){
   if(x){const rm=roomOk(x.id);if(!rm||!(await busyOk(x.id)))return;if(!await claimUI(x.id,rm))return}
   RXL=[];cp=id;cq=x?x.id:null;pg='consult';R();scrollTo(0,0)
 }
+// Call: announce the patient on the display and show "Called", but do not open the consultation until the patient has arrived (press Start consult).
+async function callQ(id){
+  await fetchQ();const x=Q.find(e=>e.id===id);if(!x||x.status!=='waiting')return;
+  const rm=roomOk(id);if(!rm)return;
+  if(!await claimUI(id,rm,true))return;
+  await fetchQ();refreshQ()
+}
 async function recallQ(id,el){
   const x=Q.find(e=>e.id===id);if(!x||x.status!=='in-consult'||!x.room)return;
   await syncDisp(x,{status:'in-consult',room:x.room,calledAt:serverTimestamp()});
@@ -1325,7 +1334,7 @@ async function releaseQ(id){
   await fetchQ();const x=Q.find(e=>e.id===id);if(!x||x.status!=='in-consult'){refreshQ();if(cq===id){cp=null;cq=null;R()}return}
   const o=x.by&&x.by!==U.uid;
   if(!await sConfirm(o?x.name+' is being seen by '+(x.byName||'another staff member')+'. Return to the waiting list anyway?':'Return '+x.name+' to the waiting list?','Return to waiting list?','Return',0))return;
-  try{await updateDoc(doc(db,'queue',id),{status:'waiting',by:null,byName:null,room:null});syncDisp(x,{status:'waiting',room:null});await lg('Returned to waiting '+id)}
+  try{await updateDoc(doc(db,'queue',id),{status:'waiting',by:null,byName:null,room:null,called:false});syncDisp(x,{status:'waiting',room:null});await lg('Returned to waiting '+id)}
   catch(e){sAlert('Could not update the queue ('+(e.code||e.message)+').');return}
   await fetchQ();if(cq===id){cp=null;cq=null;R();scrollTo(0,0)}else refreshQ()
 }
@@ -1333,7 +1342,7 @@ async function releaseQ(id){
 function consList(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   const l=Q.filter(x=>['waiting','in-consult'].includes(x.status)&&isC(x));
-  return roomBar()+(l.length?`<table><thead><tr><th>No.</th><th>Patient</th><th>Age / sex</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${qn(x.num)}</td><td>${E(x.name)}</td><td>${E(x.age||'')} / ${E(x.sex||'')}</td><td>${E(x.reason||'')}</td><td><span class="tg ${(ST[x.status]||['wa'])[0]}">${(ST[x.status]||['',x.status])[1]}</span>${qWho(x)}</td><td><button class="bt" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start':'Continue'}</button>${x.status==='in-consult'?` <button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No patients waiting.</p>')}
+  return roomBar()+(l.length?`<table><thead><tr><th>No.</th><th>Patient</th><th>Age / sex</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>${l.map(x=>`<tr><td>${qn(x.num)}</td><td>${E(x.name)}</td><td>${E(x.age||'')} / ${E(x.sex||'')}</td><td>${E(x.reason||'')}</td><td><span class="tg ${stOf(x)[0]}">${stOf(x)[1]}</span>${qWho(x)}</td><td>${x.status==='waiting'?`<button class="bt" onclick="callQ('${x.id}')">Call</button> <button class="bt g" onclick="startQ('${x.id}')">Start consult</button>`:`<button class="bt" onclick="startQ('${x.id}')">${x.called?'Start consult':'Continue'}</button>`}${x.status==='in-consult'?` <button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button>`:''}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No patients waiting.</p>')}
 const cons=()=>cp?consForm():`<h2 style="margin-top:0">Consultation</h2><div class="cd ov"><h3 style="margin-top:0">Waiting today</h3><div id="cl">${consList()}</div></div><div class="cd"><h3 style="margin-top:0">See a patient who is not in the queue</h3><input placeholder="Search patient by name or ID" oninput="cSearch(this.value)" autocomplete="off"><div id="cres" style="margin-top:8px"></div></div>`;
 function cSearch(v){
   const s=v.trim().toLowerCase(),r=$('cres');if(!s){r.innerHTML='';return}
@@ -2223,5 +2232,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
