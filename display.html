@@ -17,9 +17,10 @@ main{flex:1;display:grid;grid-template-columns:2fr 1fr;gap:24px;padding:24px 32p
 @media(max-width:800px){main{grid-template-columns:1fr}}
 h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;letter-spacing:.08em;color:var(--mu)}
 .now{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;align-content:start}
-.card{background:var(--card);border-radius:20px;padding:22px;text-align:center;border:3px solid var(--line);box-shadow:0 4px 14px rgba(18,50,74,.08)}
+.card{background:var(--card);border-radius:20px;padding:22px;text-align:center;border:3px solid var(--line);box-shadow:0 4px 14px rgba(18,50,74,.08);container-type:inline-size}
 .card .rm{font-size:clamp(18px,2.4vw,30px);color:var(--mu);font-weight:600}
-.card .n{font-size:clamp(70px,13vw,190px);font-weight:800;line-height:1.05;color:var(--num)}
+/* The queue number is sized from the width of its own card, so "P001" always stays inside the box. The first font-size is a fallback for old browsers. */
+.card .n{font-size:clamp(56px,9vw,190px);font-size:clamp(40px,32cqw,190px);font-weight:800;line-height:1.05;color:var(--num);white-space:nowrap}
 .card.flash{animation:fl 1s ease-in-out 6;border-color:var(--next)}
 @keyframes fl{50%{background:var(--flash);transform:scale(1.04)}}
 .card.latest{border-color:var(--next);box-shadow:0 0 0 6px rgba(245,158,11,.28)}
