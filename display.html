@@ -22,7 +22,9 @@ h2{margin:0 0 14px;font-size:clamp(18px,2.4vw,30px);text-transform:uppercase;let
 /* One block per station (Laboratory, Immunization, Pharmacy) under the consultation rooms. */
 .blk{margin-top:0}
 .bh{margin:0 0 8px;font-size:clamp(16px,2vw,26px);text-transform:uppercase;letter-spacing:.08em;color:var(--mu)}
-.stg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:18px;align-items:start}
+main>section:first-child{display:flex;flex-direction:column;min-height:0}
+/* Consultation stays at the top; the Laboratory / Immunization / Pharmacy boxes sit at the bottom of the screen. */
+.stg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:auto;padding-top:18px;align-items:start}
 .stc{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
 .card{background:var(--card);border-radius:20px;padding:16px 18px;text-align:center;border:3px solid var(--line);box-shadow:0 4px 14px rgba(18,50,74,.08);container-type:inline-size}
 .card .rm{font-size:clamp(18px,2.4vw,30px);color:var(--mu);font-weight:600}
