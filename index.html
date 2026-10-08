@@ -122,7 +122,7 @@ const syncDisp=(x,extra)=>setDoc(doc(db,'queueDisplay',x.id),{day:x.day,num:x.nu
 async function setRooms(){
   const er=$('rme'),n=parseInt($('rmn').value);er.textContent='';
   if(!(n>=1&&n<=20)){er.textContent='Enter a number from 1 to 20.';return}
-  try{await setDoc(doc(db,'meta','settings'),{rooms:n,by:U.name,at:serverTimestamp()},{merge:true});S.rooms=n;await lg('Consultation rooms: '+n);er.textContent='';sDone('Consultation rooms updated.')}
+  try{await setDoc(doc(db,'meta','settings'),{rooms:n,by:U.name,at:serverTimestamp()},{merge:true});S.rooms=n;try{await setDoc(doc(db,'displayConfig','main'),{rooms:n,at:serverTimestamp()},{merge:true})}catch(x){}await lg('Consultation rooms: '+n);er.textContent='';sDone('Consultation rooms updated.')}
   catch(x){er.textContent='Could not save. Check your connection.'}
 }
 const vRoles=()=>Array.isArray(S.vitalsRoles)?S.vitalsRoles:VDEF;
