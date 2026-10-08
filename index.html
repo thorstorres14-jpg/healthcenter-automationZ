@@ -111,7 +111,7 @@ const VDEF=['frontdesk','midwife','doctor'],VOPT=[['frontdesk','Front desk'],['m
 const LOPT=[['medtech','Medical technologist'],['midwife','Midwife / Nurse'],['doctor','Doctor (MHO)'],['admin','Admin']];
 const lRoles=()=>Array.isArray(S.labRoles)?S.labRoles:['medtech'];
 // Attaching photos or PDFs needs Firebase Storage (Blaze plan), so it stays off until the developer turns it on.
-const labAtt=()=>S.labAttach===true;
+const labAtt=()=>false; // Photo / PDF attachments are switched off for now (set back to S.labAttach===true to bring the option back).
 const qn=n=>'P'+String(n||0).padStart(3,'0');
 const rooms=()=>Math.max(1,Math.min(20,parseInt(S.rooms)||1));
 let myRoom=null;try{myRoom=parseInt(sessionStorage.getItem('myRoom'))||null}catch(e){}
@@ -256,6 +256,8 @@ function lvWatch(){
   lvQ('p-us',ok&&(pg==='users'||pg==='dev')&&(r==='admin'||r==='developer')?pg:'',()=>collection(db,'users'),()=>lvDefer('us',()=>{if(pg==='users')loadUsers();else if(pg==='dev')loadDevs()}));
   lvQ('p-au',ok&&pg==='audit'&&isAdm()?'1':'',()=>query(collection(db,'audit'),orderBy('at','desc'),limit(1)),()=>lvDefer('au',()=>{if(pg==='audit')loadAudit()}));
   lvQ('p-si',ok&&pg==='pharm'&&r==='pharmacist'?'1':'',()=>query(collection(db,'stockin'),orderBy('at','desc'),limit(30)),()=>lvDefer('si',()=>{if(pg==='pharm')loadSi()}));
+  lvQ('p-rf',ok&&pg==='ref'&&RPR.includes(r)?'1':'',()=>query(collection(db,'visits'),where('refSt','in',['sent','received','returned'])),()=>lvDefer('rf',()=>{if(pg==='ref')loadRef()}));
+  lvQ('p-mc',ok&&pg==='mc'&&RPR.includes(r)?td:'',()=>query(collection(db,'visits'),where('d','==',td)),()=>lvDefer('mc',()=>{if(pg==='mc'&&MC.to>=today())loadMc()}));
   // Settings and the signed-in account
   const sn0=o=>JSON.stringify(Object.keys(o||{}).filter(k=>k!=='at'&&k!=='by').sort().map(k=>[k,o[k]]));
   lvOn('set',ok?'1':'',()=>onSnapshot(doc(db,'meta','settings'),sn=>{const n=sn.data()||{};if(sn0(n)===sn0(S))return;S=n;lvDefer('set',()=>lvScroll(R),800)},()=>{}));
@@ -277,6 +279,7 @@ function lvWatch(){
     SK={};sn.docs.forEach(d=>{SK[d.id]=d.data()});if(pg==='pharm'&&!lvBusy($('stl'))&&!lvBusy($('phl')))phRender()},()=>{}));
   // Doctor / midwife with a patient open: lab results and pharmacy flags
   lvOn('lh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'labs'),where('pid','==',viewP)),()=>{if(f){f=false;return}if(pg==='prof'&&pid===viewP)loadLabH(viewP)},()=>{})});
+  lvOn('vh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'visits'),where('pid','==',viewP)),()=>{if(f){f=false;return}lvDefer('vh',()=>{if(pg==='prof'&&pid===viewP)view(viewP,1,1)})},()=>{})});
   lvOn('rh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'prescriptions'),where('pid','==',viewP)),()=>{if(f){f=false;return}if(pg==='prof'&&pid===viewP)view(viewP,1,1)},()=>{})});
 }
 function R(){$('root').innerHTML=mode==='boot'?'<div class="lg">Loading...</div>':mode==='app'?shell():mode==='orphan'?orphan():authForm(mode==='setup');pxWatch();qWatch();lvWatch()}
@@ -1264,7 +1267,7 @@ async function setVitalsRole(k,v,el){
   try{await setDoc(doc(db,'meta','settings'),{vitalsRoles:n,by:U.name,at:serverTimestamp()},{merge:true});S.vitalsRoles=n;await lg('Vitals roles: '+(n.join(', ')||'none'))}
   catch(x){if(el)el.checked=!v;if(er)er.textContent='Could not save. Check your connection.'}
 }
-const labRolesCard=()=>`<div class="cd"><h3 style="margin-top:0">Who can enter lab results</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Choose which roles may open the Lab page, type results and attach printouts (photo or PDF). Default: Medical technologist. Calling patients to the Laboratory stays with the Medical technologist. If nothing is ticked, nobody can enter results.</p>${LOPT.map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${lRoles().includes(k)?'checked':''} onchange="setLabRole('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="lre"></div></div><div class="cd"><h3 style="margin-top:0">Attach printouts</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Lets the people above attach a photo or PDF (up to 3 files, 5 MB each) to a lab result. Turn this on only after Firebase Storage is set up (it needs the Blaze plan) and storage.rules is published. Default: off.</p><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${labAtt()?'checked':''} onchange="setLabAttach(this.checked,this)"><span>Allow attaching photos or PDFs</span></label><div class="er2" id="lae"></div></div>`;
+const labRolesCard=()=>`<div class="cd"><h3 style="margin-top:0">Who can enter lab results</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Choose which roles may open the Lab page, type results. Default: Medical technologist. Calling patients to the Laboratory stays with the Medical technologist. If nothing is ticked, nobody can enter results.</p>${LOPT.map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${lRoles().includes(k)?'checked':''} onchange="setLabRole('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="lre"></div></div>`;
 async function setLabAttach(v,el){
   const er=$('lae');if(er)er.textContent='';
   try{await setDoc(doc(db,'meta','settings'),{labAttach:v,by:U.name,at:serverTimestamp()},{merge:true});S.labAttach=v;await lg('Lab attachments '+(v?'on':'off'))}
