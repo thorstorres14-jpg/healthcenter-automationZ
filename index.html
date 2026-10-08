@@ -1207,7 +1207,9 @@ function qTable(){
 const qpg=()=>`<h2 style="margin-top:0">Queue</h2><p style="color:var(--mu);margin-top:-6px">${new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>${canReg()?`<div class="cd"><h3 style="margin-top:0">Add patient to queue</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="qsrch" placeholder="Search patient by name or ID" oninput="qSearch(this.value)" autocomplete="off" style="flex:1;min-width:200px"><button type="button" class="bt" onclick="qNew()">+ New patient</button></div><div id="qres" style="margin-top:8px"></div><div class="er2" id="qe"></div></div>`:''}<div class="cd ov"><div id="qt">${qTable()}</div></div>`;
 function qSearch(v){
   const s=v.trim().toLowerCase(),r=$('qres');if(!s){r.innerHTML='';return}
-  const l=P.filter(p=>(pn(p)+' '+p.id).toLowerCase().includes(s)).slice(0,6);
+  // Match from the start of the name as it is displayed ("Last, First Middle"), so "sa" finds Santos but not Rosa. The patient ID can still be matched anywhere.
+  const nm=x=>x.toLowerCase().replace(/,/g,' ').replace(/\s+/g,' ').trim(),q2=nm(s);
+  const l=P.filter(p=>nm(pn(p)).startsWith(q2)||p.id.toLowerCase().includes(s)).slice(0,6);
   r.innerHTML=l.length?`<div class="ov"><table><tbody>${l.map(p=>`<tr><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td><td><select id="sv-${p.id}">${['consult','imm','lab','pharmacy'].map(k=>`<option value="${k}">For ${STN[k]}</option>`).join('')}</select></td><td><input id="rs-${p.id}" placeholder="Reason (e.g. check-up)" style="min-width:150px"></td><td><button class="bt" onclick="qAskV('${p.id}')">Add</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">No match.</p>'+(canReg()?'<button class="bt" onclick="qNew()">Register new patient</button>':'')}
 async function qAdd(id,r,v){
   const el=$('rs-'+id),reason=((r!==undefined?r:(el?el.value:''))||'').trim()||'Check-up',p=P.find(x=>x.id===id),er=$('qe'),say=m=>{if(er)er.textContent=m;else sAlert(m)};
