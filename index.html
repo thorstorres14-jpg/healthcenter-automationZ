@@ -110,6 +110,8 @@ const VDEF=['frontdesk','midwife','doctor'],VOPT=[['frontdesk','Front desk'],['m
 // Roles that may enter lab results and attach printouts. The developer chooses them in the Developer page; the default is the medical technologist.
 const LOPT=[['medtech','Medical technologist'],['midwife','Midwife / Nurse'],['doctor','Doctor (MHO)'],['admin','Admin']];
 const lRoles=()=>Array.isArray(S.labRoles)?S.labRoles:['medtech'];
+// Attaching photos or PDFs needs Firebase Storage (Blaze plan), so it stays off until the developer turns it on.
+const labAtt=()=>S.labAttach===true;
 const qn=n=>'P'+String(n||0).padStart(3,'0');
 const rooms=()=>Math.max(1,Math.min(20,parseInt(S.rooms)||1));
 let myRoom=null;try{myRoom=parseInt(sessionStorage.getItem('myRoom'))||null}catch(e){}
@@ -1262,7 +1264,12 @@ async function setVitalsRole(k,v,el){
   try{await setDoc(doc(db,'meta','settings'),{vitalsRoles:n,by:U.name,at:serverTimestamp()},{merge:true});S.vitalsRoles=n;await lg('Vitals roles: '+(n.join(', ')||'none'))}
   catch(x){if(el)el.checked=!v;if(er)er.textContent='Could not save. Check your connection.'}
 }
-const labRolesCard=()=>`<div class="cd"><h3 style="margin-top:0">Who can enter lab results</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Choose which roles may open the Lab page, type results and attach printouts (photo or PDF). Default: Medical technologist. Calling patients to the Laboratory stays with the Medical technologist. If nothing is ticked, nobody can enter results.</p>${LOPT.map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${lRoles().includes(k)?'checked':''} onchange="setLabRole('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="lre"></div></div>`;
+const labRolesCard=()=>`<div class="cd"><h3 style="margin-top:0">Who can enter lab results</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Choose which roles may open the Lab page, type results and attach printouts (photo or PDF). Default: Medical technologist. Calling patients to the Laboratory stays with the Medical technologist. If nothing is ticked, nobody can enter results.</p>${LOPT.map(([k,t])=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px"><input type="checkbox" style="width:auto" ${lRoles().includes(k)?'checked':''} onchange="setLabRole('${k}',this.checked,this)"><span>${t}</span></label>`).join('')}<div class="er2" id="lre"></div></div><div class="cd"><h3 style="margin-top:0">Attach printouts</h3><p style="color:var(--mu);margin-top:0;font-size:14px">Lets the people above attach a photo or PDF (up to 3 files, 5 MB each) to a lab result. Turn this on only after Firebase Storage is set up (it needs the Blaze plan) and storage.rules is published. Default: off.</p><label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" style="width:auto" ${labAtt()?'checked':''} onchange="setLabAttach(this.checked,this)"><span>Allow attaching photos or PDFs</span></label><div class="er2" id="lae"></div></div>`;
+async function setLabAttach(v,el){
+  const er=$('lae');if(er)er.textContent='';
+  try{await setDoc(doc(db,'meta','settings'),{labAttach:v,by:U.name,at:serverTimestamp()},{merge:true});S.labAttach=v;await lg('Lab attachments '+(v?'on':'off'))}
+  catch(x){if(el)el.checked=!v;if(er)er.textContent='Could not save. Check your connection.'}
+}
 async function setLabRole(k,v,el){
   const er=$('lre'),cur=lRoles(),n=v?[...new Set([...cur,k])]:cur.filter(x=>x!==k);
   if(er)er.textContent='';
@@ -1719,7 +1726,7 @@ let LB=[],LD=[];
 const lbg=()=>`<h2 style="margin-top:0">Lab</h2>${stCard('lab')}<div class="cd ov"><h3 style="margin-top:0">Requests to process</h3><div id="lbl">Loading...</div></div><div class="cd ov"><h3 style="margin-top:0">Done today</h3><div id="lbd"></div></div>`;
 function lbRender(){
   const l=$('lbl'),d=$('lbd');if(!l)return;delete l.dataset.dirty;
-  l.innerHTML=LB.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Test</th><th>Result</th><th></th></tr></thead><tbody>${LB.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${E(r.test)}</td><td><input id="lr-${r.id}" placeholder="Result" style="min-width:180px"><div id="lc-${r.id}" style="margin-top:6px"></div></td><td style="white-space:nowrap"><input id="lf-${r.id}" type="file" accept="image/*,application/pdf" multiple hidden onchange="lbPick('${r.id}',this)"><button class="bt g" onclick="$('lf-${r.id}').click()">Attach</button> <button class="bt" id="ls-${r.id}" onclick="lbSave('${r.id}')">Save result</button></td></tr>`).join('')}</tbody></table><div class="er2" id="lbe"></div>`:'<p style="color:var(--mu)">No requests waiting.</p>';
+  l.innerHTML=LB.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Test</th><th>Result</th><th></th></tr></thead><tbody>${LB.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${E(r.test)}</td><td><input id="lr-${r.id}" placeholder="Result" style="min-width:180px"><div id="lc-${r.id}" style="margin-top:6px"></div></td><td style="white-space:nowrap">${labAtt()?`<input id="lf-${r.id}" type="file" accept="image/*,application/pdf" multiple hidden onchange="lbPick('${r.id}',this)">`:''}${labAtt()?`<button class="bt g" onclick="$('lf-${r.id}').click()">Attach</button> `:''}<button class="bt" id="ls-${r.id}" onclick="lbSave('${r.id}')">Save result</button></td></tr>`).join('')}</tbody></table><div class="er2" id="lbe"></div>`:'<p style="color:var(--mu)">No requests waiting.</p>';
   d.innerHTML=LD.length?`<table><thead><tr><th>Patient</th><th>Test</th><th>Result</th></tr></thead><tbody>${LD.map(r=>`<tr><td>${E(r.pname)}</td><td>${E(r.test)}</td><td>${E(r.result||'')}${lbFilesBtn(r)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">None yet.</p>';
   Object.keys(LBF).forEach(lbChips)
 }
@@ -1758,8 +1765,8 @@ async function lbPick(id,inp){
   LBF[id]=cur;const l=$('lbl');if(l)l.dataset.dirty='1';lbChips(id)
 }
 async function lbSave(id){
-  const v=$('lr-'+id).value.trim(),er=$('lbe'),fl=LBF[id]||[],btn=$('ls-'+id);
-  if(!v&&!fl.length){er.textContent='Enter the result or attach a file first.';return}
+  const v=$('lr-'+id).value.trim(),er=$('lbe'),fl=labAtt()?(LBF[id]||[]):[],btn=$('ls-'+id);
+  if(!v&&!fl.length){er.textContent=labAtt()?'Enter the result or attach a file first.':'Enter the result first.';return}
   er.textContent='';if(btn){btn.disabled=true;btn.textContent=fl.length?'Uploading...':'Saving...'}
   try{
     const files=[],stg=fl.length?getStorage(app):null;
@@ -2167,5 +2174,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
