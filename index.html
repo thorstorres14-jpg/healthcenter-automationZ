@@ -973,7 +973,7 @@ async function ahSave(id){
 }
 function prof(){
   const p=P.find(x=>x.id===pid),lv=LV[U.role]||'basic',m=P.filter(x=>x.hh===p.hh&&x.id!==p.id);
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="goBack('patients')">Back to ${E(backLbl('patients'))}</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>PhilHealth</label>${E(p.ph||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='basic'?'':ahCard(p,CROLES.includes(U.role))}${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><h3 style="margin-top:0">Lab results</h3><div id="labh" class="ov">Loading...</div></div>`:''}`}
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="goBack('patients')">Back to ${E(backLbl('patients'))}</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>PhilHealth</label>${E(p.ph||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='basic'?'':ahCard(p,CROLES.includes(U.role))}${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h3 style="margin:0">Lab results</h3>${oxCan()?`<button class="bt g" onclick="oxOpen('${id}')">Add outside result</button>`:''}</div><div id="lox"></div><div id="labh" class="ov">Loading...</div></div>`:U.role==='frontdesk'?`<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h3 style="margin:0">Outside lab result</h3><p style="color:var(--mu);margin:4px 0 0;font-size:14px">The patient brought a result from another lab or hospital. The doctor will see it on the profile.</p></div><button class="bt g" onclick="oxOpen('${id}')">Add outside result</button></div><div id="lox" style="margin-top:12px"></div></div>`:''}`}
 async function view(id,np,quiet){
   if(!np&&(pg!=='prof'||pid!==id))navPush();
   pid=id;pg='prof';if(!quiet){lg('Viewed '+id);R();scrollTo(0,0)}
@@ -1379,7 +1379,7 @@ ${ahCard(p,true)}
 <div class="cd"><h3 style="margin-top:0">Prescription</h3><div id="rxs">${rxListHtml()}</div><button type="button" class="bt g" style="margin-top:4px" onclick="rxOpen()">Add medicine</button></div>
 <div class="cd"><h3 style="margin-top:0">Follow-up (optional)</h3><div class="fm"><div><label>Come back on</label><input id="fu1" type="date" min="${dstr(-1)}"></div><div><label>Reason (optional)</label><input id="fu2" maxlength="120" placeholder="e.g. BP recheck, lab results" autocomplete="off"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${[[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month']].map(([n,l])=>`<button type="button" class="bt g" onclick="fuQuick(${n})">${l}</button>`).join('')}<button type="button" class="bt g" onclick="$('fu1').value=''">Clear</button></div></div>
 <div class="cd"><label style="display:flex;gap:8px;align-items:center"><input id="rf" type="checkbox" style="width:auto" onchange="$('rfb').style.display=this.checked?'grid':'none'"><span>Refer this patient to another facility</span></label><div class="fm" id="rfb" style="display:none;margin-top:10px"><div><label>Refer to</label><input id="rf1" placeholder="e.g. Provincial Hospital"></div><div><label>Reason</label><input id="rf2"></div><div><label>Urgency</label><select id="rf3"><option>Routine</option><option>Urgent</option><option>Emergency</option></select></div></div></div>
-<div class="cd"><h3 style="margin-top:0">Send patient to</h3><p style="color:var(--mu);margin-top:0">Shown on the waiting-area display. Laboratory and Pharmacy are ticked automatically when you add a lab test or a prescription. You can change them. Leave all unticked and the patient is done.</p><div style="display:flex;gap:18px;flex-wrap:wrap">${[['lab','Laboratory'],['imm','Immunization'],['pharmacy','Pharmacy']].map(([k,l])=>`<label style="display:flex;gap:8px;align-items:center"><input id="sn-${k}" type="checkbox" style="width:auto" onchange="this.dataset.t=1"><span>${l}</span></label>`).join('')}</div></div>
+<div class="cd"><h3 style="margin-top:0">Send patient to</h3><p style="color:var(--mu);margin-top:0">Shown on the waiting-area display. Laboratory and Pharmacy are ticked automatically when you add a lab test or a prescription. You can change them. Laboratory runs at the same time as the other stations, so the patient does not wait for lab results before going to the Pharmacy. Leave all unticked and the patient is done.</p><div style="display:flex;gap:18px;flex-wrap:wrap">${[['lab','Laboratory'],['imm','Immunization'],['pharmacy','Pharmacy']].map(([k,l])=>`<label style="display:flex;gap:8px;align-items:center"><input id="sn-${k}" type="checkbox" style="width:auto" onchange="this.dataset.t=1"><span>${l}</span></label>`).join('')}</div></div>
 <div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button>${cq?`<button class="bt g" onclick="recallQ('${cq}',this)">Call again</button><button class="bt g" onclick="releaseQ('${cq}')">Return to waiting list</button>`:''}</div>`}
 function cancelC(){go('consult')}
 async function saveC(){
@@ -1410,20 +1410,29 @@ async function saveC(){
     route=['lab','imm','pharmacy'].filter(k=>sv(k,k==='lab'?lts.length>0:k==='pharmacy'?items.length>0:false));
     {const miss=[];if(items.length&&!route.includes('pharmacy'))miss.push('a prescription (Pharmacy)');if(lts.length&&!route.includes('lab'))miss.push('lab tests (Laboratory)');
       if(miss.length&&!await sConfirm('You added '+miss.join(' and ')+' but the patient is not being sent there. Save anyway?','Patient not sent','Save anyway',0)){$('cs2').disabled=false;return}}
+    // Lab does not hold up the other stations: when the patient also goes to Pharmacy or Immunization, Laboratory gets its own queue entry (same number) and runs in parallel. Lab results reach the doctor later.
+    const par=route.includes('lab')&&route.length>1,main=par?route.filter(k=>k!=='lab'):route;
+    const labQ=(base,num)=>{const lr=doc(collection(db,'queue'));
+      b.set(lr,{pid:p.id,name:base.name||pn(p),age:base.age!=null?base.age:age(p.dob),sex:base.sex||p.sex,reason:base.reason||g('cc'),day:base.day||today(),num,by:null,byName:null,at:serverTimestamp(),station:'lab',route:[],status:'waiting',room:null});
+      b.set(doc(db,'queueDisplay',lr.id),{day:base.day||today(),num,status:'waiting',room:null,station:'lab',route:[],routedAt:serverTimestamp()},{merge:true})};
     if(cq){
-      const qx=Q.find(e=>e.id===cq),rest=route.slice(1);
-      b.update(doc(db,'queue',cq),route.length?{status:'waiting',station:route[0],route:rest,by:null,byName:null,room:null}:{status:'done'});
-      if(qx)b.set(doc(db,'queueDisplay',cq),route.length?{day:qx.day,num:qx.num,status:'waiting',room:null,station:route[0],route:rest,routedAt:serverTimestamp()}:{day:qx.day,num:qx.num,status:'done',room:null,doneAt:serverTimestamp()},{merge:true})
+      const qx=Q.find(e=>e.id===cq),rest=main.slice(1);
+      b.update(doc(db,'queue',cq),main.length?{status:'waiting',station:main[0],route:rest,by:null,byName:null,room:null}:{status:'done'});
+      if(qx)b.set(doc(db,'queueDisplay',cq),main.length?{day:qx.day,num:qx.num,status:'waiting',room:null,station:main[0],route:rest,routedAt:serverTimestamp()}:{day:qx.day,num:qx.num,status:'done',room:null,doneAt:serverTimestamp()},{merge:true});
+      if(par&&qx)labQ(qx,qx.num)
     }else if(route.length){
       // Patient was seen without a queue entry (for example, back from the lab): give them a place in the next station's queue.
       await fetchQ();
-      const ex=Q.find(e=>e.pid===p.id&&['waiting','in-consult'].includes(e.status)),rest=route.slice(1),f={station:route[0],route:rest,status:'waiting',by:null,byName:null,room:null};
-      if(ex){b.update(doc(db,'queue',ex.id),f);b.set(doc(db,'queueDisplay',ex.id),{day:ex.day,num:ex.num,status:'waiting',room:null,station:route[0],route:rest,routedAt:serverTimestamp()},{merge:true})}
-      else{const qr=doc(collection(db,'queue')),num=Q.reduce((m,x)=>Math.max(m,x.num||0),0)+1;
-        b.set(qr,{pid:p.id,name:pn(p),age:age(p.dob),sex:p.sex,reason:g('cc'),day:today(),num,by:U.name,at:serverTimestamp(),...f});
-        b.set(doc(db,'queueDisplay',qr.id),{day:today(),num,status:'waiting',room:null,station:route[0],route:rest,routedAt:serverTimestamp()},{merge:true})}
+      const ex=Q.find(e=>e.pid===p.id&&['waiting','in-consult'].includes(e.status)),rest=main.slice(1),f=main.length?{station:main[0],route:rest,status:'waiting',by:null,byName:null,room:null}:null;
+      if(ex){if(f){b.update(doc(db,'queue',ex.id),f);b.set(doc(db,'queueDisplay',ex.id),{day:ex.day,num:ex.num,status:'waiting',room:null,station:main[0],route:rest,routedAt:serverTimestamp()},{merge:true})}else{b.update(doc(db,'queue',ex.id),{status:'done'});b.set(doc(db,'queueDisplay',ex.id),{day:ex.day,num:ex.num,status:'done',room:null,doneAt:serverTimestamp()},{merge:true})}
+        if(par)labQ(ex,ex.num)}
+      else{const num=Q.reduce((m,x)=>Math.max(m,x.num||0),0)+1;
+        if(f){const qr=doc(collection(db,'queue'));
+          b.set(qr,{pid:p.id,name:pn(p),age:age(p.dob),sex:p.sex,reason:g('cc'),day:today(),num,by:U.name,at:serverTimestamp(),...f});
+          b.set(doc(db,'queueDisplay',qr.id),{day:today(),num,status:'waiting',room:null,station:main[0],route:rest,routedAt:serverTimestamp()},{merge:true})}
+        if(par)labQ({},num)}
     }
-    await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;if(awaiting)sAlert('Saved. The prescription was sent to the doctor for approval before it goes to the pharmacy.');else sDone('The consultation was saved.'+(route.length?' The patient was sent to '+route.map(k=>STN[k]).join(', then ')+'.':''),'Consultation saved');view(p.id,1)
+    await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;if(awaiting)sAlert('Saved. The prescription was sent to the doctor for approval before it goes to the pharmacy.');else sDone('The consultation was saved.'+(route.length?' The patient was sent to '+(par?main.map(k=>STN[k]).join(', then ')+' and Laboratory (at the same time)':route.map(k=>STN[k]).join(', then '))+'.':''),'Consultation saved');view(p.id,1)
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
 }
 /* ---------- Pharmacy ---------- */
@@ -1795,12 +1804,49 @@ async function lbView(id){
   }catch(x){$('lbvb').textContent='Could not open the file. You may not have permission, or Storage is not set up yet.'}
 }
 function lbVX(){const d=$('lbv');if(d)d.remove()}
+/* Outside lab results: the patient brings a result from another lab or hospital. A doctor or midwife records it on the profile. It does not go through the Lab queue. */
+const oxCan=()=>['doctor','midwife','frontdesk'].includes(U.role);
+function oxOpen(pid0){
+  const b=$('lox');if(!b||b.innerHTML){if(b)b.innerHTML='';return}
+  LBF.ox=[];
+  b.innerHTML=`<div class="cd" style="margin:0 0 12px;border:1px solid var(--bd,#ccc)"><h4 style="margin:0 0 8px">Add outside lab result</h4><label>Test</label><input id="oxt" placeholder="e.g. CBC, Urinalysis" maxlength="120"><label style="margin-top:10px">Result</label><textarea id="oxr" rows="3" placeholder="Result, or leave blank if you attach a photo / PDF"></textarea><label style="margin-top:10px">Date of the test</label><input id="oxd" type="date" value="${today()}" max="${today()}" style="max-width:200px"><label style="margin-top:10px">Where it was done (optional)</label><input id="oxs" placeholder="e.g. Hi-Precision, district hospital" maxlength="80">${labAtt()?`<div style="margin-top:10px"><input id="lf-ox" type="file" accept="image/*,application/pdf" multiple hidden onchange="oxPick(this)"><button type="button" class="bt g" onclick="$('lf-ox').click()">Attach photo / PDF</button><div id="lc-ox" style="margin-top:6px"></div></div>`:''}<div class="er2" id="oxe"></div><div style="display:flex;gap:8px;margin-top:12px"><button class="bt" id="oxb" onclick="oxSave('${pid0}')">Save outside result</button><button class="bt g" onclick="oxOpen()">Cancel</button></div></div>`
+}
+async function oxPick(inp){
+  const er=$('oxe'),cur=LBF.ox||[],list=[...inp.files];inp.value='';if(er)er.textContent='';
+  for(const f of list){
+    if(cur.length>=3){if(er)er.textContent='You can attach up to 3 files per result.';break}
+    try{cur.push(await lbPrep(f))}catch(x){if(er)er.textContent=x.message}
+  }
+  LBF.ox=cur;lbChips('ox')
+}
+async function oxSave(pid0){
+  const er=$('oxe'),btn=$('oxb'),t=$('oxt').value.trim(),v=$('oxr').value.trim(),d=$('oxd').value||today(),src=$('oxs').value.trim(),fl=labAtt()?(LBF.ox||[]):[];
+  if(!t){er.textContent='Enter the name of the test.';return}
+  if(!v&&!fl.length){er.textContent=labAtt()?'Enter the result or attach a file.':'Enter the result.';return}
+  if(d>today()){er.textContent='The test date cannot be in the future.';return}
+  er.textContent='';btn.disabled=true;btn.textContent=fl.length?'Uploading...':'Saving...';
+  try{
+    const pd=P.find(x=>x.id===pid0);
+    if(!pd)throw{code:'nopatient'};
+    const ref=doc(collection(db,'labs')),files=[],stg=fl.length?getStorage(app):null;
+    for(let i=0;i<fl.length;i++){
+      const f=fl[i],path='labs/'+ref.id+'/'+Date.now()+'_'+i+'.'+(f.type==='application/pdf'?'pdf':'jpg');
+      await uploadBytes(sRef(stg,path),f.blob,{contentType:f.type});
+      files.push({p:path,n:f.name.slice(0,60),t:f.type})
+    }
+    await setDoc(ref,{pid:pid0,pname:pn(pd),d,test:t,status:'done',result:v,outside:true,...(src?{src}:{}),by:U.uid,byName:U.name,resultBy:U.name,resultAt:serverTimestamp(),at:serverTimestamp(),...(files.length?{files}:{})});
+    await lg('Outside lab result '+pid0+' '+ref.id);LBF.ox=[];const b=$('lox');if(b)b.innerHTML='';sDone('The outside lab result was saved.','Result saved');loadLabH(pid0)
+  }catch(x){
+    btn.disabled=false;btn.textContent='Save outside result';const c=String(x.code||'');
+    er.textContent=c==='permission-denied'||c==='storage/unauthorized'?'You do not have permission to add this result.':c.startsWith('storage/')?'Could not upload the file. Check that Storage is enabled and the storage rules allow doctors and midwives to upload.':'Could not save. Check your connection.'
+  }
+}
 async function loadLabH(id){
   const h=$('labh');if(!h)return;
   try{
     const s=await getDocs(query(collection(db,'labs'),where('pid','==',id))),l=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.d||'').localeCompare(a.d||''));
     l.forEach(r=>{if(r.files)LBFM[r.id]=r.files});
-    h.innerHTML=l.length?`<table><thead><tr><th>Date</th><th>Test</th><th>Result</th></tr></thead><tbody>${l.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.test)}</td><td>${r.status==='done'?E(r.result||'')+lbFilesBtn(r):'<span class="tg wa">Pending</span>'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No lab requests yet.</p>'
+    h.innerHTML=l.length?`<table><thead><tr><th>Date</th><th>Test</th><th>Result</th></tr></thead><tbody>${l.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.test)}${r.outside?`<br><span class="tg" style="margin:2px 0 0">Outside${r.src?': '+E(r.src):''}</span>`:''}</td><td>${r.status==='done'?E(r.result||'')+lbFilesBtn(r):'<span class="tg wa">Pending</span>'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No lab requests yet.</p>'
   }catch(e){h.textContent='Could not load lab results.'}
 }
 const LDEF=['CBC','Urinalysis','Fecalysis','Blood sugar (FBS)','Blood sugar (RBS)','Lipid profile','Pregnancy test','Sputum AFB'];
@@ -2174,5 +2220,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
