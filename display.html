@@ -83,7 +83,7 @@ const $=id=>document.getElementById(id);
 const day=()=>new Date().toLocaleDateString('en-CA');
 const LANG=new URLSearchParams(location.search).get('lang')==='tl'?'tl':'en';
 const T={next:'Next',idle:'Available',none:'No patient is being called right now.',recent:'Please proceed',nobody:'No one is waiting.',off:'No connection – information may be out of date.',con:'Connecting…',upd:'Last update'};
-let maxRoom=+new URLSearchParams(location.search).get('rooms')||0;
+let maxRoom=+new URLSearchParams(location.search).get('rooms')||0,cfgRooms=0,seenRoom=0;
 let curDay=day(),unsub=null,soundCfg=null;
 const lastDone={};let lastId=null,soundOn=false,first=true,docs=[];const last={},flash={};
 let ac=null;
@@ -121,7 +121,9 @@ function render(){
   const isS=d=>d.station&&d.station!=='consult';
   const now=docs.filter(d=>d.status==='in-consult'&&(d.room||isS(d))).sort((a,b)=>(a.room||99)-(b.room||99)||a.num-b.num);
   const wait=docs.filter(d=>d.status==='waiting'&&!isS(d)).sort((a,b)=>a.num-b.num);
-  docs.forEach(d=>{const r=+d.room;if(Number.isInteger(r)&&r>maxRoom&&r<=20)maxRoom=r});
+  docs.forEach(d=>{const r=+d.room;if(Number.isInteger(r)&&r>seenRoom&&r<=20)seenRoom=r});
+  // Number of consultation rooms: the setting saved by the admin (one box per room), or the highest room seen, or ?rooms=N in the address.
+  maxRoom=Math.max(+new URLSearchParams(location.search).get('rooms')||0,cfgRooms,seenRoom);
   const card=d=>`<div class="card ${d.id===lastId?'latest':''} ${flash[d.id]>Date.now()?'flash':''}"><div class="rm">${isS(d)?(ST[d.station]||d.station):'Consultation '+d.room}</div><div class="n">${qn(d.num)}</div></div>`;
   const idle=r=>`<div class="card idle"><div class="rm">Consultation ${r}</div><div class="n">&mdash;</div><div class="rm">${T.idle}</div></div>`;
   let h='';
@@ -178,7 +180,7 @@ unsub=onSnapshot(query(collection(db,'queueDisplay'),where('day','==',curDay)),{
 },()=>{conn.err=true;setConn()});
 }
 sub();
-onSnapshot(doc(db,'displayConfig','main'),s=>{const c=s.exists()?s.data():{};if(c.name){$('fn').textContent=c.name;document.title=c.name+' - Queue'}const lg=$('lgo');if(c.logo){lg.src=c.logo;lg.style.display='block'}else lg.style.display='none';soundCfg=s.exists()&&s.data().sound===false?false:true;if(!soundCfg){soundOn=false;$('snd').style.display='none'}else if(!soundOn)$('snd').style.display='flex'},()=>{$('snd').style.display='flex'});
+onSnapshot(doc(db,'displayConfig','main'),s=>{const c=s.exists()?s.data():{};if(c.name){$('fn').textContent=c.name;document.title=c.name+' - Queue'}const lg=$('lgo');if(c.logo){lg.src=c.logo;lg.style.display='block'}else lg.style.display='none';cfgRooms=Math.max(0,Math.min(20,parseInt(c.rooms)||0));try{render()}catch(e){}soundCfg=s.exists()&&s.data().sound===false?false:true;if(!soundCfg){soundOn=false;$('snd').style.display='none'}else if(!soundOn)$('snd').style.display='flex'},()=>{$('snd').style.display='flex'});
 
 let annData=null,annKey=null;
 function fitAnn(){const t=$('annt'),w=$('annw');if(!t||!w)return;const cw=w.clientWidth;t.style.setProperty('--w',cw+'px');t.style.animationDuration=Math.max(10,(cw+t.scrollWidth)/110)+'s'}
