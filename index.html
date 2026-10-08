@@ -122,7 +122,7 @@ const syncDisp=(x,extra)=>setDoc(doc(db,'queueDisplay',x.id),{day:x.day,num:x.nu
 async function setRooms(){
   const er=$('rme'),n=parseInt($('rmn').value);er.textContent='';
   if(!(n>=1&&n<=20)){er.textContent='Enter a number from 1 to 20.';return}
-  try{await setDoc(doc(db,'meta','settings'),{rooms:n,by:U.name,at:serverTimestamp()},{merge:true});S.rooms=n;try{await setDoc(doc(db,'displayConfig','main'),{rooms:n,at:serverTimestamp()},{merge:true})}catch(x){}await lg('Consultation rooms: '+n);er.textContent='';sDone('Consultation rooms updated.')}
+  try{await setDoc(doc(db,'meta','settings'),{rooms:n,by:U.name,at:serverTimestamp()},{merge:true});S.rooms=n;let dok=true;try{await setDoc(doc(db,'displayConfig','main'),{rooms:n,at:serverTimestamp()},{merge:true})}catch(x){dok=false}await lg('Consultation rooms: '+n);er.textContent='';if(dok)sDone('Consultation rooms updated. The waiting-area display will show '+n+(n===1?' room.':' rooms.'));else sAlert('The number of rooms was saved for staff, but the waiting-area display could not be updated. Publish the latest firestore.rules in Firebase, then save the number of rooms again.')}
   catch(x){er.textContent='Could not save. Check your connection.'}
 }
 const vRoles=()=>Array.isArray(S.vitalsRoles)?S.vitalsRoles:VDEF;
