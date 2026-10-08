@@ -1,0 +1,36 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // The role of the signed-in staff member comes from the same users collection that firestore.rules uses.
+    function staff() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+    function role() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // The developer chooses who may enter lab results (meta/settings.labRoles). Default: the medical technologist.
+    function labRoles() {
+      return firestore.exists(/databases/(default)/documents/meta/settings)
+        ? firestore.get(/databases/(default)/documents/meta/settings).data.get('labRoles', ['medtech'])
+        : ['medtech'];
+    }
+
+    // Photos or PDFs of printed lab results: labs/<labId>/<file>
+    match /labs/{labId}/{fileName} {
+      // Same people who can read lab requests: doctor, midwife and medical technologist.
+      allow read: if staff() && (role() in ['doctor', 'midwife', 'medtech'] || role() in labRoles());
+      // Only the roles chosen in labRoles upload. One photo or PDF, up to 5 MB. Files are never overwritten or deleted.
+      allow create: if staff() && role() in labRoles()
+        && request.resource.size < 5 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType == 'application/pdf');
+      allow update, delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
