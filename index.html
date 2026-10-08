@@ -88,6 +88,7 @@ import{firebaseConfig as C}from'./firebase-config.js';
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import{initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,getDoc,setDoc,updateDoc,deleteDoc,addDoc,collection,getDocs,query,orderBy,limit,where,runTransaction,writeBatch,onSnapshot,serverTimestamp}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import{getStorage,ref as sRef,uploadBytes,getDownloadURL}from'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 const app=initializeApp(C),auth=getAuth(app);
 const db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
 const $=i=>document.getElementById(i);
@@ -1708,26 +1709,81 @@ let LB=[],LD=[];
 const lbg=()=>`<h2 style="margin-top:0">Lab</h2>${stCard('lab')}<div class="cd ov"><h3 style="margin-top:0">Requests to process</h3><div id="lbl">Loading...</div></div><div class="cd ov"><h3 style="margin-top:0">Done today</h3><div id="lbd"></div></div>`;
 function lbRender(){
   const l=$('lbl'),d=$('lbd');if(!l)return;delete l.dataset.dirty;
-  l.innerHTML=LB.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Test</th><th>Result</th><th></th></tr></thead><tbody>${LB.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${E(r.test)}</td><td><input id="lr-${r.id}" placeholder="Result" style="min-width:180px"></td><td><button class="bt" onclick="lbSave('${r.id}')">Save result</button></td></tr>`).join('')}</tbody></table><div class="er2" id="lbe"></div>`:'<p style="color:var(--mu)">No requests waiting.</p>';
-  d.innerHTML=LD.length?`<table><thead><tr><th>Patient</th><th>Test</th><th>Result</th></tr></thead><tbody>${LD.map(r=>`<tr><td>${E(r.pname)}</td><td>${E(r.test)}</td><td>${E(r.result||'')}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">None yet.</p>'
+  l.innerHTML=LB.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Test</th><th>Result</th><th></th></tr></thead><tbody>${LB.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${E(r.test)}</td><td><input id="lr-${r.id}" placeholder="Result" style="min-width:180px"><div id="lc-${r.id}" style="margin-top:6px"></div></td><td style="white-space:nowrap"><input id="lf-${r.id}" type="file" accept="image/*,application/pdf" multiple hidden onchange="lbPick('${r.id}',this)"><button class="bt g" onclick="$('lf-${r.id}').click()">Attach</button> <button class="bt" id="ls-${r.id}" onclick="lbSave('${r.id}')">Save result</button></td></tr>`).join('')}</tbody></table><div class="er2" id="lbe"></div>`:'<p style="color:var(--mu)">No requests waiting.</p>';
+  d.innerHTML=LD.length?`<table><thead><tr><th>Patient</th><th>Test</th><th>Result</th></tr></thead><tbody>${LD.map(r=>`<tr><td>${E(r.pname)}</td><td>${E(r.test)}</td><td>${E(r.result||'')}${lbFilesBtn(r)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">None yet.</p>';
+  Object.keys(LBF).forEach(lbChips)
 }
 async function loadLab(){
   try{
     const[a,b]=await Promise.all([getDocs(query(collection(db,'labs'),where('status','==','pending'))),getDocs(query(collection(db,'labs'),where('status','==','done'),where('d','==',today())))]);
-    LB=a.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(x.d||'').localeCompare(y.d||''));LD=b.docs.map(d=>d.data());lbRender()
+    LB=a.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(x.d||'').localeCompare(y.d||''));LD=b.docs.map(d=>({id:d.id,...d.data()}));LD.forEach(r=>{if(r.files)LBFM[r.id]=r.files});lbRender()
   }catch(e){const l=$('lbl');if(l)l.textContent='Could not load. Check your connection.'}
 }
-async function lbSave(id){
-  const v=$('lr-'+id).value.trim(),er=$('lbe');
-  if(!v){er.textContent='Enter the result first.';return}
-  try{await updateDoc(doc(db,'labs',id),{status:'done',result:v,resultBy:U.name,resultAt:serverTimestamp()});await lg('Lab result '+id);sDone('The lab result was saved.','Result saved');await loadLab()}
-  catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission to enter results.':'Could not save. Check your connection.'}
+/* Lab result attachments: up to 3 photos or PDF files (5 MB each) per result, kept in Firebase Storage under labs/<labId>/. */
+const LBF={},LBFM={};
+const lbFilesBtn=r=>r.files&&r.files.length?` <button class="bt g" onclick="lbView('${r.id}')">View printout (${r.files.length})</button>`:'';
+async function lbPrep(f){
+  const MAX=5*1024*1024;
+  if(f.type==='application/pdf'){if(f.size>MAX)throw new Error('The PDF is larger than 5 MB.');return{blob:f,name:f.name,type:'application/pdf'}}
+  if(!/^image\//.test(f.type))throw new Error('Only photos and PDF files can be attached.');
+  let bmp;try{bmp=await createImageBitmap(f)}catch(x){throw new Error('This photo could not be read. Try a JPEG, PNG or PDF.')}
+  const k=Math.min(1,1600/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
+  const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,0,0,c.width,c.height);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));
+  if(!blob||blob.size>MAX)throw new Error('The photo is too large.');
+  return{blob,name:f.name.replace(/\.[^.]+$/,'')+'.jpg',type:'image/jpeg'}
 }
+function lbChips(id){
+  const c=$('lc-'+id);if(!c)return;
+  c.innerHTML=(LBF[id]||[]).map((f,i)=>`<span class="tg" style="margin:0 6px 4px 0;display:inline-block">${E(f.name)} <a href="#" aria-label="Remove ${E(f.name)}" onclick="lbRm('${id}',${i});return false">&#10005;</a></span>`).join('')
+}
+function lbRm(id,i){(LBF[id]||[]).splice(i,1);lbChips(id)}
+async function lbPick(id,inp){
+  const er=$('lbe'),cur=LBF[id]||[],list=[...inp.files];inp.value='';
+  if(er)er.textContent='';
+  for(const f of list){
+    if(cur.length>=3){if(er)er.textContent='You can attach up to 3 files per result.';break}
+    try{cur.push(await lbPrep(f))}catch(x){if(er)er.textContent=x.message}
+  }
+  LBF[id]=cur;const l=$('lbl');if(l)l.dataset.dirty='1';lbChips(id)
+}
+async function lbSave(id){
+  const v=$('lr-'+id).value.trim(),er=$('lbe'),fl=LBF[id]||[],btn=$('ls-'+id);
+  if(!v&&!fl.length){er.textContent='Enter the result or attach a file first.';return}
+  er.textContent='';if(btn){btn.disabled=true;btn.textContent=fl.length?'Uploading...':'Saving...'}
+  try{
+    const files=[],stg=fl.length?getStorage(app):null;
+    for(let i=0;i<fl.length;i++){
+      const f=fl[i],path='labs/'+id+'/'+Date.now()+'_'+i+'.'+(f.type==='application/pdf'?'pdf':'jpg');
+      await uploadBytes(sRef(stg,path),f.blob,{contentType:f.type});
+      files.push({p:path,n:f.name.slice(0,60),t:f.type})
+    }
+    await updateDoc(doc(db,'labs',id),{status:'done',result:v,resultBy:U.name,resultAt:serverTimestamp(),...(files.length?{files}:{})});
+    delete LBF[id];await lg('Lab result '+id+(files.length?' (+'+files.length+' file'+(files.length>1?'s':'')+')':''));sDone('The lab result was saved.','Result saved');await loadLab()
+  }catch(x){
+    if(btn){btn.disabled=false;btn.textContent='Save result'}
+    const c=String(x.code||'');
+    er.textContent=c==='permission-denied'||c==='storage/unauthorized'?'You do not have permission to enter results.':c.startsWith('storage/')?'Could not upload the file. Check that Storage is enabled and the storage rules are published.':'Could not save. Check your connection.'
+  }
+}
+async function lbView(id){
+  const fl=LBFM[id]||[];if(!fl.length)return;
+  lbVX();
+  const d=document.createElement('div');d.id='lbv';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px;z-index:50';
+  d.innerHTML='<div class="cd" style="max-width:820px;width:100%;margin:auto"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">Lab printout</h3><button class="bt g" onclick="lbVX()">Close</button></div><div id="lbvb" style="margin-top:12px">Loading...</div></div>';
+  document.body.appendChild(d);
+  try{
+    const stg=getStorage(app),urls=await Promise.all(fl.map(f=>getDownloadURL(sRef(stg,f.p))));
+    $('lbvb').innerHTML=fl.map((f,i)=>f.t==='application/pdf'?`<p><a class="bt" href="${urls[i]}" target="_blank" rel="noopener">Open PDF: ${E(f.n)}</a></p>`:`<a href="${urls[i]}" target="_blank" rel="noopener"><img src="${urls[i]}" alt="${E(f.n)}" style="max-width:100%;border-radius:8px;margin-bottom:10px"></a>`).join('')
+  }catch(x){$('lbvb').textContent='Could not open the file. You may not have permission, or Storage is not set up yet.'}
+}
+function lbVX(){const d=$('lbv');if(d)d.remove()}
 async function loadLabH(id){
   const h=$('labh');if(!h)return;
   try{
-    const s=await getDocs(query(collection(db,'labs'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||''));
-    h.innerHTML=l.length?`<table><thead><tr><th>Date</th><th>Test</th><th>Result</th></tr></thead><tbody>${l.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.test)}</td><td>${r.status==='done'?E(r.result||''):'<span class="tg wa">Pending</span>'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No lab requests yet.</p>'
+    const s=await getDocs(query(collection(db,'labs'),where('pid','==',id))),l=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.d||'').localeCompare(a.d||''));
+    l.forEach(r=>{if(r.files)LBFM[r.id]=r.files});
+    h.innerHTML=l.length?`<table><thead><tr><th>Date</th><th>Test</th><th>Result</th></tr></thead><tbody>${l.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.test)}</td><td>${r.status==='done'?E(r.result||'')+lbFilesBtn(r):'<span class="tg wa">Pending</span>'}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">No lab requests yet.</p>'
   }catch(e){h.textContent='Could not load lab results.'}
 }
 const LDEF=['CBC','Urinalysis','Fecalysis','Blood sugar (FBS)','Blood sugar (RBS)','Lipid profile','Pregnancy test','Sputum AFB'];
@@ -2101,5 +2157,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
