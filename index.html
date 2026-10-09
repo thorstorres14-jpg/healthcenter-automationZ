@@ -1396,7 +1396,7 @@ const rmRx=k=>{RXL.splice(k,1);rxPaint()};
 function consForm(){
   const p=P.find(x=>x.id===cp),qv=((Q.find(e=>e.id===cq)||{}).vitals)||{},VK={v1:'bps',v2:'bpd',v3:'t',v4:'pr',v5:'rr',v6:'o2',v7:'wt',v8:'ht'},f=(id,l,ph)=>`<div><label>${l}</label><input id="${id}" type="number" step="any" inputmode="decimal" placeholder="${ph}" value="${qv[VK[id]]??''}"></div>`;
   return `<button class="bt g" onclick="cancelC()">Back</button><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'} | ${E(p.pu+', '+p.br)}</div></div>
-${ahCard(p,true)}
+${ahCard(p,true)}<div id="pnban"></div>${(setTimeout(()=>pnBanner(p.id),0),'')}
 <div class="cd"><h3 style="margin-top:0">Vitals</h3><div class="fm">${f('v1','BP systolic (mmHg)','120')}${f('v2','BP diastolic (mmHg)','80')}${f('v3','Temperature (°C)','36.5')}${f('v4','Pulse (bpm)','80')}${f('v5','Respiratory rate (/min)','18')}${f('v6','SpO2 (%)','98')}${f('v7','Weight (kg)','')}${f('v8','Height (cm)','')}</div></div>
 <div class="cd"><h3 style="margin-top:0">Consultation</h3><label>Chief complaint</label><textarea id="cc" rows="2"></textarea><label style="margin-top:10px">Diagnosis</label><textarea id="dx" rows="2"></textarea><label style="margin-top:10px">Treatment / notes (optional)</label><textarea id="tx" rows="3"></textarea></div>
 <div class="cd"><h3 style="margin-top:0">Lab tests (optional)</h3><input id="lt" list="ltl" oninput="snSync()" onchange="snSync()" placeholder="e.g. CBC, Urinalysis (separate with commas)"><datalist id="ltl">${labList().map(t=>`<option value="${E(t)}">`).join('')}</datalist></div>
@@ -2269,6 +2269,16 @@ async function pnCloseSave(prid){
   try{await updateDoc(doc(db,'prenatal',prid),{status:'closed',outcome:o,outDate:d,outNote:note,nv:'',outBy:U.name,outAt:serverTimestamp()});Object.assign(x,{status:'closed',outcome:o,outDate:d,outNote:note,nv:''});await lg('Closed pregnancy '+x.pid+' ('+o+')');fmClose();pnRefresh(x.pid);sDone('The pregnancy was closed.','Saved')}
   catch(ex){fmBusy(false);er.textContent=ex.code==='permission-denied'?'You do not have permission to close pregnancies. Publish the latest firestore.rules first.':'Could not save. Check your connection.'}
 }
+// Consultation form: show a banner when the patient has an active pregnancy, so the doctor sees it before prescribing.
+async function pnBanner(id){
+  const p=P.find(x=>x.id===id);if(!p||!pnElig(p))return;
+  try{
+    const s=await getDocs(query(collection(db,'prenatal'),where('pid','==',id))),a=s.docs.map(d=>({id:d.id,...d.data()})).find(x=>x.status==='active'),el=$('pnban');
+    if(!a||!el||cp!==id)return;
+    PNM[a.id]=a;const al=pnAlerts(a);
+    el.innerHTML=`<div class="cd" style="border-left:4px solid var(--wa)"><b style="color:var(--wa)">Pregnant:</b> ${E(pnAog(a.lmp))} (${pnTri(a.lmp)}), due ${E(longD(a.edd))}.${al.length?' '+al.map(x=>tgh(E(x[0]),x[1])).join(' '):''}<small style="display:block;color:var(--mu);margin-top:4px">Check that any medicine is safe in pregnancy before prescribing.</small></div>`
+  }catch(e){}
+}
 // Pregnancy card on the patient profile (doctor and midwife).
 async function loadPnH(id){
   if(!$('pnc'))return;
@@ -2470,5 +2480,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
