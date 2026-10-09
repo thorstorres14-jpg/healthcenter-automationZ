@@ -178,7 +178,7 @@ function qWatch(){
 }
 /* Station alert: when a doctor sends a patient to Laboratory, Pharmacy or Immunization, that station gets a badge, a sound and a pop-up. */
 const SQN={pharm:'pharmacy',lab:'lab',imm:'imm'};
-let SQs=null,SQac=null,SQt=null,SQt0='';
+let SQs=null,SQac=null,SQt=null,SQt0='',SQlast=0,NTlast=0;
 const myStn=()=>U?['pharmacy','lab','imm'].filter(k=>SROLE[k].includes(U.role)):[];
 const sqWaiting=()=>Q.filter(x=>myStn().includes(x.station)&&x.status==='waiting');
 function sqBadge(nk){const k=SQN[nk];if(!k||!myStn().includes(k))return '';const n=Q.filter(x=>x.station===k&&x.status==='waiting').length;return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting">${n>99?'99+':n}</span>`:''}
@@ -194,7 +194,8 @@ function sqPaint(){
 document.addEventListener('click',()=>{try{if(!SQac)SQac=new(window.AudioContext||window.webkitAudioContext)();if(SQac.state==='suspended')SQac.resume()}catch(e){}});
 function sqBeep(){
   try{
-    if(!SQac)return;
+    if(!SQac||Date.now()-NTlast<6000)return;
+    SQlast=Date.now();
     [[880,0],[1175,.22]].forEach(([f,t])=>{const o=SQac.createOscillator(),g=SQac.createGain();o.frequency.value=f;o.connect(g);g.connect(SQac.destination);const s=SQac.currentTime+t;g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(.3,s+.03);g.gain.exponentialRampToValueAtTime(.0001,s+.35);o.start(s);o.stop(s+.4)})
   }catch(e){}
 }
@@ -2299,9 +2300,9 @@ function ntBuild(t){
     if(low.length)it.push({c:low.some(v=>bUse(v)<=0)?'er':'wa',t:kind+': low or out of stock',d:nm(low,v=>(v.name||'')+' ('+bUse(v)+' left)'),go:'inv'});
     if(exp.length)it.push({c:exp.some(v=>stTags(v).includes('Expired'))?'er':'wa',t:kind+': expired or expiring soon',d:nm(exp,v=>(v.name||'')+' ('+stTags(v).filter(g=>g!=='Low').join(', ').toLowerCase()+')'),go:'inv'})
   };
-  if(t.ap>0)it.push({c:'wa',t:'Prescriptions to approve',d:pl(t.ap,'prescription')+' waiting for your approval',go:'appr'});
-  if(t.rx>0)it.push({c:'wa',t:'Prescriptions to dispense',d:pl(t.rx,'prescription')+' waiting to be dispensed',go:'pharm'});
-  if(t.lb>0)it.push({c:'wa',t:'Lab requests',d:pl(t.lb,'request')+' waiting for results',go:'lab'});
+  if(t.ap>0)it.push({k:'ap',n:t.ap,snd:1,c:'wa',t:'Prescriptions to approve',d:pl(t.ap,'prescription')+' waiting for your approval',go:'appr'});
+  if(t.rx>0)it.push({k:'rx',n:t.rx,snd:1,c:'wa',t:'Prescriptions to dispense',d:pl(t.rx,'prescription')+' waiting to be dispensed',go:'pharm'});
+  if(t.lb>0)it.push({k:'lb',n:t.lb,snd:1,c:'wa',t:'Lab requests',d:pl(t.lb,'request')+' waiting for results',go:'lab'});
   if(t.rf&&t.rf.length){const old=t.rf.filter(v=>rfDays(v.refAt||v.d)>=RFW).length;it.push({c:old?'er':'wa',t:'Referrals sent',d:pl(t.rf.length,'referral')+' not yet received'+(old?', '+old+' waiting '+RFW+' days or more':''),go:'ref'})}
   const fu=(t.fu||[]).filter(v=>v.fu&&v.fu<=td).map(v=>v.fu),pn=(t.pn||[]).filter(x=>x.nv&&x.nv<=td).map(x=>x.nv),dd=fu.concat(pn);
   if(dd.length){const ov=dd.filter(d=>d<td).length,to=dd.length-ov;it.push({c:ov?'er':'wa',t:'Follow-ups and check-ups',d:(ov?ov+' overdue':'')+(ov&&to?', ':'')+(to?to+' due today':''),go:RPR.includes(r)?'fu':'pn'})}
@@ -2326,12 +2327,29 @@ async function loadNt(){
   await Promise.all(j);NT.busy=false;
   if(NT.again){NT.again=false;loadNt();return}
   if(!U||ntKey()!==k)return;
-  NT.key=k;NT.items=ntBuild(t);ntPaint()
+  const first=NT.key!==k,items=ntBuild(t),cnt={};items.filter(x=>x.snd).forEach(x=>{cnt[x.k]=x.n});
+  const up=!first&&Object.keys(cnt).some(x=>cnt[x]>((NT.cnt||{})[x]||0));
+  NT.key=k;NT.items=items;NT.cnt=cnt;ntPaint();
+  if(up)ntChime()
 }
 let NTO=false;
+const ntMuted=()=>{try{return localStorage.getItem('ntMute')==='1'}catch(e){return false}};
+// One soft chime when a new prescription or lab request arrives (not for stock or follow-ups, and not at sign-in)
+function ntChime(force){
+  try{
+    if(!force&&(ntMuted()||Date.now()-SQlast<6000))return;
+    if(!SQac)return;
+    if(SQac.state==='suspended')SQac.resume();
+    NTlast=Date.now();
+    const o=SQac.createOscillator(),g=SQac.createGain(),s=SQac.currentTime;
+    o.type='sine';o.frequency.setValueAtTime(784,s);o.frequency.setValueAtTime(1047,s+.12);o.connect(g);g.connect(SQac.destination);
+    g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(.18,s+.03);g.gain.exponentialRampToValueAtTime(.0001,s+.45);o.start(s);o.stop(s+.5)
+  }catch(e){}
+}
+function ntMute(e){if(e)e.stopPropagation();const m=!ntMuted();try{localStorage.setItem('ntMute',m?'1':'0')}catch(x){}ntDrop();if(!m)ntChime(true)}
 function ntDropHtml(){
   const l=ntItems();
-  const h='<div class="nth">Notifications'+(l&&l.length?' ('+l.length+')':'')+'</div>';
+  const h='<div class="nth" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>Notifications'+(l&&l.length?' ('+l.length+')':'')+'</span><button class="bt g" style="padding:4px 10px;font-size:13px;font-weight:400" onclick="ntMute(event)" aria-label="Notification sound">Sound: '+(ntMuted()?'Off':'On')+'</button></div>';
   if(l===null)return h+'<div class="nte">Loading...</div>';
   return h+(l.length?l.map(x=>`<button class="nti ${x.c==='er'?'er':''}" onclick="ntGo('${x.go}')"><b>${E(x.t)}</b><small>${E(x.d)}</small></button>`).join(''):'<div class="nte">Nothing needs attention right now.</div>')
 }
@@ -2728,5 +2746,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{ntToggle,ntGo,setTab,setReasons,RSDEF,invTab,invSetK,invSq,invSetT,invSetR,invQuick,invPrintStock,invCsvStock,invPrintRo,invCsvRo,invPrintHist,invCsvHist,invPrintSum,invCsvSum,callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{ntMute,ntToggle,ntGo,setTab,setReasons,RSDEF,invTab,invSetK,invSq,invSetT,invSetR,invQuick,invPrintStock,invCsvStock,invPrintRo,invCsvRo,invPrintHist,invCsvHist,invPrintSum,invCsvSum,callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
