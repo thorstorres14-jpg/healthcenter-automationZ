@@ -1649,12 +1649,21 @@ function siRender(){
   fmShow('Stock in: '+v.name,'Now '+bUse(v)+' on hand.',`<div class="fm"><div><label>Quantity received</label><input id="siq" type="number" min="1" step="1" oninput="siSum()"></div><div><label>Date received</label><input id="sid" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date of this batch (optional)</label><input id="six" type="date" data-fut="1" oninput="siSum()"></div><div><label>Source</label><select id="sis"><option>Purchased</option><option>DOH or LGU</option><option>Donation</option></select></div></div><div id="sisum" style="color:var(--mu);font-size:14px;margin-top:8px"></div><div class="er2" id="sie"></div>`,'Save stock in','siSave()')
 }
 function siSum(){const el=$('sisum'),v=SK[sio],n=Number($('siq').value);if(el&&v)el.textContent=Number.isInteger(n)&&n>0?'After saving: '+(bUse(v)+(($('six').value&&$('six').value<today())?0:n))+' on hand':''}
+// Expiry check for new stock: an expiry date in the past is refused, and one within 30 days asks for a confirmation.
+async function expOk(x,er){
+  if(!x)return true;
+  if(x<today()){er.textContent='That expiry date has already passed. Check the date on the box or bottle.';return false}
+  const lim=new Date();lim.setDate(lim.getDate()+30);
+  if(x<=dpIso(lim)&&!await sConfirm('This batch expires within 30 days ('+x+'). Save anyway?','Expires soon','Save anyway',0))return false;
+  return true
+}
 async function siSave(){
   const k=sio,v=SK[k],er=$('sie'),n=Number($('siq').value),d=$('sid').value,x=$('six').value,src=$('sis').value;
   if(!v)return;
   if(!Number.isInteger(n)||n<1){er.textContent='Enter the quantity received (a whole number, 1 or more).';return}
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()){er.textContent='Enter a valid date received (not in the future).';return}
   if(x&&x<d){er.textContent='The expiry date cannot be before the date received.';return}
+  if(!await expOk(x,er))return;
   er.textContent='';let saved=null;fmBusy(true);
   try{
     await runTransaction(db,async tx=>{
@@ -1751,6 +1760,7 @@ async function stSave(){
   if(v===''||!Number.isInteger(q)||q<0){er.textContent='Enter a valid quantity (a whole number, 0 or more).';return}
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()){er.textContent='Enter a valid date received (not in the future).';return}
   if(x&&x<d){er.textContent='The expiry date cannot be before the date received.';return}
+  if(!await expOk(x,er))return;
   if(!isFinite(lo)||lo<0){er.textContent='Enter a valid low-stock level.';return}
   er.textContent='';
   const ex=SK[k];
@@ -2676,6 +2686,7 @@ async function vxInSave(k){
   if(!Number.isInteger(q)||q<1){er.textContent='Enter the number of doses received (a whole number, 1 or more).';return}
   if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()){er.textContent='Enter a valid date received (not in the future).';return}
   if(x&&x<d){er.textContent='The expiry date cannot be before the date received.';return}
+  if(!await expOk(x,er))return;
   if(!isFinite(lo)||lo<0){er.textContent='Enter a valid low-stock level.';return}
   er.textContent='';fmBusy(true);let saved=null;
   try{
@@ -2757,6 +2768,13 @@ async function loadAudit(){
 }
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
+// Offline bar: shown while the browser has no internet connection.
+function offBar(){
+  let b=document.getElementById('offb');
+  if(navigator.onLine||!U||mode!=='app'){if(b)b.remove();return}
+  if(!b){b=document.createElement('div');b.id='offb';b.setAttribute('role','alert');b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99998;background:#b42318;color:#fff;padding:10px 16px;text-align:center;font-weight:600';b.textContent='No internet connection. Keep this page open. Changes may not be saved until the connection is back.';document.body.appendChild(b)}
+}
+addEventListener('online',offBar);addEventListener('offline',offBar);setInterval(offBar,3000);
 // Warning bar in the last minute before the automatic sign-out. Any click or key press keeps the session open.
 setInterval(()=>{
   const im=idleMin();let w=document.getElementById('idw');
