@@ -99,7 +99,9 @@ const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['docto
 const IMR=['doctor','midwife','bhw','admin','developer'];
 // Prenatal list: clinical staff write, BHWs and the developer may read it.
 const PNR=['doctor','midwife','bhw','developer'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['mc','My consultations',0,['doctor','midwife','developer']],['fu','Follow-ups',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pn','Prenatal',0,PNR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['rp','Reports & Data',0,['doctor','midwife','developer','admin','frontdesk']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk'],1],['audit','Audit log',0,['admin','developer'],1],['ann','Announcements',0,[]],['users','Users',0,['admin','developer']],['dev','Developer',0,['developer'],1]];
+// Inventory: read-only view of medicine and vaccine stock (pharmacists see medicines only).
+const INVR=['pharmacist','doctor','midwife','admin','developer'];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['mc','My consultations',0,['doctor','midwife','developer']],['fu','Follow-ups',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pn','Prenatal',0,PNR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['inv','Inventory',0,INVR],['rp','Reports & Data',0,['doctor','midwife','developer','admin','frontdesk']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk'],1],['audit','Audit log',0,['admin','developer'],1],['ann','Announcements',0,[]],['users','Users',0,['admin','developer']],['dev','Developer',0,['developer'],1]];
 const NAVSEC={patients:'Clinical',rp:'Records',ann:'Admin',users:'Admin'};
 const tabsBar=l=>{l=l.filter(x=>x[2]);return l.length<2?'':`<div class="dt" style="margin:0 0 14px">${l.map(([k,t])=>`<button class="bt${pg===k?'':' g'}" onclick="go('${k}')">${t}</button>`).join('')}</div>`};
 const dataTabs=()=>tabsBar([['rp','Reports',RPR.includes(U.role)],['io','Import / Export',canReg()||isAdm()],['audit','Audit log',isAdm()]]);
@@ -266,6 +268,8 @@ function lvWatch(){
   lvQ('p-rf',ok&&pg==='ref'&&RPR.includes(r)?'1':'',()=>query(collection(db,'visits'),where('refSt','in',['sent','received','returned'])),()=>lvDefer('rf',()=>{if(pg==='ref')loadRef()}));
   lvQ('p-fu',ok&&pg==='fu'&&RPR.includes(r)?'1':'',()=>query(collection(db,'visits'),where('fuOpen','==',true)),()=>lvDefer('fu',()=>{if(pg==='fu')loadFu()}));
   lvQ('p-pn',ok&&(pg==='pn'||pg==='fu')&&PNR.includes(r)?pg:'',()=>collection(db,'prenatal'),()=>lvDefer('pn',()=>{if(pg==='pn'||pg==='fu')loadPn()}));
+  lvQ('p-iv',ok&&pg==='inv'&&INVR.includes(r)?'1':'',()=>collection(db,'stock'),()=>lvDefer('iv',()=>{if(pg==='inv')loadInv()}));
+  lvQ('p-ivv',ok&&pg==='inv'&&INVR.includes(r)&&r!=='pharmacist'?'1':'',()=>collection(db,'vxstock'),()=>lvDefer('iv',()=>{if(pg==='inv')loadInv()}));
   lvQ('p-mc',ok&&pg==='mc'&&RPR.includes(r)?td:'',()=>query(collection(db,'visits'),where('d','==',td)),()=>lvDefer('mc',()=>{if(pg==='mc'&&MC.to>=today())loadMc()}));
   // Settings and the signed-in account
   const sn0=o=>JSON.stringify(Object.keys(o||{}).filter(k=>k!=='at'&&k!=='by').sort().map(k=>[k,o[k]]));
@@ -305,7 +309,7 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='inv')loadInv();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -447,7 +451,7 @@ function shell(){
   const vis=n=>!n[4]&&(n[0]==='lab'?lRoles().includes(U.role):(!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())));
   const nav=NAV.filter(vis).map(n=>{let h='';if(NAVSEC[n[0]]&&NAVSEC[n[0]]!==lastSec){lastSec=NAVSEC[n[0]];h=`<div class="nsh">${lastSec}</div>`}const tgt=n[0]==='rp'?dataEntry():n[0],lbl=n[0]==='rp'&&!RPR.includes(U.role)&&!isAdm()?'Import / Export':n[1];return h+`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${tgt}')">${lbl}${n[0]==='pharm'?pxBadge():''}${sqBadge(n[0])}</button>`}).join('');
   return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||(pg==='mc'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&!lRoles().includes(U.role))||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')||(pg==='fu'&&!RPR.includes(U.role))||(pg==='pn'&&!PNR.includes(U.role))))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp,mc:mcPg,fu:fup,pn:pnp}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||(pg==='mc'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&!lRoles().includes(U.role))||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')||(pg==='fu'&&!RPR.includes(U.role))||(pg==='pn'&&!PNR.includes(U.role))||(pg==='inv'&&!INVR.includes(U.role))))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp,mc:mcPg,fu:fup,pn:pnp,inv:invp}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['dvt','dlr','u5','sr'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
@@ -2121,6 +2125,139 @@ function fuPrint(){
   printList('Follow-up list',['Patient','Contact','Address','Reason','Due date','Status'],l.map(x=>{const p=P.find(y=>y.id===x.pid),n=fuDays(x.due);return[x.name,(p&&p.tel)||'',p?p.pu+', '+p.br:'',(x.k==='p'?'Prenatal ':'')+x.why,x.due,n<0?'Overdue '+(-n)+' d':n===0?'Today':'In '+n+' d']}));
   lg('Printed follow-up list ('+l.length+')')
 }
+/* ---------- Inventory: medicines and vaccines in one page (read-only; stock is changed in Pharmacy and Immunization) ---------- */
+let INV={m:null,v:null,mE:false,vE:false,lg:null,lgE:false,cap:false},INVT='alerts',INVK='all',INVQ='',INVLT='all',INVF='',INVTo='';
+const invVx=()=>U.role!=='pharmacist';
+const invSoon=()=>new Date(Date.now()+60*864e5).toLocaleDateString('en-CA');
+function invRange(f,t){INVF=f;INVTo=t}
+function invItems(){
+  const o=[],s=INVQ.trim().toLowerCase();
+  const add=(kind,id,v)=>o.push({kind,id,name:v.name||id,v,use:bUse(v),exq:bExpQ(v),low:typeof v.low==='number'?v.low:10});
+  Object.entries(INV.m||{}).forEach(([id,v])=>add('Medicine',id,v));
+  Object.entries(INV.v||{}).forEach(([id,v])=>add('Vaccine',id,v));
+  return o.filter(x=>(INVK==='all'||x.kind===INVK)&&(!s||String(x.name).toLowerCase().includes(s))).sort((a,b)=>a.kind.localeCompare(b.kind)||String(a.name).localeCompare(String(b.name)))
+}
+function invAlerts(){
+  const t=today(),soon=invSoon(),o=[];
+  invItems().forEach(x=>{
+    bSort(bList(x.v)).forEach(b=>{
+      if(!b.exp||b.exp>soon)return;
+      const n=fuDays(b.exp),ex=b.exp<t;
+      o.push({s:ex?0:2,x,issue:ex?'Expired':n===0?'Expires today':'Expires in '+n+' day'+(n===1?'':'s'),c:ex?'er':'wa',qty:b.qty,det:(b.lot?'Lot '+b.lot+', ':'')+'expiry '+b.exp+(b.d?', received '+b.d:''),exp:b.exp})
+    });
+    if(x.use<=x.low)o.push({s:x.use<=0?1:3,x,issue:x.use<=0?'Out of stock':'Low stock',c:x.use<=0?'er':'wa',qty:x.use,det:'Low-stock level is '+x.low,exp:''})
+  });
+  return o.sort((a,b)=>a.s-b.s||(a.exp||'9').localeCompare(b.exp||'9')||String(a.x.name).localeCompare(String(b.x.name)))
+}
+const invUnit=x=>x.kind==='Vaccine'?'doses':'';
+function invReorder(){return invItems().filter(x=>x.use<=x.low).map(x=>({x,sug:Math.max(x.low*2-x.use,1)})).sort((a,b)=>a.x.use-b.x.use||String(a.x.name).localeCompare(String(b.x.name)))}
+function invNear(x){const b=bSort(bList(x.v)).find(b=>b.exp);return b?b.exp:''}
+function invStatus(x){const t=stTags(x.v);if(x.use<=0&&!t.includes('Low'))t.push('Low');return t}
+function invLog(){
+  return(INV.lg||[]).filter(r=>(INVK==='all'||r.kind===INVK)&&(INVLT==='all'||(INVLT==='adj'?(r.t==='adj'||r.t==='edit'):r.t===INVLT))&&(!INVQ.trim()||String(r.name).toLowerCase().includes(INVQ.trim().toLowerCase())))
+}
+function invSummary(){
+  const m={};
+  (INV.lg||[]).filter(r=>INVK==='all'||r.kind===INVK).forEach(r=>{
+    const k=r.kind+'|'+r.name,o=m[k]||(m[k]={kind:r.kind,name:r.name,inn:0,out:0,adj:0});
+    const q=Number(r.qty)||0;
+    if(r.t==='in')o.inn+=q;else if(r.t==='out')o.out+=-q;else if(r.t==='adj')o.adj+=q
+  });
+  const now={};invItems().forEach(x=>{now[x.kind+'|'+x.name]=x.use});
+  return Object.values(m).filter(o=>!INVQ.trim()||String(o.name).toLowerCase().includes(INVQ.trim().toLowerCase())).map(o=>({...o,now:now[o.kind+'|'+o.name]})).sort((a,b)=>a.kind.localeCompare(b.kind)||String(a.name).localeCompare(String(b.name)))
+}
+async function loadInv(){
+  if(!INVF){const t=today();invRange(t.slice(0,8)+'01',t)}
+  const vx=invVx();
+  const g=n=>getDocs(collection(db,n));
+  const [a,b]=await Promise.all([g('stock').then(s=>{INV.m={};s.docs.forEach(d=>{INV.m[d.id]=d.data()});INV.mE=false}).catch(()=>{INV.m={};INV.mE=true}),
+    vx?g('vxstock').then(s=>{INV.v={};s.docs.forEach(d=>{INV.v[d.id]=d.data()});INV.vE=false}).catch(()=>{INV.v={};INV.vE=true}):Promise.resolve().then(()=>{INV.v={};INV.vE=false})]);
+  if(pg==='inv')lvScroll(R);
+  loadInvLog()
+}
+async function loadInvLog(){
+  const vx=invVx(),LIM=500;
+  const rg=n=>getDocs(query(collection(db,n),where('d','>=',INVF),where('d','<=',INVTo),limit(LIM)));
+  INV.lg=null;
+  try{
+    const[a,b,c]=await Promise.all([rg('stockin'),rg('stocklog'),vx?rg('vxlog'):Promise.resolve(null)]);
+    const L=[],ms=r=>(r.at&&r.at.seconds)||0;
+    a.docs.forEach(d=>{const r=d.data();L.push({kind:'Medicine',t:'in',d:r.d||'',name:r.name,qty:r.qty,why:r.src||'Stock in',note:r.exp?'Expiry '+r.exp:'',by:r.byName||'',ms:ms(r)})});
+    b.docs.forEach(d=>{const r=d.data();L.push({kind:'Medicine',t:r.type||'adj',d:r.d||'',name:r.name,qty:r.qty,why:r.reason||'',note:r.note||'',by:r.byName||'',ms:ms(r)})});
+    if(c)c.docs.forEach(d=>{const r=d.data();L.push({kind:'Vaccine',t:r.type||'adj',d:r.d||'',name:r.name,qty:r.qty,why:r.reason||'',note:r.note||'',by:r.byName||'',ms:ms(r)})});
+    INV.lg=L.sort((x,y)=>y.d.localeCompare(x.d)||y.ms-x.ms);INV.lgE=false;INV.cap=a.size>=LIM||b.size>=LIM||(c&&c.size>=LIM)
+  }catch(e){INV.lg=[];INV.lgE=e.code==='permission-denied'?'perm':'net'}
+  if(pg==='inv')lvScroll(R)
+}
+const INVLT_L={in:['ok','Received'],out:['wa','Used'],adj:['er','Adjustment'],edit:['wa','Correction']};
+function invp(){
+  const h='<h2 style="margin-top:0">Inventory</h2><p style="color:var(--mu);margin-top:-6px">All medicines'+(invVx()?' and vaccines':'')+' in one place. To add or adjust stock, use '+(U.role==='pharmacist'?'<a href="#" onclick="go(\'pharm\');return false">Pharmacy</a>':IMR.includes(U.role)?'<a href="#" onclick="go(\'imm\');return false">Immunization</a> (vaccines)':'Pharmacy and Immunization')+'. Expired doses are not counted as on hand.</p>';
+  if(INV.m===null||INV.v===null)return h+'<div class="cd">Loading...</div>';
+  const err=(INV.mE?'Could not load the medicine stock. Publish the latest firestore.rules first.<br>':'')+(INV.vE?'Could not load the vaccine stock. Publish the latest firestore.rules first.':'');
+  const all=Object.keys(INV.m).length+Object.keys(INV.v).length;
+  const it0=INVK,qq=INVQ;INVK='all';INVQ='';const all2=invItems(),al=invAlerts(),ro=invReorder();INVK=it0;INVQ=qq;
+  const ex=al.filter(a=>a.issue==='Expired').length,so=al.filter(a=>a.s===2).length,lo=al.filter(a=>a.s===1||a.s===3).length;
+  const cd=(n,t,w)=>`<div class="cd" style="margin:0;padding:12px"><div style="color:${w?'var(--er)':'var(--mu)'};font-size:13px">${t}</div><div style="font-size:24px;font-weight:600${w?';color:var(--er)':''}">${n}</div></div>`;
+  const tabs=[['alerts','Alerts ('+al.length+')'],['stock','All stock ('+all2.length+')'],['reorder','Reorder list ('+ro.length+')'],['hist','History'],['sum','Monthly summary']];
+  return h+(err?`<div class="cd"><p class="er2" style="margin:0">${err}</p></div>`:'')
+  +`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px">${cd(all2.length,'Items tracked')+cd(lo,'Low or out of stock',lo>0)+cd(so,'Batches expiring in 60 days',so>0)+cd(ex,'Expired batches',ex>0)}</div>`
+  +`<div class="cd"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${tabs.map(([k,t])=>`<button class="bt ${INVT===k?'':'g'}" onclick="invTab('${k}')">${t}</button>`).join('')}</div>`
+  +`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">${invVx()?`<select style="width:auto" onchange="invSetK(this.value)">${[['all','Medicines and vaccines'],['Medicine','Medicines only'],['Vaccine','Vaccines only']].map(([k,t])=>`<option value="${k}" ${INVK===k?'selected':''}>${t}</option>`).join('')}</select>`:''}<input placeholder="Search name" value="${E(INVQ)}" oninput="invSq(this.value)" style="max-width:220px">${INVT==='hist'||INVT==='sum'?invRangeBar():''}</div>`
+  +`<div class="ov" id="invb">${invBody()}</div></div>`
+}
+function invRangeBar(){
+  return `<label style="margin:0">From</label><input type="date" value="${E(INVF)}" onchange="invSetR('f',this.value)" style="width:auto"><label style="margin:0">To</label><input type="date" value="${E(INVTo)}" onchange="invSetR('t',this.value)" style="width:auto"><button class="bt g" onclick="invQuick('this')">This month</button><button class="bt g" onclick="invQuick('last')">Last month</button>`
+}
+function invBody(){
+  if(INVT==='alerts'){
+    const l=invAlerts(),b=l.length?`<table><thead><tr><th>Item</th><th>Type</th><th>Problem</th><th>Qty</th><th>Details</th></tr></thead><tbody>${l.map(a=>`<tr><td>${E(a.x.name)}</td><td>${a.x.kind}</td><td>${tgh(E(a.issue),a.c)}</td><td>${a.qty} ${invUnit(a.x)}</td><td>${E(a.det)}</td></tr>`).join('')}</tbody></table><p style="color:var(--mu);font-size:13px;margin:8px 0 0">Expired batches should be removed with Adjust (reason: Expired) so the stock log stays correct.</p>`:'<p style="color:var(--mu)">Nothing needs attention.</p>';
+    return b
+  }
+  if(INVT==='stock'){
+    const l=invItems(),t=today();
+    return l.length?`<div style="margin-bottom:8px"><button class="bt g" onclick="invPrintStock()">Print stock list</button> <button class="bt g" onclick="invCsvStock()">Download CSV</button></div><table><thead><tr><th>Item</th><th>Type</th><th>On hand</th><th>Low level</th><th>Nearest expiry</th><th>Status</th></tr></thead><tbody>${l.map(x=>{const n=invNear(x),st=invStatus(x);return `<tr><td>${E(x.name)}</td><td>${x.kind}</td><td>${x.use} ${invUnit(x)}${x.exq?` <small style="color:var(--mu)">(+${x.exq} expired)</small>`:''}</td><td>${x.low}</td><td>${n?E(n)+(n<t?' '+tgh('Expired','er'):''):'-'}</td><td>${st.length?st.map(s=>tgh(E(s),s==='Expired'||s==='Low'&&x.use<=0?'er':'wa')).join(' '):tgh('OK','ok')}</td></tr>`}).join('')}</tbody></table>`:'<p style="color:var(--mu)">No items.</p>'
+  }
+  if(INVT==='reorder'){
+    const l=invReorder().filter(r=>(INVK==='all'||r.x.kind===INVK)&&(!INVQ.trim()||String(r.x.name).toLowerCase().includes(INVQ.trim().toLowerCase())));
+    return l.length?`<p style="color:var(--mu);margin-top:0">Items at or below the low-stock level. The suggested quantity brings stock up to twice the low-stock level. Change the amount to match your supplier and budget.</p><div style="margin-bottom:8px"><button class="bt g" onclick="invPrintRo()">Print reorder list</button> <button class="bt g" onclick="invCsvRo()">Download CSV</button></div><table><thead><tr><th>Item</th><th>Type</th><th>On hand</th><th>Low level</th><th>Suggested order</th></tr></thead><tbody>${l.map(r=>`<tr><td>${E(r.x.name)}</td><td>${r.x.kind}</td><td>${r.x.use}${r.x.exq?` <small style="color:var(--mu)">(+${r.x.exq} expired)</small>`:''}</td><td>${r.x.low}</td><td><b>${r.sug}</b> ${invUnit(r.x)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">Nothing to reorder.</p>'
+  }
+  if(INV.lg===null)return '<p style="color:var(--mu)">Loading...</p>';
+  const er=INV.lgE?`<p class="er2" style="margin:0 0 8px">${INV.lgE==='perm'?'Could not load the history. Publish the latest firestore.rules first.':'Could not load the history. Check your connection.'}</p>`:'';
+  const cap=INV.cap?'<p class="er2" style="margin:0 0 8px">There are more than 500 records in this period. Choose a shorter date range to see all of them.</p>':'';
+  if(INVT==='hist'){
+    const l=invLog();
+    return er+cap+`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center">${[['all','All'],['in','Received'],['out','Used'],['adj','Adjustments']].map(([k,t])=>`<button class="bt ${INVLT===k?'':'g'}" onclick="invSetT('${k}')">${t}</button>`).join('')}<button class="bt g" style="margin-left:auto" onclick="invPrintHist()">Print</button><button class="bt g" onclick="invCsvHist()">Download CSV</button></div>`
+    +(l.length?`<table><thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Change</th><th>Reason / note</th><th>By</th></tr></thead><tbody>${l.map(r=>`<tr><td>${E(r.d)}</td><td>${r.kind==='Vaccine'?'Vaccine ':''}${tgh(E((INVLT_L[r.t]||['','Other'])[1]),(INVLT_L[r.t]||['wa'])[0])}</td><td>${E(r.name)}</td><td>${r.qty?(r.qty>0?'+':'')+r.qty:'-'}</td><td>${E(r.why)}${r.note?'<br><small style="color:var(--mu)">'+E(r.note)+'</small>':''}</td><td>${E(r.by)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">Nothing recorded in this period.</p>')
+  }
+  const l=invSummary();
+  return er+cap+(l.length?`<p style="color:var(--mu);margin-top:0">For the dates above. Received, used and adjusted come from the stock logs. "On hand now" is today's usable stock.</p><div style="margin-bottom:8px"><button class="bt g" onclick="invPrintSum()">Print summary</button> <button class="bt g" onclick="invCsvSum()">Download CSV</button></div><table><thead><tr><th>Item</th><th>Type</th><th>Received</th><th>Used</th><th>Adjusted</th><th>On hand now</th></tr></thead><tbody>${l.map(o=>`<tr><td>${E(o.name)}</td><td>${o.kind}</td><td>${o.inn}</td><td>${o.out}</td><td>${o.adj>0?'+':''}${o.adj}</td><td>${o.now==null?'-':o.now}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">Nothing recorded in this period.</p>')
+}
+function invPaint(){const b=$('invb');if(b)b.innerHTML=invBody()}
+function invTab(k){INVT=k;R()}
+function invSetK(v){INVK=v;R()}
+function invSq(v){INVQ=v;invPaint()}
+function invSetT(k){INVLT=k;invPaint()}
+function invSetR(w,v){if(!v)return;if(w==='f')INVF=v;else INVTo=v;if(INVF>INVTo){if(w==='f')INVTo=INVF;else INVF=INVTo}loadInvLog();R()}
+function invQuick(w){
+  const t=today(),y=+t.slice(0,4),m=+t.slice(5,7)-1,p=n=>String(n).padStart(2,'0');
+  if(w==='this')invRange(t.slice(0,8)+'01',t);
+  else{const a=new Date(y,m-1,1),b=new Date(y,m,0);invRange(a.getFullYear()+'-'+p(a.getMonth()+1)+'-01',b.getFullYear()+'-'+p(b.getMonth()+1)+'-'+p(b.getDate()))}
+  loadInvLog();R()
+}
+const invPer=()=>'From '+INVF+' to '+INVTo;
+function invStockRows(){return invItems().map(x=>[x.name,x.kind,x.use+(x.exq?' (+'+x.exq+' expired)':''),x.low,invNear(x),invStatus(x).join(', ')||'OK'])}
+function invPrintStock(){const r=invStockRows();if(!r.length)return sAlert('There is nothing to print.');printList('Stock list',['Item','Type','On hand','Low level','Nearest expiry','Status'],r);lg('Printed stock list ('+r.length+')')}
+function invCsvStock(){ioDl('stock-list-'+today()+'.csv',[['Item','Type','On hand','Low level','Nearest expiry','Status']].concat(invStockRows()));lg('Downloaded stock list CSV')}
+function invRoRows(){return invReorder().filter(r=>(INVK==='all'||r.x.kind===INVK)&&(!INVQ.trim()||String(r.x.name).toLowerCase().includes(INVQ.trim().toLowerCase()))).map(r=>[r.x.name,r.x.kind,r.x.use,r.x.low,r.sug+(r.x.kind==='Vaccine'?' doses':'')])}
+function invPrintRo(){const r=invRoRows();if(!r.length)return sAlert('There is nothing to print.');printList('Reorder list',['Item','Type','On hand','Low level','Suggested order'],r);lg('Printed reorder list ('+r.length+')')}
+function invCsvRo(){ioDl('reorder-list-'+today()+'.csv',[['Item','Type','On hand','Low level','Suggested order']].concat(invRoRows()));lg('Downloaded reorder list CSV')}
+function invHistRows(){return invLog().map(r=>[r.d,r.kind,(INVLT_L[r.t]||['','Other'])[1],r.name,r.qty,r.why,r.note,r.by])}
+function invPrintHist(){const r=invHistRows();if(!r.length)return sAlert('There is nothing to print.');printList('Stock history | '+invPer(),['Date','Kind','Type','Item','Change','Reason','Note','By'],r);lg('Printed stock history ('+r.length+')')}
+function invCsvHist(){ioDl('stock-history-'+INVF+'-to-'+INVTo+'.csv',[['Date','Kind','Type','Item','Change','Reason','Note','By']].concat(invHistRows()));lg('Downloaded stock history CSV')}
+function invSumRows(){return invSummary().map(o=>[o.name,o.kind,o.inn,o.out,o.adj,o.now==null?'':o.now])}
+function invPrintSum(){const r=invSumRows();if(!r.length)return sAlert('There is nothing to print.');printList('Stock summary | '+invPer(),['Item','Type','Received','Used','Adjusted','On hand now'],r);lg('Printed stock summary ('+r.length+')')}
+function invCsvSum(){ioDl('stock-summary-'+INVF+'-to-'+INVTo+'.csv',[['Item','Type','Received','Used','Adjusted','On hand now']].concat(invSumRows()));lg('Downloaded stock summary CSV')}
+
 /* ---------- Prenatal ---------- */
 // One document per pregnancy in "prenatal"; every prenatal visit is a document in "prenatalVisits".
 const PNRISK=['Previous Cesarean section','Previous miscarriage or stillbirth','Twin or multiple pregnancy','Anemia','Diabetes','Hypertension or pre-eclampsia','Bleeding in this pregnancy'];
@@ -2480,5 +2617,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{invTab,invSetK,invSq,invSetT,invSetR,invQuick,invPrintStock,invCsvStock,invPrintRo,invCsvRo,invPrintHist,invCsvHist,invPrintSum,invCsvSum,callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
