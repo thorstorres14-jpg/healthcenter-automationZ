@@ -97,7 +97,9 @@ const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
 const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
 const IMR=['doctor','midwife','bhw','admin','developer'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['mc','My consultations',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['rp','Reports & Data',0,['doctor','midwife','developer','admin','frontdesk']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk'],1],['audit','Audit log',0,['admin','developer'],1],['ann','Announcements',0,[]],['users','Users',0,['admin','developer']],['dev','Developer',0,['developer'],1]];
+// Prenatal list: clinical staff write, BHWs and the developer may read it.
+const PNR=['doctor','midwife','bhw','developer'];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['mc','My consultations',0,['doctor','midwife','developer']],['fu','Follow-ups',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pn','Prenatal',0,PNR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['rp','Reports & Data',0,['doctor','midwife','developer','admin','frontdesk']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk'],1],['audit','Audit log',0,['admin','developer'],1],['ann','Announcements',0,[]],['users','Users',0,['admin','developer']],['dev','Developer',0,['developer'],1]];
 const NAVSEC={patients:'Clinical',rp:'Records',ann:'Admin',users:'Admin'};
 const tabsBar=l=>{l=l.filter(x=>x[2]);return l.length<2?'':`<div class="dt" style="margin:0 0 14px">${l.map(([k,t])=>`<button class="bt${pg===k?'':' g'}" onclick="go('${k}')">${t}</button>`).join('')}</div>`};
 const dataTabs=()=>tabsBar([['rp','Reports',RPR.includes(U.role)],['io','Import / Export',canReg()||isAdm()],['audit','Audit log',isAdm()]]);
@@ -262,6 +264,8 @@ function lvWatch(){
   lvQ('p-au',ok&&pg==='audit'&&isAdm()?'1':'',()=>query(collection(db,'audit'),orderBy('at','desc'),limit(1)),()=>lvDefer('au',()=>{if(pg==='audit')loadAudit()}));
   lvQ('p-si',ok&&pg==='pharm'&&r==='pharmacist'?'1':'',()=>query(collection(db,'stockin'),orderBy('at','desc'),limit(30)),()=>lvDefer('si',()=>{if(pg==='pharm')loadSi()}));
   lvQ('p-rf',ok&&pg==='ref'&&RPR.includes(r)?'1':'',()=>query(collection(db,'visits'),where('refSt','in',['sent','received','returned'])),()=>lvDefer('rf',()=>{if(pg==='ref')loadRef()}));
+  lvQ('p-fu',ok&&pg==='fu'&&RPR.includes(r)?'1':'',()=>query(collection(db,'visits'),where('fuOpen','==',true)),()=>lvDefer('fu',()=>{if(pg==='fu')loadFu()}));
+  lvQ('p-pn',ok&&(pg==='pn'||pg==='fu')&&PNR.includes(r)?pg:'',()=>collection(db,'prenatal'),()=>lvDefer('pn',()=>{if(pg==='pn'||pg==='fu')loadPn()}));
   lvQ('p-mc',ok&&pg==='mc'&&RPR.includes(r)?td:'',()=>query(collection(db,'visits'),where('d','==',td)),()=>lvDefer('mc',()=>{if(pg==='mc'&&MC.to>=today())loadMc()}));
   // Settings and the signed-in account
   const sn0=o=>JSON.stringify(Object.keys(o||{}).filter(k=>k!=='at'&&k!=='by').sort().map(k=>[k,o[k]]));
@@ -285,6 +289,7 @@ function lvWatch(){
   // Doctor / midwife with a patient open: lab results and pharmacy flags
   lvOn('lh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'labs'),where('pid','==',viewP)),()=>{if(f){f=false;return}if(pg==='prof'&&pid===viewP)loadLabH(viewP)},()=>{})});
   lvOn('vh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'visits'),where('pid','==',viewP)),()=>{if(f){f=false;return}lvDefer('vh',()=>{if(pg==='prof'&&pid===viewP)view(viewP,1,1)})},()=>{})});
+  lvOn('pnh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'prenatal'),where('pid','==',viewP)),()=>{if(f){f=false;return}if(pg==='prof'&&pid===viewP)loadPnH(viewP)},()=>{})});
   lvOn('rh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'prescriptions'),where('pid','==',viewP)),()=>{if(f){f=false;return}if(pg==='prof'&&pid===viewP)view(viewP,1,1)},()=>{})});
 }
 function R(){$('root').innerHTML=mode==='boot'?'<div class="lg">Loading...</div>':mode==='app'?shell():mode==='orphan'?orphan():authForm(mode==='setup');pxWatch();qWatch();lvWatch()}
@@ -300,7 +305,7 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -442,7 +447,7 @@ function shell(){
   const vis=n=>!n[4]&&(n[0]==='lab'?lRoles().includes(U.role):(!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())));
   const nav=NAV.filter(vis).map(n=>{let h='';if(NAVSEC[n[0]]&&NAVSEC[n[0]]!==lastSec){lastSec=NAVSEC[n[0]];h=`<div class="nsh">${lastSec}</div>`}const tgt=n[0]==='rp'?dataEntry():n[0],lbl=n[0]==='rp'&&!RPR.includes(U.role)&&!isAdm()?'Import / Export':n[1];return h+`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${tgt}')">${lbl}${n[0]==='pharm'?pxBadge():''}${sqBadge(n[0])}</button>`}).join('');
   return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||(pg==='mc'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&!lRoles().includes(U.role))||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp,mc:mcPg}[pg]||dash)()}
+function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||(pg==='mc'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&!lRoles().includes(U.role))||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')||(pg==='fu'&&!RPR.includes(U.role))||(pg==='pn'&&!PNR.includes(U.role))))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp,mc:mcPg,fu:fup,pn:pnp}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['dvt','dlr','u5','sr'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
@@ -983,11 +988,11 @@ async function ahSave(id){
 }
 function prof(){
   const p=P.find(x=>x.id===pid),lv=LV[U.role]||'basic',m=P.filter(x=>x.hh===p.hh&&x.id!==p.id);
-  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="goBack('patients')">Back to ${E(backLbl('patients'))}</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>PhilHealth</label>${E(p.ph||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='basic'?'':ahCard(p,CROLES.includes(U.role))}${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h3 style="margin:0">Lab results</h3>${oxCan()?`<button class="bt g" onclick="oxOpen('${id}')">Add outside result</button>`:''}</div><div id="lox"></div><div id="labh" class="ov">Loading...</div></div>`:U.role==='frontdesk'?`<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h3 style="margin:0">Outside lab result</h3><p style="color:var(--mu);margin:4px 0 0;font-size:14px">The patient brought a result from another lab or hospital. The doctor will see it on the profile.</p></div><button class="bt g" onclick="oxOpen('${id}')">Add outside result</button></div><div id="lox" style="margin-top:12px"></div></div>`:''}`}
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt g" onclick="goBack('patients')">Back to ${E(backLbl('patients'))}</button>${canReg()?`<button class="bt g" onclick="qAddP()">Add to queue</button>`:''}${CROLES.includes(U.role)?`<button class="bt" onclick="startC('${p.id}')">New consultation</button>`:''}${canEdit()?`<button class="bt g" onclick="editP()">Edit</button>`:''}${can('adminDelete')?`<button class="bt g" onclick="delP()">Delete</button>`:''}</div><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'}</div>${lv==='rx'?'':`<div class="fm" style="margin-top:12px"><div><label>Birthdate</label>${p.dob}</div><div><label>Address</label>${E(p.pu+', '+p.br)}</div><div><label>Contact</label>${E(p.tel||'None')}</div><div><label>PhilHealth</label>${E(p.ph||'None')}</div><div><label>Household</label><a href="#" onclick="openHH('${p.hh}');return false">${p.hh}</a></div></div>`}</div>${lv==='basic'?'':ahCard(p,CROLES.includes(U.role))}${lv==='full'&&pnElig(p)?'<div class="cd" id="pnc">Loading...</div>':''}${lv==='rx'?'':`<div class="cd"><h3 style="margin-top:0">Household members</h3>${m.length?m.map(x=>`<a href="#" onclick="view('${x.id}');return false" style="margin-right:14px">${E(pn(x))} (${age(x.dob)})</a>`).join(''):'No other members.'}</div>`}<div class="cd"><h3 style="margin-top:0">${lv==='rx'?'Prescriptions':'Visit history'}</h3><div id="hist" class="ov">${lv==='basic'?'<p style="color:var(--mu)">Clinical history is restricted for your role.</p>':'Loading...'}</div></div>${lv==='full'?`<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h3 style="margin:0">Lab results</h3>${oxCan()?`<button class="bt g" onclick="oxOpen('${id}')">Add outside result</button>`:''}</div><div id="lox"></div><div id="labh" class="ov">Loading...</div></div>`:U.role==='frontdesk'?`<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h3 style="margin:0">Outside lab result</h3><p style="color:var(--mu);margin:4px 0 0;font-size:14px">The patient brought a result from another lab or hospital. The doctor will see it on the profile.</p></div><button class="bt g" onclick="oxOpen('${id}')">Add outside result</button></div><div id="lox" style="margin-top:12px"></div></div>`:''}`}
 async function view(id,np,quiet){
   if(!np&&(pg!=='prof'||pid!==id))navPush();
   pid=id;pg='prof';if(!quiet){lg('Viewed '+id);R();scrollTo(0,0)}
-  const lv=LV[U.role]||'basic',h=$('hist'),PR=lv==='full'&&(U.role==='doctor'||canRx());if(lv==='basic')return;if(lv==='full'&&quiet!==1)loadLabH(id);
+  const lv=LV[U.role]||'basic',h=$('hist'),PR=lv==='full'&&(U.role==='doctor'||canRx());if(lv==='basic')return;if(lv==='full'&&quiet!==1){loadLabH(id);loadPnH(id)}
   try{
     const s=await getDocs(query(collection(db,lv==='full'?'visits':'prescriptions'),where('pid','==',id))),l=s.docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||((b.at?.seconds||0)-(a.at?.seconds||0)));VH=l;RXM={};
     if(lv==='full'){try{(await getDocs(query(collection(db,'prescriptions'),where('pid','==',id)))).docs.forEach(d=>{const r=d.data();RXM[(r.d||'')+'|'+(r.rx||'')]=r})}catch(e){}}
@@ -2040,12 +2045,12 @@ function fuQuick(n){const el=$('fu1');if(el)el.value=new Date(Date.now()+n*864e5
 async function loadFu(){
   try{const s=await getDocs(query(collection(db,'visits'),where('fuOpen','==',true)));FU=s.docs.map(d=>({id:d.id,...d.data()})).filter(v=>v.fu).sort((a,b)=>a.fu.localeCompare(b.fu));FUE=false}
   catch(e){FUE=true}
-  fuRender()
+  fuRender();if(pg==='fu')lvScroll(R)
 }
 function fuAll(){FUALL=!FUALL;fuRender()}
 function fuRender(){
   const el=$('ful');if(!el)return;
-  const head=n=>`<div class="dh" style="margin-top:0"><b>Follow-ups due</b><span>${n}</span></div>`;
+  const head=n=>`<div class="dh" style="margin-top:0"><b>Follow-ups due</b><span>${n} <a href="#" onclick="go('fu');return false" style="margin-left:8px">Open list</a></span></div>`;
   if(FUE){el.innerHTML=head('')+'<p class="er2">Could not load follow-ups. Check your connection.</p>';return}
   if(FU===null){el.innerHTML=head('')+'<p style="color:var(--mu);margin:6px 0 0">Loading...</p>';return}
   const due=FU.filter(v=>fuDays(v.fu)<=7),od=FU.filter(v=>fuDays(v.fu)<0).length,list=FUALL?FU:due,show=list.slice(0,FUALL?50:8);
@@ -2058,8 +2063,234 @@ function fuRender(){
 async function fuDone(id){
   const v=(FU||[]).find(x=>x.id===id);if(!v)return;
   if(!await sConfirm('Mark the follow-up of '+v.pname+' ('+v.fu+') as done? Use this if the patient already came back or no longer needs it.','Mark follow-up done?','Mark done',0))return;
-  try{await updateDoc(doc(db,'visits',id),{fuOpen:false,fuDoneBy:U.name,fuDoneAt:serverTimestamp()});FU=FU.filter(x=>x.id!==id);await lg('Follow-up done '+v.pid);fuRender()}
+  try{await updateDoc(doc(db,'visits',id),{fuOpen:false,fuDoneBy:U.name,fuDoneAt:serverTimestamp()});FU=FU.filter(x=>x.id!==id);await lg('Follow-up done '+v.pid);fuRender();if(pg==='fu')lvScroll(R)}
   catch(x){sAlert(x.code==='permission-denied'?'You do not have permission to update follow-ups.':'Could not update. Check your connection.')}
+}
+/* ---------- Printable list (used by Follow-ups and Prenatal) ---------- */
+function printList(title,head,rows){
+  const css='@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#000;margin:0}h1{font-size:18px;margin:0}.s{color:#444;margin:2px 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #888;padding:5px 6px;text-align:left;vertical-align:top}th{background:#eee}tr{page-break-inside:avoid}';
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  const w=f.contentWindow,d=w.document;d.open();
+  d.write('<!doctype html><html><head><meta charset="utf-8"><title>'+E(title)+'</title><style>'+css+'</style></head><body><h1>'+E(lh().name)+'</h1><div class="s">'+E(title)+' | '+E(longD(today()))+' | Printed by '+E(U.name)+'</div><table><thead><tr>'+head.map(h=>'<th>'+E(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+E(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table></body></html>');
+  d.close();w.onafterprint=()=>f.remove();setTimeout(()=>{try{w.focus();w.print()}catch(e){sAlert('Could not open the print dialog.')}},300);setTimeout(()=>f.remove(),120000)
+}
+/* ---------- Follow-ups page: consultation follow-ups and prenatal check-ups in one worklist ---------- */
+let FUF='all',FUT='all',FUQ='',FUB='';
+const fuTg=d=>{const n=fuDays(d);return n<0?tgh('Overdue '+(-n)+' day'+(n===-1?'':'s'),'er'):n===0?tgh('Today','wa'):tgh(n===1?'Tomorrow':'In '+n+' days','ok')};
+const fuBand=d=>{const n=fuDays(d);return n<0?'over':n===0?'today':n<=7?'week':'later'};
+function fuItems(){
+  const o=[];
+  (FU||[]).forEach(v=>o.push({k:'c',id:v.id,pid:v.pid,name:v.pname,due:v.fu,why:v.fun||'Follow-up'}));
+  (PN||[]).filter(x=>x.status==='active'&&x.nv).forEach(x=>o.push({k:'p',id:x.id,pid:x.pid,name:x.pname,due:x.nv,why:'check-up'}));
+  return o.sort((a,b)=>a.due.localeCompare(b.due)||(a.name||'').localeCompare(b.name||''))
+}
+function fuList(){
+  const s=FUQ.toLowerCase();
+  return fuItems().filter(x=>{
+    const p=P.find(y=>y.id===x.pid);
+    if(FUT!=='all'&&x.k!==FUT)return false;
+    if(FUB&&(!p||p.br!==FUB))return false;
+    if(FUF!=='all'&&fuBand(x.due)!==FUF)return false;
+    return !s||(x.name||'').toLowerCase().includes(s)
+  })
+}
+function fuRows(){
+  const l=fuList(),can=CROLES.includes(U.role);
+  return l.length?l.map(x=>{const p=P.find(y=>y.id===x.pid);
+    return `<tr><td><a href="#" onclick="view('${E(x.pid)}');return false">${E(x.name)}</a><small style="display:block;color:var(--mu)">${E(p?p.pu+', '+p.br:'')}</small></td><td>${E((p&&p.tel)||'')}</td><td>${tgh(x.k==='p'?'Prenatal':'Consultation',x.k==='p'?'wa':'ok')} ${E(x.why)}</td><td style="white-space:nowrap">${E(x.due)}</td><td>${fuTg(x.due)}</td><td style="white-space:nowrap">${can?(x.k==='c'?`<button class="bt g" onclick="fuDone('${x.id}')">Done</button>`:`<button class="bt g" onclick="pnVisit('${x.id}')">Record visit</button>`):''}</td></tr>`}).join('')
+  :'<tr><td colspan="6">Nothing matches this filter.</td></tr>'
+}
+function fup(){
+  const h='<h2 style="margin-top:0">Follow-ups</h2><p style="color:var(--mu);margin-top:-6px">Patients asked to come back after a consultation, and pregnant patients with a prenatal check-up scheduled. Vaccines that are due are on the Immunization page.</p>';
+  if(FUE)return h+'<div class="cd"><p class="er2" style="margin:0">Could not load follow-ups. Check your connection.</p></div>';
+  if(FU===null||(PN===null&&!PNE))return h+'<div class="cd">Loading...</div>';
+  const all=fuItems(),c=b=>all.filter(x=>fuBand(x.due)===b).length,brs=[...new Set(P.map(p=>p.br))].filter(Boolean).sort();
+  const cd=(n,t,w)=>`<div class="cd" style="margin:0;padding:12px"><div style="color:${w?'var(--er)':'var(--mu)'};font-size:13px">${t}</div><div style="font-size:24px;font-weight:600${w?';color:var(--er)':''}">${n}</div></div>`;
+  return h+(PNE?`<div class="cd"><p class="er2" style="margin:0">Prenatal check-ups could not be loaded.${PNEC==='permission-denied'?' Publish the latest firestore.rules first.':' Check your connection.'}</p></div>`:'')
+  +`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px">${cd(c('over'),'Overdue',c('over')>0)+cd(c('today'),'Due today')+cd(c('week'),'Next 7 days')+cd(c('later'),'Later')}</div>`
+  +`<div class="cd"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">${[['all','All'],['over','Overdue'],['today','Today'],['week','Next 7 days'],['later','Later']].map(([f,t])=>`<button class="bt ${FUF===f?'':'g'}" onclick="fuSetF('${f}')">${t}</button>`).join('')}</div>`
+  +`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center"><select style="width:auto" onchange="fuSetT(this.value)">${[['all','All types'],['c','Consultation'],['p','Prenatal']].map(([k,t])=>`<option value="${k}" ${FUT===k?'selected':''}>${t}</option>`).join('')}</select><select style="width:auto" onchange="fuSetB(this.value)"><option value="">All barangays</option>${brs.map(b=>`<option ${FUB===b?'selected':''}>${E(b)}</option>`).join('')}</select><input placeholder="Search patient" value="${E(FUQ)}" oninput="fuSq(this.value)" style="max-width:220px"><button class="bt g" style="margin-left:auto" onclick="fuPrint()">Print list</button></div>`
+  +`<div class="ov"><table><thead><tr><th>Patient</th><th>Contact</th><th>Reason</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody id="fut">${fuRows()}</tbody></table></div></div>`
+}
+function fuSetF(f){FUF=f;R()}
+function fuSetT(v){FUT=v;R()}
+function fuSetB(v){FUB=v;R()}
+function fuSq(v){FUQ=v;const t=$('fut');if(t)t.innerHTML=fuRows()}
+function fuPrint(){
+  const l=fuList();if(!l.length)return sAlert('There is nothing to print for this filter.');
+  printList('Follow-up list',['Patient','Contact','Address','Reason','Due date','Status'],l.map(x=>{const p=P.find(y=>y.id===x.pid),n=fuDays(x.due);return[x.name,(p&&p.tel)||'',p?p.pu+', '+p.br:'',(x.k==='p'?'Prenatal ':'')+x.why,x.due,n<0?'Overdue '+(-n)+' d':n===0?'Today':'In '+n+' d']}));
+  lg('Printed follow-up list ('+l.length+')')
+}
+/* ---------- Prenatal ---------- */
+// One document per pregnancy in "prenatal"; every prenatal visit is a document in "prenatalVisits".
+const PNRISK=['Previous Cesarean section','Previous miscarriage or stillbirth','Twin or multiple pregnancy','Anemia','Diabetes','Hypertension or pre-eclampsia','Bleeding in this pregnancy'];
+const PNOUT=['Live birth','Stillbirth','Miscarriage or abortion','Moved away or transferred','Entered by mistake'];
+let PN=null,PNE=false,PNEC='',PNF='active',PNQ='',PNB='';const PNM={};
+const addD=(d,n)=>{const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+n);return x.toLocaleDateString('en-CA')};
+const dayDiff=(a,b)=>Math.round((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/864e5);
+const pnAog=l=>{const n=dayDiff(today(),l);return n<0?'':Math.floor(n/7)+'w '+(n%7)+'d'};
+const pnTri=l=>{const w=Math.floor(dayDiff(today(),l)/7);return w<14?'1st trimester':w<28?'2nd trimester':'3rd trimester'};
+const pnElig=p=>p.sex==='F'&&ageY(p.dob)>=10&&ageY(p.dob)<=60;
+const pnEddTxt=n=>n<0?(-n)+' day'+(n===-1?'':'s')+' past due date':n===0?'Due today':'In '+n+' day'+(n===1?'':'s');
+async function pnFetch(){
+  try{const s=await getDocs(collection(db,'prenatal'));PN=s.docs.map(d=>({id:d.id,...d.data()}));PN.forEach(x=>{PNM[x.id]=x});PNE=false;PNEC=''}
+  catch(e){PNE=true;PNEC=e.code||'';if(PN===null)PN=[]}
+}
+async function loadPn(){await pnFetch();if(pg==='pn'||pg==='fu')lvScroll(R)}
+// Risk flags: age at the last period, the latest blood pressure, and the factors ticked at registration.
+function pnAlerts(x){
+  const p=P.find(y=>y.id===x.pid),o=[];
+  if(p&&p.dob&&x.lmp){const a=ageAt(p.dob,x.lmp);if(a<18)o.push(['Age under 18','wa']);else if(a>=35)o.push(['Age 35 or older','wa'])}
+  if(x.lbs>=140||x.lbd>=90)o.push(['BP '+x.lbs+'/'+x.lbd,'er']);
+  (x.risk||[]).forEach(r=>o.push([r,'wa']));
+  return o
+}
+function pnFilter(){
+  const s=PNQ.toLowerCase();
+  return (PN||[]).filter(x=>{
+    const act=x.status==='active',p=P.find(y=>y.id===x.pid);
+    if(PNF==='closed'){if(act)return false}
+    else{if(!act)return false;
+      if(PNF==='risk'&&!pnAlerts(x).length)return false;
+      if(PNF==='due'&&fuDays(x.edd)>30)return false;
+      if(PNF==='late'&&!(x.nv&&fuDays(x.nv)<0))return false}
+    if(PNB&&(!p||p.br!==PNB))return false;
+    return !s||(x.pname||'').toLowerCase().includes(s)
+  }).sort((a,b)=>PNF==='closed'?(b.outDate||'').localeCompare(a.outDate||''):(a.edd||'').localeCompare(b.edd||''))
+}
+function pnRows(){
+  const l=pnFilter(),can=CROLES.includes(U.role),cl=PNF==='closed';
+  if(!l.length)return `<tr><td colspan="6">${cl?'No closed pregnancies.':'No matching pregnancies.'}</td></tr>`;
+  return l.map(x=>{
+    const p=P.find(y=>y.id===x.pid),al=pnAlerts(x),eg=fuDays(x.edd);
+    const tags=al.slice(0,3).map(a=>tgh(E(a[0]),a[1])).join(' ')+(al.length>3?' <small style="color:var(--mu)">+'+(al.length-3)+' more</small>':'');
+    const mid=cl?E(x.outcome||'Closed')+'<small style="display:block;color:var(--mu)">'+E(x.outDate||'')+'</small>':E(pnAog(x.lmp))+'<small style="display:block;color:var(--mu)">'+pnTri(x.lmp)+'</small>';
+    const edd=E(x.edd)+(cl?'':`<small style="display:block;color:${eg<0?'var(--er)':'var(--mu)'}">${pnEddTxt(eg)}</small>`);
+    const vis=cl?'':`<small style="color:var(--mu)">Last: ${E(x.lastVd||'none')}</small><br>${x.nv?'Next: '+E(x.nv)+(fuDays(x.nv)<0?' '+tgh('Overdue','er'):''):'<span style="color:var(--mu)">No next visit set</span>'}`;
+    return `<tr><td><a href="#" onclick="view('${E(x.pid)}');return false">${E(x.pname)}</a><small style="display:block;color:var(--mu)">${E(p?age(p.dob)+' | '+p.pu+', '+p.br:'')}</small></td><td>${mid}</td><td>${edd}</td><td>${tags||'<span style="color:var(--mu)">None</span>'}</td><td>${vis}</td><td style="white-space:nowrap">${can&&!cl?`<button class="bt g" onclick="pnVisit('${x.id}')">Add visit</button> <button class="bt g" onclick="pnClose('${x.id}')">Close</button>`:''}</td></tr>`
+  }).join('')
+}
+function pnp(){
+  const h='<h2 style="margin-top:0">Prenatal</h2><p style="color:var(--mu);margin-top:-6px">Pregnant patients and their prenatal check-ups. Risk flags use the age at the last period, the latest blood pressure and the risk factors ticked at registration. Confirm the risk list with your midwife before real use.</p>';
+  if(PNE)return h+`<div class="cd"><p class="er2" style="margin:0">${PNEC==='permission-denied'?'Could not load. Publish the latest firestore.rules first.':'Could not load pregnancies. Check your connection.'}</p></div>`;
+  if(PN===null)return h+'<div class="cd">Loading...</div>';
+  const act=PN.filter(x=>x.status==='active'),hi=act.filter(x=>pnAlerts(x).length).length,du=act.filter(x=>fuDays(x.edd)<=30).length,la=act.filter(x=>x.nv&&fuDays(x.nv)<0).length,brs=[...new Set(P.map(p=>p.br))].filter(Boolean).sort();
+  const cd=(n,t,w)=>`<div class="cd" style="margin:0;padding:12px"><div style="color:${w?'var(--wa)':'var(--mu)'};font-size:13px">${t}</div><div style="font-size:24px;font-weight:600${w?';color:var(--wa)':''}">${n}</div></div>`;
+  return h+`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px">${cd(act.length,'Active pregnancies')+cd(hi,'With risk flags',hi>0)+cd(du,'Due within 30 days',du>0)+cd(la,'Check-up overdue',la>0)}</div>`
+  +`<div class="cd"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center">${[['active','Active'],['risk','Risk flags'],['due','Due in 30 days'],['late','Check-up overdue'],['closed','Closed']].map(([f,t])=>`<button class="bt ${PNF===f?'':'g'}" onclick="pnSetF('${f}')">${t}</button>`).join('')}${CROLES.includes(U.role)?'<button class="bt" style="margin-left:auto" onclick="pnPick()">Register pregnancy</button>':''}</div>`
+  +`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center"><select style="width:auto" onchange="pnSetB(this.value)"><option value="">All barangays</option>${brs.map(b=>`<option ${PNB===b?'selected':''}>${E(b)}</option>`).join('')}</select><input placeholder="Search patient" value="${E(PNQ)}" oninput="pnSq(this.value)" style="max-width:220px"><button class="bt g" style="margin-left:auto" onclick="pnPrint()">Print list</button></div>`
+  +`<div class="ov"><table><thead><tr><th>Patient</th><th>${PNF==='closed'?'Outcome':'Age of gestation'}</th><th>Due date</th><th>Risk</th><th>${PNF==='closed'?'':'Check-ups'}</th><th></th></tr></thead><tbody id="pnt">${pnRows()}</tbody></table></div></div>`
+}
+function pnSetF(f){PNF=f;R()}
+function pnSetB(v){PNB=v;R()}
+function pnSq(v){PNQ=v;const t=$('pnt');if(t)t.innerHTML=pnRows()}
+function pnPrint(){
+  const l=pnFilter();if(!l.length)return sAlert('There is nothing to print for this filter.');
+  printList('Prenatal list',['Patient','Age','Address','Age of gestation','Due date','Risk','Last check-up','Next check-up'],l.map(x=>{const p=P.find(y=>y.id===x.pid);return[x.pname,p?age(p.dob):'',p?p.pu+', '+p.br:'',x.status==='active'?pnAog(x.lmp):(x.outcome||'Closed'),x.edd,pnAlerts(x).map(a=>a[0]).join('; '),x.lastVd||'',x.nv||'']}));
+  lg('Printed prenatal list ('+l.length+')')
+}
+// Find a female patient, then open the registration form.
+function pnPick(){
+  fmShow('Register pregnancy','Find the patient','<label>Search by name or patient ID</label><input id="pnq" oninput="pnFind(this.value)" placeholder="e.g. Dela Cruz, Maria" autocomplete="off"><div id="pnr" style="margin-top:8px"></div>','Close','fmClose()');
+  const b=$('fmok');if(b)b.style.display='none'
+}
+function pnFind(v){
+  const s=v.trim().toLowerCase(),el=$('pnr');if(!el)return;
+  if(s.length<2){el.innerHTML='<p style="color:var(--mu);margin:0">Type at least 2 letters.</p>';return}
+  const act=new Set((PN||[]).filter(x=>x.status==='active').map(x=>x.pid)),l=P.filter(p=>pnElig(p)&&(pn(p).toLowerCase().includes(s)||p.id.toLowerCase().includes(s))).slice(0,8);
+  el.innerHTML=l.length?l.map(p=>act.has(p.id)?dmr(E(pn(p)),E(age(p.dob)+' | '+p.pu+', '+p.br),tgh('Active pregnancy','wa')):dmrc(E(pn(p)),E(age(p.dob)+' | '+p.pu+', '+p.br),'',`pnForm('${p.id}')`)).join(''):'<p style="color:var(--mu);margin:0">No matching female patients.</p>'
+}
+function pnForm(pid0,prid){
+  const p=P.find(x=>x.id===pid0);if(!p)return;
+  const x=prid?PNM[prid]:null,rk=(x&&x.risk)||[];
+  fmShow(x?'Edit pregnancy':'Register pregnancy',pn(p),
+   `<div class="fm"><div><label>First day of last period (LMP)</label><input id="pf1" type="date" value="${E(x?x.lmp:'')}" min="${dstr(294)}" max="${today()}" oninput="pnEdd()" onchange="pnEdd()"></div><div><label>Expected due date</label><div id="pf2" style="padding:9px 0;font-weight:600">${x?E(longD(x.edd)):'-'}</div></div><div><label>Gravida (pregnancies, including this one)</label><input id="pf3" type="number" min="1" max="20" inputmode="numeric" value="${x&&x.g!=null?x.g:''}"></div><div><label>Para (births before this pregnancy)</label><input id="pf4" type="number" min="0" max="20" inputmode="numeric" value="${x&&x.pa!=null?x.pa:''}"></div></div><label style="margin-top:10px">Risk factors (tick all that apply)</label>${PNRISK.map((r,i)=>`<label style="display:flex;gap:8px;align-items:center;font-size:14px;color:var(--tx);margin-bottom:4px"><input type="checkbox" id="pr${i}" style="width:auto" ${rk.includes(r)?'checked':''}><span>${E(r)}</span></label>`).join('')}<label style="margin-top:10px">Other risk or notes (optional)</label><input id="pf5" maxlength="200" value="${E(x?x.riskNote||'':'')}" autocomplete="off">${x?'':`<label style="margin-top:10px">Next prenatal check-up (optional)</label><input id="pf6" type="date" min="${dstr(-1)}">`}<div class="er2" id="pfe"></div>`,
+   'Save',`pnSave('${pid0}','${prid||''}')`)
+}
+function pnEdd(){const v=$('pf1').value,el=$('pf2');if(el)el.textContent=/^\d{4}-\d{2}-\d{2}$/.test(v)?longD(addD(v,280)):'-'}
+function pnRefresh(pid0){if(pg==='pn'||pg==='fu')lvScroll(R);if(pg==='prof'&&pid===pid0)loadPnH(pid0)}
+async function pnSave(pid0,prid){
+  const p=P.find(x=>x.id===pid0),er=$('pfe'),e=s=>{er.textContent=s};if(!p)return;
+  const lmp=$('pf1').value,gs=$('pf3').value.trim(),ps=$('pf4').value.trim(),note=$('pf5').value.trim(),nv=$('pf6')?$('pf6').value:'';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(lmp)||isNaN(new Date(lmp)))return e('Enter the first day of the last period.');
+  if(lmp>today())return e('The last period cannot be in the future.');
+  if(dayDiff(today(),lmp)>294)return e('That date is more than 42 weeks ago. Check the date.');
+  if(ageAt(p.dob,lmp)<10)return e('Check the date: the patient was under 10 years old then.');
+  const g=gs===''?null:parseInt(gs,10),pa=ps===''?null:parseInt(ps,10);
+  if((g!==null&&!(g>=1&&g<=20))||(pa!==null&&!(pa>=0&&pa<=20)))return e('Gravida must be 1 to 20 and para 0 to 20, or leave them blank.');
+  if(g!==null&&pa!==null&&pa>=g)return e('Para must be less than gravida.');
+  if(nv&&nv<=today())return e('Pick a check-up date after today, or clear it.');
+  if(!prid&&Object.values(PNM).some(x=>x.pid===pid0&&x.status==='active'))return e('This patient already has an active pregnancy.');
+  const risk=PNRISK.filter((r,i)=>$('pr'+i).checked),edd=addD(lmp,280);
+  fmBusy(true);
+  try{
+    if(prid){await updateDoc(doc(db,'prenatal',prid),{lmp,edd,g,pa,risk,riskNote:note,updBy:U.name,updAt:serverTimestamp()});if(PNM[prid])Object.assign(PNM[prid],{lmp,edd,g,pa,risk,riskNote:note});await lg('Updated pregnancy '+pid0)}
+    else{const d={pid:pid0,pname:pn(p),lmp,edd,g,pa,risk,riskNote:note,status:'active',nv,lastVd:'',by:U.uid,byName:U.name},r=await addDoc(collection(db,'prenatal'),{...d,at:serverTimestamp()});PNM[r.id]={id:r.id,...d};if(PN)PN.push(PNM[r.id]);await lg('Registered pregnancy '+pid0)}
+    fmClose();pnRefresh(pid0);sDone('The pregnancy was saved.','Saved')
+  }catch(ex){fmBusy(false);e(ex.code==='permission-denied'?'You do not have permission to record pregnancies. Publish the latest firestore.rules first.':'Could not save. Check your connection.')}
+}
+function pnVisit(prid){
+  const x=PNM[prid];if(!x)return;
+  const q=(id,l,ph)=>`<div><label>${l}</label><input id="${id}" type="number" step="any" inputmode="decimal" placeholder="${ph}"></div>`;
+  fmShow('Prenatal visit',x.pname+' | '+pnAog(x.lmp)+' | Due '+x.edd,
+   `<div class="fm"><div><label>Visit date</label><input id="pv0" type="date" value="${today()}" min="${E(x.lmp)}" max="${today()}"></div>${q('pv1','BP systolic (mmHg)','120')}${q('pv2','BP diastolic (mmHg)','80')}${q('pv3','Weight (kg)','')}${q('pv4','Fundal height (cm)','')}${q('pv5','Fetal heart tone (bpm)','140')}</div><label style="margin-top:10px">Notes (optional)</label><textarea id="pv6" rows="3" maxlength="500"></textarea><label style="margin-top:10px">Next prenatal check-up (optional)</label><input id="pv7" type="date" min="${dstr(-1)}"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${[[7,'1 week'],[14,'2 weeks'],[28,'4 weeks']].map(([n,l])=>`<button type="button" class="bt g" onclick="pnNv(${n})">${l}</button>`).join('')}</div><div class="er2" id="pve"></div>`,
+   'Save visit',`pnVisitSave('${prid}')`)
+}
+function pnNv(n){const el=$('pv7');if(el)el.value=addD(today(),n)}
+async function pnVisitSave(prid){
+  const x=PNM[prid],er=$('pve'),e=s=>{er.textContent=s};if(!x)return;
+  const num=i=>{const v=$(i).value.trim();return v===''?null:Number(v)},d=$('pv0').value,bps=num('pv1'),bpd=num('pv2'),wt=num('pv3'),fh=num('pv4'),fht=num('pv5'),notes=$('pv6').value.trim(),nv=$('pv7').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()||d<x.lmp)return e('Enter a valid visit date (not in the future, not before the last period).');
+  if((bps===null)!==(bpd===null))return e('Enter both blood pressure numbers, or leave both blank.');
+  const bad=(v,a,b)=>v!==null&&!(v>=a&&v<=b);
+  if(bad(bps,50,260)||bad(bpd,30,160)||(bps!==null&&bps<=bpd))return e('Check the blood pressure values.');
+  if(bad(wt,20,200)||bad(fh,5,50)||bad(fht,60,220))return e('Check the weight, fundal height or fetal heart tone values.');
+  if(nv&&nv<=today())return e('Pick a check-up date after today, or clear it.');
+  if(bps===null&&wt===null&&fh===null&&fht===null&&!notes)return e('Enter at least one finding or a note.');
+  fmBusy(true);
+  try{
+    const b=writeBatch(db),latest=d>=(x.lastVd||''),up=latest?{lastVd:d,nv,...(bps!==null?{lbs:bps,lbd:bpd}:{})}:{};
+    // Only the newest visit updates the summary on the pregnancy (last visit, next check-up, latest BP); an older entry is just added to the log.
+    b.set(doc(collection(db,'prenatalVisits')),{prid,pid:x.pid,pname:x.pname,d,aog:Math.floor(dayDiff(d,x.lmp)/7),bps,bpd,wt,fh,fht,notes,nv,by:U.uid,byName:U.name,at:serverTimestamp()});
+    if(latest)b.update(doc(db,'prenatal',prid),{...up,updBy:U.name,updAt:serverTimestamp()});
+    await b.commit();
+    Object.assign(x,up);await lg('Prenatal visit '+x.pid+' '+d);fmClose();pnRefresh(x.pid);sDone('The visit was saved.','Saved')
+  }catch(ex){fmBusy(false);e(ex.code==='permission-denied'?'You do not have permission to record visits. Publish the latest firestore.rules first.':'Could not save. Check your connection.')}
+}
+function pnClose(prid){
+  const x=PNM[prid];if(!x)return;
+  fmShow('Close pregnancy',x.pname,`<div class="fm"><div><label>Outcome</label><select id="pc1">${PNOUT.map(o=>`<option>${o}</option>`).join('')}</select></div><div><label>Date</label><input id="pc2" type="date" value="${today()}" min="${E(x.lmp)}" max="${today()}"></div></div><label style="margin-top:10px">Note (optional)</label><input id="pc3" maxlength="200" autocomplete="off"><p style="color:var(--mu);font-size:13px;margin:8px 0 0">The pregnancy moves to the Closed list. Its visit records are kept.</p><div class="er2" id="pce"></div>`,'Close pregnancy',`pnCloseSave('${prid}')`)
+}
+async function pnCloseSave(prid){
+  const x=PNM[prid],er=$('pce');if(!x)return;
+  const o=$('pc1').value,d=$('pc2').value,note=$('pc3').value.trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d))||d>today()||d<x.lmp){er.textContent='Enter a valid date (not in the future, not before the last period).';return}
+  fmBusy(true);
+  try{await updateDoc(doc(db,'prenatal',prid),{status:'closed',outcome:o,outDate:d,outNote:note,nv:'',outBy:U.name,outAt:serverTimestamp()});Object.assign(x,{status:'closed',outcome:o,outDate:d,outNote:note,nv:''});await lg('Closed pregnancy '+x.pid+' ('+o+')');fmClose();pnRefresh(x.pid);sDone('The pregnancy was closed.','Saved')}
+  catch(ex){fmBusy(false);er.textContent=ex.code==='permission-denied'?'You do not have permission to close pregnancies. Publish the latest firestore.rules first.':'Could not save. Check your connection.'}
+}
+// Pregnancy card on the patient profile (doctor and midwife).
+async function loadPnH(id){
+  if(!$('pnc'))return;
+  try{
+    const s=await getDocs(query(collection(db,'prenatal'),where('pid','==',id))),l=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.lmp||'').localeCompare(a.lmp||''));
+    l.forEach(x=>{PNM[x.id]=x});
+    const act=l.find(x=>x.status==='active');let vs=[];
+    if(act)vs=(await getDocs(query(collection(db,'prenatalVisits'),where('prid','==',act.id)))).docs.map(d=>d.data()).sort((a,b)=>(b.d||'').localeCompare(a.d||''));
+    const c=$('pnc');if(c&&pid===id)c.innerHTML=pnCard(id,l,act,vs)
+  }catch(e){const c=$('pnc');if(c)c.innerHTML='<h3 style="margin-top:0">Pregnancy</h3><p class="er2" style="margin:6px 0 0">'+(e.code==='permission-denied'?'Could not load. Publish the latest firestore.rules first.':'Could not load. Check your connection.')+'</p>'}
+}
+function pnCard(id,l,act,vs){
+  const can=CROLES.includes(U.role),old=l.filter(x=>x.status!=='active');
+  let h=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="margin:0">Pregnancy</h3><span style="display:flex;gap:8px;flex-wrap:wrap">${can?(act?`<button class="bt g" onclick="pnVisit('${act.id}')">Add visit</button><button class="bt g" onclick="pnForm('${id}','${act.id}')">Edit</button><button class="bt g" onclick="pnClose('${act.id}')">Close</button>`:`<button class="bt g" onclick="pnForm('${id}')">Register pregnancy</button>`):''}</span></div>`;
+  if(act){
+    const al=pnAlerts(act),eg=fuDays(act.edd);
+    h+=`<div class="fm" style="margin-top:10px"><div><label>Age of gestation</label><b>${E(pnAog(act.lmp))}</b> <small style="color:var(--mu)">${pnTri(act.lmp)}</small></div><div><label>Expected due date</label>${E(longD(act.edd))}<small style="display:block;color:${eg<0?'var(--er)':'var(--mu)'}">${pnEddTxt(eg)}</small></div><div><label>Last period (LMP)</label>${E(longD(act.lmp))}</div><div><label>Gravida / Para</label>${act.g!=null?'G'+act.g:'-'} / ${act.pa!=null?'P'+act.pa:'-'}</div><div><label>Next check-up</label>${act.nv?E(act.nv)+(fuDays(act.nv)<0?' '+tgh('Overdue','er'):''):'<span style="color:var(--mu)">Not set</span>'}</div></div>`;
+    h+=`<div style="margin-top:10px"><label>Risk</label>${al.length?al.map(a=>tgh(E(a[0]),a[1])).join(' '):'<span style="color:var(--mu)">No risk factors recorded</span>'}${act.riskNote?`<div style="margin-top:4px;color:var(--mu);font-size:14px">${E(act.riskNote)}</div>`:''}</div>`;
+    h+=vs.length?`<div class="ov" style="margin-top:10px"><table><thead><tr><th>Date</th><th>AOG</th><th>BP</th><th>Weight</th><th>Fundal ht</th><th>FHT</th><th>Notes</th></tr></thead><tbody>${vs.map(v=>`<tr><td>${E(v.d)}</td><td>${v.aog!=null?v.aog+' w':''}</td><td>${v.bps!=null?v.bps+'/'+v.bpd:''}</td><td>${v.wt!=null?v.wt+' kg':''}</td><td>${v.fh!=null?v.fh+' cm':''}</td><td>${v.fht!=null?v.fht+' bpm':''}</td><td>${E(v.notes||'')}${v.byName?`<small style="display:block;color:var(--mu)">${E(v.byName)}</small>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu);margin:10px 0 0">No prenatal visits recorded yet.</p>'
+  }else if(!old.length)h+='<p style="color:var(--mu);margin:10px 0 0">No pregnancy recorded.</p>';
+  if(old.length)h+=`<div style="margin-top:12px"><label>Previous records</label>${old.map(x=>`<div style="font-size:14px">LMP ${E(longD(x.lmp))}: ${E(x.outcome||'Closed')}${x.outDate?', '+E(longD(x.outDate)):''}</div>`).join('')}</div>`;
+  return h
 }
 /* ---------- Vaccine stock ---------- */
 const VXS=[['bcg','BCG'],['hepb','Hep B'],['penta','Pentavalent (Penta)'],['opv','OPV'],['pcv','PCV'],['ipv','IPV'],['mmr','MMR']];
@@ -2239,5 +2470,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
