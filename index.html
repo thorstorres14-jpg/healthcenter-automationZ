@@ -333,7 +333,8 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){dOpen(false);RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='inv')loadInv();if(k==='nt')loadNt();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+let BQ=null;
+function go(k,keep){dOpen(false);RXL=[];dmClose();if(!keep)bk=[];pg=k;q=keep&&BQ?BQ:'';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='inv')loadInv();if(k==='nt')loadNt();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -464,11 +465,11 @@ function certGo(i){
   lg('Printed medical certificate '+p.id+' '+v.d);
   printDoc(`${lhHtml(lh().office)}<h2>MEDICAL CERTIFICATE</h2><div class="hr"></div><div class="dt"><b>Date:</b> ${E(longD(new Date().toLocaleDateString('en-CA')))}</div><p style="margin-bottom:10px"><b>TO WHOM IT MAY CONCERN:</b></p><p style="text-indent:40px">This is to certify that <b>${t} ${E(pn(p))}</b>, ${E(String(age(p.dob)).replace(/ y$/,' years old').replace(/ mo$/,' months old'))}, ${p.sex==='M'?'male':'female'}, a resident of ${E(p.pu+', '+p.br)}, was seen and examined at this health center on <b>${E(longD(v.d))}</b> with the following diagnosis / impression: <b>${E(dx)}</b>.</p>${rec?`<p style="text-indent:40px">${rec}</p>`:''}<p style="text-indent:40px">This certificate is issued upon the request of the patient${pu?` for <b>${E(pu)}</b> purposes`:''}.</p><div class="fill"></div><div class="sig"><div class="ln">${E(U.name)}<br>${E(RN[U.role]||U.role)}<br>${licTxt()}</div></div><div class="ft">Not valid without the signature of the attending physician.</div>`,'A4 portrait')
 }
-function navPush(){if(pg==='reg'||pg==='edit')return;bk.push({pg,pid,hhSel});history.pushState({bk:1},'')}
+function navPush(){if(pg==='reg'||pg==='edit')return;bk.push({pg,pid,hhSel,q,y:scrollY});history.pushState({bk:1},'')}
 function goBack(def){if(bk.length)history.back();else go(def)}
 function backLbl(def){const e=bk[bk.length-1];if(!e)return def;if(e.pg==='prof')return'previous patient';if(e.pg==='hhd')return'household '+e.hhSel;const n=NAV.find(x=>x[0]===e.pg);return n?n[1]:def}
 addEventListener('keydown',e=>{if(e.key==='Escape'){const b=document.getElementById('sb');if(b)b.classList.remove('open')}});
-addEventListener('popstate',()=>{const e=bk.pop();if(!e)return;if(e.pg==='prof')return view(e.pid,1);hhSel=e.hhSel;go(e.pg,1)});
+addEventListener('popstate',()=>{const e=bk.pop();if(!e)return;if(e.pg==='prof')return view(e.pid,1);hhSel=e.hhSel;BQ=e.q||'';go(e.pg,1);if(BQ){const sc=document.querySelector('input[oninput="sq(this.value)"]');if(sc)sc.value=BQ}BQ=null;if(e.y)scrollTo(0,e.y)});
 // Menu groups: pages that belong together share one menu item and a row of tabs, so busy staff see a short menu.
 const GRP=[['cs','Consultation',['queue','consult','appr','ref','mc']],['fg','Follow-ups & programs',['fu','pn','imm']]];
 const grpOf=k=>GRP.find(g=>g[2].includes(k));
