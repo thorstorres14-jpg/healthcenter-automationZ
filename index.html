@@ -2325,12 +2325,15 @@ function invCsvSum(){ioDl('stock-summary-'+INVF+'-to-'+INVTo+'.csv',[['Item','Ty
 /* ---------- Notifications: one bell for everything that needs attention (what shows depends on the role) ---------- */
 let NT={key:'',items:null,busy:false};
 const ntKey=()=>U?U.role+'|'+U.uid:'';
-// Live items from the queue (no extra reads): patients waiting for consultation or in the queue.
+// Live items from the queue (no extra reads): patients waiting or ongoing in the consultation queue and in the station queues (Pharmacy, Lab, Immunization).
 function ntLive(){
-  const n=U&&mode==='app'?wcN():0;if(n<1)return [];
-  const d=n+(n===1?' patient is':' patients are')+' waiting';
-  if(CROLES.includes(U.role))return [{c:'wa',t:'Patients waiting for consultation',d,go:'consult'}];
-  return dqOn()?[{c:'wa',t:'Patients in the queue',d,go:'queue'}]:[]
+  if(!U||mode!=='app')return [];
+  const it=[],cnt=(l)=>{const w=l.filter(x=>x.status==='waiting').length,o=l.filter(x=>x.status==='in-consult').length;return [w,o,(w?w+' waiting':'')+(w&&o?', ':'')+(o?o+' ongoing':'')]};
+  if(CROLES.includes(U.role)){const [w,o,d]=cnt(Q.filter(x=>isC(x)&&['waiting','in-consult'].includes(x.status)));if(w+o>0)it.push({c:'wa',t:'Patients in consultation',d,go:'consult'})}
+  else if(dqOn()){const n=Q.filter(x=>isC(x)&&x.status==='waiting').length;if(n>0)it.push({c:'wa',t:'Patients in the queue',d:n+(n===1?' patient is':' patients are')+' waiting',go:'queue'})}
+  const GO={pharmacy:'pharm',lab:'lab',imm:'imm'};
+  myStn().forEach(k=>{const [w,o,d]=cnt(Q.filter(x=>x.station===k&&['waiting','in-consult'].includes(x.status)));if(w+o>0)it.push({c:'wa',t:'Patients in the '+STN[k]+' queue',d,go:GO[k]})});
+  return it
 }
 const ntItems=()=>NT.key===ntKey()?ntLive().concat(NT.items||[]):null;
 function ntBuild(t){
