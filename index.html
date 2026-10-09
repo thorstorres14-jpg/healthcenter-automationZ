@@ -148,7 +148,7 @@ function loadP(){
 onAuthStateChanged(auth,async u=>{
   if(setting)return;
   if(!u){U=null;try{Object.keys(sessionStorage).filter(k=>k.startsWith('rhuDraft:')).forEach(k=>sessionStorage.removeItem(k))}catch(e){}try{mode=(await getDoc(doc(db,'meta','setup'))).exists()?'login':'setup'}catch(e){mode='login'}return R()}
-  try{const d=await getDoc(doc(db,'users',u.uid));if(d.exists()&&d.data().active!==false){U={uid:u.uid,...d.data()};try{S=(await getDoc(doc(db,'meta','settings'))).data()||{}}catch(e){S={}}mode='app';pg='dash';msg='';t=Date.now();await loadP().catch(()=>{});{const dd=dGet();if(dd&&dd.open&&dd.day===today()&&CROLES.includes(U.role)&&P.find(x=>x.id===dd.cp)){cp=dd.cp;cq=dd.cq||null;pg='consult';RXL=[]}}}else mode='orphan'}catch(e){mode='orphan'}
+  try{const d=await getDoc(doc(db,'users',u.uid));if(d.exists()&&d.data().active!==false){U={uid:u.uid,...d.data()};try{S=(await getDoc(doc(db,'meta','settings'))).data()||{}}catch(e){S={}}mode='app';pg='dash';msg='';t=Date.now();await loadP().catch(()=>{});{const dd=dGet();if(dd&&dd.open&&dd.day===today()&&CROLES.includes(U.role)&&P.find(x=>x.id===dd.cp)){cp=dd.cp;cq=dd.cq||null;pg='consult';RXL=[]}else{const dr=dRegGet();if(dr&&dr.day===today()&&canReg()){pg='reg';REGRESTORE=true}}}}else mode='orphan'}catch(e){mode='orphan'}
   R();
 });
 let PXN=0,PXU=null;
@@ -1049,7 +1049,7 @@ const phFmt=v=>{const d=phDigits(v);return d.length>2?d.slice(0,2)+'-'+d.slice(2
 const phOk=v=>!v||phDigits(v).length===12;
 function phIn(el){el.value=phFmt(el.value)}
 const regFields=hm=>{const hs=[...new Set(P.map(x=>x.hh))];return `<div class="fm"><div><label>Last name</label><input id="f2"></div><div><label>First name</label><input id="f1"></div><div><label>Middle name (optional)</label><input id="f9"></div><div><label>Sex</label><select id="f3"><option value="">Select</option><option value="F">Female</option><option value="M">Male</option></select></div><div><label>Birthdate</label><input id="f4" type="date" max="${today()}"></div><div><label>Barangay</label>${brField(hm.br||'')}</div><div><label>Purok</label><div id="f6w">${puField(hm.br||'',hm.pu||'')}</div></div><div><label>Contact number (optional)</label><input id="f7"></div><div><label>PhilHealth number (optional)</label><input id="f10" inputmode="numeric" maxlength="14" placeholder="12-345678901-2" autocomplete="off" oninput="phIn(this)"></div><div><label>Household</label><select id="f8"><option value="">New household</option>${hs.map(h=>`<option ${h===regHH?'selected':''}>${h}</option>`).join('')}</select></div>${(LV[U.role]||'basic')==='basic'?'':'<div><label>Allergies (optional)</label><input id="fa1" maxlength="500" placeholder="e.g. Penicillin, shrimp" autocomplete="off"></div><div><label>Medical history (optional)</label><input id="fa2" maxlength="1000" placeholder="e.g. Hypertension, diabetes" autocomplete="off"></div>'}</div>`+`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px;font-size:14px"><input id="cs" type="checkbox" style="width:auto;margin-top:4px"><span>The patient has been informed and consents to the health center recording and using their personal data for care and reporting, in line with the Data Privacy Act.</span></label>`};
-function reg(){const hm=P.find(x=>x.hh===regHH)||{};return `<h2 style="margin-top:0">Register patient</h2><div class="cd">${regFields(hm)}<div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="save()">Save patient</button><button class="bt" id="sv2" onclick="save(true)">Register and add to queue</button><button class="bt g" onclick="go('patients')">Cancel</button></div></div>`}
+function reg(){const hm=P.find(x=>x.hh===regHH)||{};return `${(setTimeout(dRegRestore,0),'')}<h2 style="margin-top:0">Register patient</h2><div class="cd">${regFields(hm)}<div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="save()">Save patient</button><button class="bt" id="sv2" onclick="save(true)">Register and add to queue</button><button class="bt g" onclick="go('patients')">Cancel</button></div></div>`}
 function qNew(){
   const t=(($('qsrch')||{}).value||'').trim(),m=t.split(','),ln=m[0].trim(),fn=(m[1]||'').trim();
   fmShow('New patient','Registers the patient and adds them to today\'s queue',regFields({})+'<label style="margin-top:10px">Reason for visit (optional)</label><input id="rq" list="rsl" placeholder="e.g. Check-up" autocomplete="off">'+rsDl()+'<div class="er2" id="fe"></div>','Register and add to queue','save(true)');
@@ -1072,7 +1072,7 @@ async function save(aq){
       np={id:'RHU-'+String(n).padStart(6,'0'),fn:f[0],ln:f[1],mn:g('f9'),sex:f[2],dob:f[3],br:f[4],pu:f[5],tel:g('f7'),hh:h,consent:true,consentBy:U.name,createdDay:new Date().toLocaleDateString('en-CA'),...($('fa1')?{alg:g('fa1'),mh:g('fa2')}:{}),...(g('f10')?{ph:phFmt(g('f10'))}:{})};
       tx.set(doc(db,'patients',np.id),{...np,createdAt:serverTimestamp()});
     });
-    P.push(np);regHH='';await lg('Registered '+np.id);
+    P.push(np);regHH='';dRegClear();await lg('Registered '+np.id);
     if(mdl){const rr=(($('rq')||{}).value||'').trim();fmClose();qAskV(np.id,rr);return}
     if(!aq)sDone(pn(np)+' was registered.','Patient registered');view(np.id);if(aq)qAskV(np.id,'');
   }catch(x){rb(false);e(x.code==='permission-denied'?'You do not have permission to register patients.':'Could not save. Registration needs an internet connection.')}
@@ -1471,9 +1471,32 @@ function dRestore(){
   }
   rxPaint();dSave()
 }
+/* Register patient page: same idea. It is restored after a refresh only. */
+const dRegKey=()=>U?'rhuDraftReg:'+U.uid:'';
+function dRegGet(){try{const k=dRegKey();return k?JSON.parse(sessionStorage.getItem(k)||'null'):null}catch(e){return null}}
+function dRegPut(o){try{const k=dRegKey();if(!k)return;if(o)sessionStorage.setItem(k,JSON.stringify(o));else sessionStorage.removeItem(k)}catch(e){}}
+const dRegClear=()=>dRegPut(null);
+let REGRESTORE=false;
+function dRegSave(){
+  if(!U||mode!=='app'||pg!=='reg'||!$('f1'))return;
+  const v=[];document.querySelectorAll('#root .cd [id]').forEach(e=>{if(/^(f\d+|fa\d|cs)$/.test(e.id)&&/^(INPUT|SELECT|TEXTAREA)$/.test(e.tagName))v.push([e.id,e.type==='checkbox'?e.checked:e.value])});
+  dRegPut({day:today(),v})
+}
+function dRegRestore(){
+  if(!REGRESTORE||!U||pg!=='reg'||!$('f1'))return;
+  REGRESTORE=false;const d=dRegGet();if(!d||d.day!==today())return;
+  (d.v||[]).forEach(([id,val])=>{const e=$(id);if(!e)return;if(e.type==='checkbox')e.checked=!!val;else if(val!==''){e.value=val;if(e.tagName==='SELECT')e.dispatchEvent(new Event('change',{bubbles:true}))}});
+  dRegSave()
+}
 let DT=null;
-['input','change','click'].forEach(ev=>document.addEventListener(ev,()=>{if(pg==='consult'&&cp){clearTimeout(DT);DT=setTimeout(dSave,300)}},true));
-addEventListener('beforeunload',dSave);addEventListener('pagehide',dSave);
+['input','change','click'].forEach(ev=>document.addEventListener(ev,()=>{if(pg==='consult'&&cp){clearTimeout(DT);DT=setTimeout(dSave,300)}if(pg==='reg'){clearTimeout(DT);DT=setTimeout(dRegSave,300)}},true));
+addEventListener('beforeunload',()=>{dSave();if(pg==='reg')dRegSave();else dRegClear()});addEventListener('pagehide',()=>{dSave();if(pg==='reg')dRegSave();else dRegClear()});
+// Pop-up forms (Add medicine, lab result, prenatal visit and so on) cannot be reopened after a refresh, so ask before the page is left while one has typed text in it.
+addEventListener('beforeunload',e=>{
+  if(!U||mode!=='app')return;
+  const m=document.getElementById('fmo');if(!m)return;
+  if([...m.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=hidden]),textarea')].some(x=>x.value.trim()&&x.value!==x.defaultValue)){e.preventDefault();e.returnValue=''}
+});
 function cancelC(){go('consult')}
 async function saveC(){
   const e=t=>{$('ce').textContent=t},g=i=>$(i).value.trim(),p=P.find(x=>x.id===cp);
@@ -2734,6 +2757,16 @@ async function loadAudit(){
 }
 ['click','keydown','touchstart'].forEach(e=>addEventListener(e,()=>{t=Date.now()}));
 addEventListener('keydown',e=>{if(e.key==='Enter'&&$('em')&&!U)($('nl')?doSetup:doLogin)()});
+// Warning bar in the last minute before the automatic sign-out. Any click or key press keeps the session open.
+setInterval(()=>{
+  const im=idleMin();let w=document.getElementById('idw');
+  if(!U||mode!=='app'||im<=0){if(w)w.remove();return}
+  const left=im*60000-(Date.now()-t);
+  if(left>60000||left<=0){if(w)w.remove();return}
+  const sec=Math.ceil(left/1000);
+  if(!w){w=document.createElement('div');w.id='idw';w.setAttribute('role','alert');w.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;background:#7a4a00;color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.3);display:flex;gap:14px;align-items:center;max-width:92vw';document.body.appendChild(w)}
+  w.innerHTML='<span>You will be signed out in <b>'+sec+'</b> second'+(sec===1?'':'s')+' because of inactivity. Unsaved entries will be lost.</span><button type="button" class="bt" style="white-space:nowrap">Stay signed in</button>'
+},1000);
 setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
 /* ---------- Date picker (replaces the browser's own) ---------- */
 const DPMN=['January','February','March','April','May','June','July','August','September','October','November','December'];
