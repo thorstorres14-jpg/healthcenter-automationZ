@@ -182,9 +182,10 @@ let SQs=null,SQac=null,SQt=null,SQt0='',SQlast=0,NTlast=0;
 const myStn=()=>U?['pharmacy','lab','imm'].filter(k=>SROLE[k].includes(U.role)):[];
 const sqWaiting=()=>Q.filter(x=>myStn().includes(x.station)&&x.status==='waiting');
 // Patients waiting for consultation: doctors and midwives see it on Consultation, front desk and others on Queue.
-const wcN=()=>Q.filter(x=>isC(x)&&x.status==='waiting').length;
+// Doctors and midwives: the Consultation badge counts waiting AND ongoing (in-consult) patients, the same ones shown in the list.
+const wcN=()=>Q.filter(x=>isC(x)&&(x.status==='waiting'||(CROLES.includes(U&&U.role)&&x.status==='in-consult'))).length;
 const wcFor=nk=>!!U&&(nk==='consult'&&CROLES.includes(U.role)||nk==='queue'&&!CROLES.includes(U.role)&&dqOn());
-function sqBadge(nk){if(wcFor(nk)){const n=wcN();return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting">${n>99?'99+':n}</span>`:''}const k=SQN[nk];if(!k||!myStn().includes(k))return '';const n=Q.filter(x=>x.station===k&&x.status==='waiting').length;return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting">${n>99?'99+':n}</span>`:''}
+function sqBadge(nk){if(wcFor(nk)){const n=wcN();return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting or ongoing">${n>99?'99+':n}</span>`:''}const k=SQN[nk];if(!k||!myStn().includes(k))return '';const n=Q.filter(x=>x.station===k&&x.status==='waiting').length;return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting">${n>99?'99+':n}</span>`:''}
 function sqPaint(){
   document.querySelectorAll('.sqb').forEach(e=>e.remove());
   document.querySelectorAll('.sb .nv').forEach(b=>{const m=(b.getAttribute('onclick')||'').match(/go\('(\w+)'\)/),ks=b.dataset.g?b.dataset.g.split(','):m?[m[1]]:[];ks.forEach(k=>b.insertAdjacentHTML('beforeend',sqBadge(k)))});
