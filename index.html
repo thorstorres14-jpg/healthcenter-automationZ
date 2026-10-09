@@ -588,6 +588,12 @@ const dmList=(arr,fn)=>{const sh=arr.slice(0,20);return(sh.length?sh.map(fn).joi
 const pSub=p=>E(age(p.dob)+' / '+p.sex+', '+p.br);
 const nN=(n,w)=>n+' '+w+(n===1?'':'s');
 const rxDrugs=r=>E((r.items||[]).map(i=>i.drug).filter(Boolean).join(', '));
+// Medicines with the quantity actually given (falls back to the prescribed quantity for older records)
+const rxGivenTxt=r=>E((r.items||[]).map((i,k)=>{if(!i.drug)return '';const x=(r.results||[])[k],p=Number(i.qty)||0;
+  if(!x)return i.drug+(p?' x '+p:'');
+  if(x.st==='none')return i.drug+' (not available)';
+  const g=Number(x.given)||0;
+  return i.drug+(g?' x '+g+(p&&g<p?' of '+p:''):'')}).filter(Boolean).join(', '));
 function rxStat(r){const need={};(r.items||[]).forEach(i=>{const n=Number(i.qty);if(i.drug&&n>0){const k=skey(i.drug);need[k]=(need[k]||0)+n}});let bad='',warn='';for(const k in need){const v=PD.sk[k];if(!v)warn='Not in stock list';else if(bUse(v)<need[k])bad=bUse(v)<=0&&bExpQ(v)>0?'Expired stock':'Not enough'}return bad?[bad,'er']:warn?[warn,'wa']:['Stock OK','ok']}
 const rxTg=r=>{const x=rxStat(r);return tgh(x[0],x[1])};
 function dmClose(){const o=document.getElementById('dmo');if(o)o.remove()}
@@ -610,7 +616,7 @@ function dmOpen(k){
   else if(['med','low','exp','rx','disp'].includes(k)){
     if(!PD.ok){T='Still loading';B='<p style="color:var(--mu)">Try again in a moment.</p>'}
     else if(k==='rx'){T='Prescriptions to dispense';S=nN(PD.rx.length,'prescription')+' waiting';B=dmList(PD.rx,r=>dmr(E(r.pname),rxDrugs(r),rxTg(r)));btn=['Open Pharmacy',"dmGo('pharm')"]}
-    else if(k==='disp'){T='Dispensed today';S=nN(PD.dpl.length,'prescription');B=dmList(PD.dpl,r=>dmr(E(r.pname),rxDrugs(r)))}
+    else if(k==='disp'){T='Dispensed today';S=nN(PD.dpl.length,'prescription');B=dmList(PD.dpl,r=>dmr(E(r.pname),rxGivenTxt(r)))}
     else{const sk=Object.entries(PD.sk).sort(k==='med'?(a,b)=>String(a[1].name).localeCompare(b[1].name):(a,b)=>stTags(b[1]).length-stTags(a[1]).length||String(a[1].name).localeCompare(b[1].name));
       const a=k==='med'?sk:k==='low'?sk.filter(([,v])=>stTags(v).includes('Low')):sk.filter(([,v])=>stTags(v).some(x=>x!=='Low'));
       T={med:'Medicines',low:'Low stock',exp:'Expired or expiring'}[k];S=nN(a.length,'medicine');
