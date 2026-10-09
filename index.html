@@ -149,8 +149,8 @@ function loadP(){
 }
 onAuthStateChanged(auth,async u=>{
   if(setting)return;
-  if(!u){U=null;try{Object.keys(sessionStorage).filter(k=>k.startsWith('rhuDraft:')).forEach(k=>sessionStorage.removeItem(k))}catch(e){}try{mode=(await getDoc(doc(db,'meta','setup'))).exists()?'login':'setup'}catch(e){mode='login'}return R()}
-  try{const d=await getDoc(doc(db,'users',u.uid));if(d.exists()&&d.data().active!==false){U={uid:u.uid,...d.data()};try{S=(await getDoc(doc(db,'meta','settings'))).data()||{}}catch(e){S={}}mode='app';pg='dash';msg='';t=Date.now();await loadP().catch(()=>{});{const dd=dGet();if(dd&&dd.open&&dd.day===today()&&CROLES.includes(U.role)&&P.find(x=>x.id===dd.cp)){cp=dd.cp;cq=dd.cq||null;pg='consult';RXL=[]}else{const dr=dRegGet();if(dr&&dr.day===today()&&canReg()){pg='reg';REGRESTORE=true}}}}else mode='orphan'}catch(e){mode='orphan'}
+  if(!u){U=null;if(!KEEPD){try{Object.keys(sessionStorage).filter(k=>k.startsWith('rhuDraft')).forEach(k=>sessionStorage.removeItem(k))}catch(e){}}KEEPD=false;try{mode=(await getDoc(doc(db,'meta','setup'))).exists()?'login':'setup'}catch(e){mode='login'}return R()}
+  try{const d=await getDoc(doc(db,'users',u.uid));if(d.exists()&&d.data().active!==false){U={uid:u.uid,...d.data()};try{S=(await getDoc(doc(db,'meta','settings'))).data()||{}}catch(e){S={}}mode='app';pg='dash';msg='';t=Date.now();try{Object.keys(sessionStorage).filter(k=>k.startsWith('rhuDraft')&&!k.endsWith(':'+u.uid)).forEach(k=>sessionStorage.removeItem(k))}catch(e){}await loadP().catch(()=>{});setTimeout(()=>qSweep(),3000);{const dd=dGet();if(dd&&dd.open&&dd.day===today()&&CROLES.includes(U.role)&&P.find(x=>x.id===dd.cp)){cp=dd.cp;cq=dd.cq||null;pg='consult';RXL=[]}else{const dr=dRegGet();if(dr&&dr.day===today()&&canReg()){pg='reg';REGRESTORE=true}else{const fm=fmGet();if(fm&&fm.day===today()&&fm.pg){FMPEND=fm;setTimeout(fmResume,600)}else{const lb=labGet();if(lb&&lb.day===today()&&lb.v&&Object.keys(lb.v).length&&lbRolesOk()){pg='lab';setTimeout(()=>go('lab'),300)}}}}}}else mode='orphan'}catch(e){mode='orphan'}
   R();
 });
 let PXN=0,PXU=null;
@@ -926,6 +926,29 @@ function ioTemplate(){
     ['Dela Cruz','Maria','Santos','F','2025-03-14',br,'Purok 1','09171234567','FAM-1','2025-03-15','2025-03-15','2025-04-27',...vk.slice(3).map(()=>'')],
     ['Dela Cruz','Ramon','Reyes','M','1985-07-02',br,'Purok 1','','FAM-1',...vk.map(()=>'')]])
 }
+const BKC=['patients','visits','prescriptions','labs','immunizations','prenatal','prenatalVisits','queue','stock','stockin','stocklog','vxstock','vxlog','audit','users'];
+async function backupAll(){
+  if(!U||U.role!=='developer')return;
+  if(!await sConfirm('The file will contain ALL patient records and clinic data. Keep it on a safe, locked device. Do not send it through chat or social media. It may take a minute.','Download full backup','Download',0))return;
+  const bt=$('bkb'),er=$('bke');if(er)er.textContent='';if(bt){bt.disabled=true;bt.textContent='Preparing backup...'}
+  const rp=(k,v)=>v&&typeof v==='object'&&typeof v.seconds==='number'&&typeof v.nanoseconds==='number'?new Date(v.seconds*1000).toISOString():v;
+  const parts=['{"app":"Bailen Health Center System","exportedAt":'+JSON.stringify(new Date().toISOString())+',"exportedBy":'+JSON.stringify(U.name)+',"collections":{'],miss=[];let first=true,total=0;
+  try{
+    for(const c of BKC){
+      try{
+        const sn=await getDocs(collection(db,c)),o={};sn.docs.forEach(d=>{o[d.id]=d.data()});
+        total+=sn.size;parts.push((first?'':',')+JSON.stringify(c)+':'+JSON.stringify(o,rp));first=false
+      }catch(e){miss.push(c)}
+    }
+    parts.push('}'+(miss.length?',"notExported":'+JSON.stringify(miss):'')+'}');
+    const bl=new Blob(parts,{type:'application/json'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(bl);a.download='bailen-health-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    await lg('Downloaded full backup ('+total+' records'+(miss.length?'; not exported: '+miss.join(', '):'')+')');
+    if(miss.length)sAlert('The backup was downloaded, but these parts could not be read: '+miss.join(', ')+'. Publish the latest firestore.rules and try again.');
+    else sDone('The backup was downloaded ('+total+' records). Lab photos and PDFs are not included.','Backup ready')
+  }catch(e){if(er)er.textContent='Could not create the backup. Check your connection and try again.'}
+  if(bt){bt.disabled=false;bt.textContent='Download full backup (JSON)'}
+}
 async function ioExport(){
   if(!isAdm())return;
   if(!await sConfirm('The file will contain personal information of '+P.length+' patients. Keep it safe. Do not send it through chat or social media.','Download patient list','Download',0))return;
@@ -937,6 +960,7 @@ const iop=()=>{
   return `<h2 style="margin-top:0">Reports &amp; Data</h2>${dataTabs()}`
   +(imp?`<div class="cd"><h3 style="margin-top:0">Import patients from a file</h3><p style="color:var(--mu);margin-top:0">For moving your paper or Excel records into the system. Save your list as a CSV file, then upload it here. Patients already in the system are skipped, so it is safe to upload a corrected file again.</p><ol style="color:var(--mu);font-size:14px;margin:0 0 12px;padding-left:20px"><li>Download the template and fill it in (or match its column names).</li><li>Required: last_name, first_name, sex (M/F), birthdate, barangay. Purok, contact and household are optional.</li><li>Same household value (for example FAM-1) puts people in one household.${CROLES.includes(U.role)?' Vaccine columns take the date given.':''}</li></ol><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"><button class="bt g" onclick="ioTemplate()">Download template</button><label style="margin:0;font-size:14px">Dates like 03/14/2025 are</label><select id="iof" style="width:auto" onchange="ioShow()"><option value="mdy">Month/Day/Year</option><option value="dmy">Day/Month/Year</option></select></div><label style="display:flex;gap:8px;align-items:flex-start;margin:0 0 12px;font-size:14px"><input id="ioc" type="checkbox" style="width:auto;margin-top:4px"><span>The patients in this file were informed and consented to the health center recording their data (Data Privacy Act).</span></label><input type="file" id="iofile" accept=".csv,.txt,text/csv" onchange="ioFile(this)"><div id="iop"></div></div>`:`<div class="cd"><h3 style="margin-top:0">Import patients</h3><p style="color:var(--mu);margin:0">Your account is not allowed to register patients, so it cannot import. Ask the developer to allow admins to add patients.</p></div>`)
   +(ex?`<div class="cd"><h3 style="margin-top:0">Export patient list</h3><p style="color:var(--mu);margin-top:0">Downloads all registered patients as a CSV file you can open in Excel. Use it as a backup or to hand over records. Every download is written to the audit log.</p><button class="bt" onclick="ioExport()">Download patient list (CSV)</button></div>`:'')
+  +(U.role==='developer'?`<div class="cd"><h3 style="margin-top:0">Full backup</h3><p style="color:var(--mu);margin-top:0">Downloads everything in the system (patients, visits, prescriptions, labs, immunizations, prenatal, queue, stock, vaccine stock, audit log and staff list) as one file. Do this regularly, for example every week, and keep the file on a safe device. Lab photos and PDFs are not included. Every download is written to the audit log.</p><button class="bt" id="bkb" onclick="backupAll()">Download full backup (JSON)</button><div class="er2" id="bke"></div></div>`:'')
 };
 /* ---------- Dialogs: replace the browser alert and confirm popups ---------- */
 const DLI={err:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',ok:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/>',ask:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/>',del:'<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'};
@@ -1258,20 +1282,21 @@ async function stBack(id){
 async function stDone(id){
   const x=Q.find(e=>e.id===id);if(!x||isC(x)||!SROLE[x.station]||!SROLE[x.station].includes(U.role))return;
   const r=x.route||[],nx=r[0],rest=r.slice(1);
+  if(!await sConfirm('Finish '+x.name+' at '+(STN[x.station]||x.station)+(nx?' and send to '+(STN[nx]||nx)+'?':'?'),'Mark as done?','Done',0))return;
   try{
     await updateDoc(doc(db,'queue',id),nx?{status:'waiting',station:nx,route:rest,by:null,byName:null}:{status:'done'});
     await setDoc(doc(db,'queueDisplay',id),nx?{day:x.day,num:x.num,status:'waiting',room:null,station:nx,route:rest,routedAt:serverTimestamp()}:{day:x.day,num:x.num,status:'done',room:null,doneAt:serverTimestamp()},{merge:true});
     await lg('Station done '+x.station+' '+id)
   }catch(e){sAlert(e.code==='permission-denied'?'You do not have permission to finish this patient.':'Could not save. Check your connection.')}
 }
-const ST={waiting:['wa','Waiting'],'in-consult':['ok','In consultation'],done:['ok','Done'],cancelled:['mt','Cancelled']};
+const ST={waiting:['wa','Waiting'],'in-consult':['ok','In consultation'],done:['ok','Done'],cancelled:['mt','Cancelled'],'no-show':['mt','Not seen']};
 const stOf=x=>isC(x)&&x.status==='in-consult'&&x.called?['wa','Called']:(ST[x.status]||['wa',x.status]);
 function qTable(){
   if(qmsg)return `<p class="er2">${E(qmsg)}</p>`;
   if(!Q.length)return '<p style="color:var(--mu)">No one in the queue yet today.</p>';
   return roomBar()+`<table><thead><tr><th>No.</th><th>Patient</th><th>Reason</th><th>Vitals</th><th>Status</th><th></th></tr></thead><tbody>${Q.map(x=>{const st=stOf(x),open=x.status==='waiting'||x.status==='in-consult';
     return `<tr><td>${qn(x.num)}</td><td><a href="#" onclick="view('${x.pid}');return false">${E(x.name)}</a>${qTags(x)}</td><td>${x.reason?E(x.reason)+qBy(x.reasonBy,x.reasonAt):'<span style="color:var(--mu)">-</span>'}${isC(x)?'':`<br><small style="color:var(--mu)">At ${STN[x.station]||E(x.station)}</small>`}</td><td>${E(vsum(x.vitals))?E(vsum(x.vitals))+qBy(x.vitalsBy,x.vitalsAt):'<span style="color:var(--mu)">-</span>'}</td><td><span class="tg ${st[0]}">${st[1]}</span>${qWho(x)}</td><td>${open&&canVitals()?`<button class="bt g" onclick="vOpen('${x.id}')">Vitals</button> `:''}${open&&canReason()?`<button class="bt g" onclick="rOpen('${x.id}')">Reason</button> `:''}${x.status==='waiting'&&isC(x)&&CROLES.includes(U.role)?`<button class="bt" onclick="callQ('${x.id}')">Call</button> `:''}${open&&isC(x)&&CROLES.includes(U.role)?`<button class="bt g" onclick="startQ('${x.id}')">${x.status==='waiting'?'Start consult':'Continue'}</button> `:''}${x.status==='in-consult'&&isC(x)&&CROLES.includes(U.role)?`<button class="bt g" onclick="recallQ('${x.id}',this)">Call again</button> <button class="bt g" onclick="releaseQ('${x.id}')">Return to waiting</button> `:''}${x.status==='waiting'&&canEdit()?`<button class="bt g dn" onclick="qCancel('${x.id}')">Cancel</button>`:''}</td></tr>${vq===x.id?vForm(x):''}${rqo===x.id?rForm(x):''}`}).join('')}</tbody></table>`}
-const qpg=()=>`<h2 style="margin-top:0">Queue</h2><p style="color:var(--mu);margin-top:-6px">${new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>${canReg()?`<div class="cd"><h3 style="margin-top:0">Add patient to queue</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="qsrch" placeholder="Search patient by name or ID" oninput="qSearch(this.value)" autocomplete="off" style="flex:1;min-width:200px"><button type="button" class="bt" onclick="qNew()">+ New patient</button></div><div id="qres" style="margin-top:8px"></div><div class="er2" id="qe"></div></div>`:''}<div class="cd ov"><div id="qt">${qTable()}</div></div>`;
+const qpg=()=>`<h2 style="margin-top:0">Queue</h2><p style="color:var(--mu);margin-top:-6px">${new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>${canReg()?`<div class="cd"><h3 style="margin-top:0">Add patient to queue</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="qsrch" placeholder="Search patient by name or ID" oninput="qSearch(this.value)" autocomplete="off" style="flex:1;min-width:200px"><button type="button" class="bt" onclick="qNew()">+ New patient</button></div><div id="qres" style="margin-top:8px"></div><div class="er2" id="qe"></div></div>`:''}<div class="cd ov"><div id="qt">${qTable()}</div>${canEdit()?'<div style="margin-top:10px"><button class="bt g" onclick="qClose()">Close the day</button> <small style="color:var(--mu)">Marks everyone still waiting as "Not seen".</small></div>':''}</div>`;
 function qSearch(v){
   const s=v.trim().toLowerCase(),r=$('qres');if(!s){r.innerHTML='';return}
   // Match from the start of the name as it is displayed ("Last, First Middle"), so "sa" finds Santos but not Rosa. The patient ID can still be matched anywhere.
@@ -1289,6 +1314,28 @@ async function qAdd(id,r,v){
     await lg('Queued '+id);{const qp=P.find(x=>x.id===id);sDone((qp?pn(qp):'The patient')+' was added to today\'s queue.','Added to queue')}
     if(pg==='queue'){await fetchQ();refreshQ();$('qsrch').value='';$('qres').innerHTML='';if(er)er.textContent=''}else go('queue')
   }catch(x){say(x.code==='permission-denied'?'You do not have permission to add to the queue.':'Could not add. Check your connection.')}
+}
+async function qClose(){
+  await fetchQ();const l=Q.filter(x=>['waiting','in-consult'].includes(x.status));
+  if(!l.length){sAlert('Nobody is waiting in the queue.');return}
+  if(!await sConfirm('Mark '+l.length+' patient'+(l.length===1?'':'s')+' still waiting or in consultation as "Not seen" and close today\'s queue? This cannot be undone.','Close the day?','Close the day',1))return;
+  try{
+    for(let i=0;i<l.length;i+=400){const b=writeBatch(db);l.slice(i,i+400).forEach(x=>b.update(doc(db,'queue',x.id),{status:'no-show',closedBy:U.name,closedAt:serverTimestamp()}));await b.commit()}
+    l.forEach(x=>syncDisp(x,{status:'cancelled'}));
+    await lg('Closed the day: '+l.length+' not seen');sDone(l.length+' patient'+(l.length===1?' was':'s were')+' marked as not seen.','Queue closed');
+    await fetchQ();refreshQ()
+  }catch(e){sAlert(e.code==='permission-denied'?'You do not have permission to close the queue.':'Could not save. Check your connection.')}
+}
+let SWEPT=false;
+async function qSweep(){
+  if(SWEPT||!U||mode!=='app'||!canEdit())return;SWEPT=true;
+  try{
+    const t0=today(),old=[];
+    for(const st of ['waiting','in-consult']){const sn=await getDocs(query(collection(db,'queue'),where('status','==',st),limit(400)));sn.docs.forEach(d=>{if((d.data().day||'')<t0)old.push(d.id)})}
+    if(!old.length)return;
+    for(let i=0;i<old.length;i+=400){const b=writeBatch(db);old.slice(i,i+400).forEach(id=>b.update(doc(db,'queue',id),{status:'no-show',closedBy:U.name+' (auto)',closedAt:serverTimestamp()}));await b.commit()}
+    await lg('Auto-closed '+old.length+' queue entries from earlier days')
+  }catch(e){}
 }
 async function qAddP(){const r=canReason()?await sPrompt('Reason for visit (optional)','Reason for visit (short). You can leave it blank and add it later.','','Add to queue'):'';if(r===null)return;await qAskV(pid,r)}
 let vq=null,qPend=null,rqo=null;
@@ -1507,8 +1554,46 @@ function dRegRestore(){
   (d.v||[]).forEach(([id,val])=>{const e=$(id);if(!e)return;if(e.type==='checkbox')e.checked=!!val;else if(val!==''){e.value=val;if(e.tagName==='SELECT')e.dispatchEvent(new Event('change',{bubbles:true}))}});
   dRegSave()
 }
-let DT=null;
+/* Drafts for pop-up forms (Add medicine, Stock in, Receive vaccine, Register pregnancy, Prenatal visit) and for lab results typed on the Lab page.
+   Kept in this browser tab only. They survive a refresh and the automatic sign-out for inactivity (for the same user), and are erased on a normal sign-out. */
+let KEEPD=false,FMRE=null,FMPEND=null;
+const fmKey=()=>U?'rhuDraftM:'+U.uid:'',labKey=()=>U?'rhuDraftL:'+U.uid:'';
+const dsGet=k=>{try{return k?JSON.parse(sessionStorage.getItem(k)||'null'):null}catch(e){return null}};
+const dsPut=(k,o)=>{try{if(!k)return;if(o)sessionStorage.setItem(k,JSON.stringify(o));else sessionStorage.removeItem(k)}catch(e){}};
+const fmGet=()=>dsGet(fmKey()),labGet=()=>dsGet(labKey()),lbRolesOk=()=>lRoles().includes(U.role);
+function fmSave(){
+  if(!U||mode!=='app'||!FMRE)return;
+  const m=document.getElementById('fmo');if(!m)return;
+  const v=[];m.querySelectorAll('input[id],select[id],textarea[id]').forEach(e=>{if(e.type==='file'||e.type==='hidden')return;v.push([e.id,e.type==='checkbox'||e.type==='radio'?e.checked:e.value])});
+  dsPut(fmKey(),{day:today(),pg,f:FMRE.f,a:FMRE.a,v,at:Date.now()})
+}
+function fmApply(v){(v||[]).forEach(([id,val])=>{const e=document.getElementById(id);if(!e||e.type==='file')return;if(e.type==='checkbox'||e.type==='radio')e.checked=!!val;else if(val!==''&&val!=null){e.value=val;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}})}
+function fmResume(){
+  const d=FMPEND;FMPEND=null;if(!d||!U||mode!=='app')return;
+  const fn=window[d.f];if(typeof fn!=='function')return;
+  if(d.pg&&d.pg!==pg)go(d.pg);
+  let n=0;const tm=setInterval(()=>{
+    n++;
+    try{if(!document.getElementById('fmo'))fn(...(d.a||[]))}catch(e){}
+    if(document.getElementById('fmo')){clearInterval(tm);fmApply(d.v);fmSave();return}
+    if(n>=20){clearInterval(tm);dsPut(fmKey(),null)}
+  },500)
+}
+function labSave(){
+  if(!U||mode!=='app'||pg!=='lab')return;
+  const l=$('lbl');if(!l||!l.querySelector('input[id^="lr-"]'))return;
+  const v={};l.querySelectorAll('input[id^="lr-"]').forEach(e=>{if(e.value.trim())v[e.id]=e.value});
+  dsPut(labKey(),Object.keys(v).length?{day:today(),v}:null)
+}
+function labApply(){
+  const d=labGet();if(!d||d.day!==today())return;
+  Object.entries(d.v||{}).forEach(([id,val])=>{const e=document.getElementById(id);if(e&&!e.value)e.value=val})
+}
+function fmWrap(n){const o=window[n];if(typeof o!=='function')return;window[n]=function(...a){const r=o.apply(this,a);if(document.getElementById('fmo')){FMRE={f:n,a};fmSave()}return r}}
+let DT=null,DT2=null;
 ['input','change','click'].forEach(ev=>document.addEventListener(ev,()=>{if(pg==='consult'&&cp){clearTimeout(DT);DT=setTimeout(dSave,300)}if(pg==='reg'){clearTimeout(DT);DT=setTimeout(dRegSave,300)}},true));
+['input','change'].forEach(ev=>document.addEventListener(ev,()=>{if(FMRE&&document.getElementById('fmo')){clearTimeout(DT2);DT2=setTimeout(fmSave,300)}if(pg==='lab'){clearTimeout(DT2);DT2=setTimeout(labSave,300)}},true));
+addEventListener('beforeunload',()=>{fmSave();labSave()});addEventListener('pagehide',()=>{fmSave();labSave()});
 addEventListener('beforeunload',()=>{dSave();if(pg==='reg')dRegSave();else dRegClear()});addEventListener('pagehide',()=>{dSave();if(pg==='reg')dRegSave();else dRegClear()});
 // Pop-up forms (Add medicine, lab result, prenatal visit and so on) cannot be reopened after a refresh, so ask before the page is left while one has typed text in it.
 addEventListener('beforeunload',e=>{
@@ -1648,7 +1733,7 @@ let SI=[],stq='',stf='all',sio=null,sed='';
 function stFilt(){const q=stq.trim().toLowerCase();return Object.entries(SK).filter(([,v])=>(!q||String(v.name).toLowerCase().includes(q))&&(stf==='all'||(stf==='low'&&stTags(v).includes('Low'))||(stf==='exp'&&stTags(v).some(t=>t!=='Low')))).sort((a,b)=>stTags(b[1]).length-stTags(a[1]).length||a[1].name.localeCompare(b[1].name))}
 function stSearch(v){stq=v;phRender()}
 function stFlt(f){stf=f;phRender()}
-function fmClose(){const o=document.getElementById('fmo');if(o)o.remove()}
+function fmClose(){const o=document.getElementById('fmo');if(o){o.remove();if(FMRE){FMRE=null;dsPut(fmKey(),null)}}}
 function fmBusy(on){const b=document.getElementById('fmok');if(b)b.disabled=on}
 addEventListener('keydown',e=>{if(e.key==='Escape')fmClose()});
 function fmShow(t,sub,body,ok,fn){
@@ -1658,19 +1743,19 @@ function fmShow(t,sub,body,ok,fn){
 }
 function stAdd(){
   sio=null;sed='';
-  fmShow('Add medicine','If the medicine is already in the list, the quantity is added as a new batch.',`<div class="fm"><div><label>Medicine</label><input id="sn" autocomplete="off"></div><div><label>Quantity received</label><input id="sq" type="number" min="0" step="1"></div><div><label>Date received</label><input id="sd" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date (optional)</label><input id="sx" type="date" data-fut="1"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div>`,'Save stock','stSave()')
+  fmShow('Add medicine','If the medicine is already in the list, the quantity is added as a new batch.',`<div class="fm"><div><label>Medicine</label><input id="sn" autocomplete="off"></div><div><label>Quantity received</label><input id="sq" type="number" min="0" step="1"></div><div><label>Date received</label><input id="sd" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date</label><input id="sx" type="date" data-fut="1"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div>`,'Save stock','stSave()')
 }
 function siOpen(k){sed='';sio=k;siRender()}
 function siClose(){sio=null;fmClose()}
 function siRender(){
   if(!sio||!SK[sio]){fmClose();return}
   const v=SK[sio];
-  fmShow('Stock in: '+v.name,'Now '+bUse(v)+' on hand.',`<div class="fm"><div><label>Quantity received</label><input id="siq" type="number" min="1" step="1" oninput="siSum()"></div><div><label>Date received</label><input id="sid" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date of this batch (optional)</label><input id="six" type="date" data-fut="1" oninput="siSum()"></div><div><label>Source</label><select id="sis"><option>Purchased</option><option>DOH or LGU</option><option>Donation</option></select></div></div><div id="sisum" style="color:var(--mu);font-size:14px;margin-top:8px"></div><div class="er2" id="sie"></div>`,'Save stock in','siSave()')
+  fmShow('Stock in: '+v.name,'Now '+bUse(v)+' on hand.',`<div class="fm"><div><label>Quantity received</label><input id="siq" type="number" min="1" step="1" oninput="siSum()"></div><div><label>Date received</label><input id="sid" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date of this batch</label><input id="six" type="date" data-fut="1" oninput="siSum()"></div><div><label>Source</label><select id="sis"><option>Purchased</option><option>DOH or LGU</option><option>Donation</option></select></div></div><div id="sisum" style="color:var(--mu);font-size:14px;margin-top:8px"></div><div class="er2" id="sie"></div>`,'Save stock in','siSave()')
 }
 function siSum(){const el=$('sisum'),v=SK[sio],n=Number($('siq').value);if(el&&v)el.textContent=Number.isInteger(n)&&n>0?'After saving: '+(bUse(v)+(($('six').value&&$('six').value<today())?0:n))+' on hand':''}
 // Expiry check for new stock: an expiry date in the past is refused, and one within 30 days asks for a confirmation.
 async function expOk(x,er){
-  if(!x)return true;
+  if(!x){er.textContent='Enter the expiry date shown on the box or bottle.';return false}
   if(x<today()){er.textContent='That expiry date has already passed. Check the date on the box or bottle.';return false}
   const lim=new Date();lim.setDate(lim.getDate()+30);
   if(x<=dpIso(lim)&&!await sConfirm('This batch expires within 30 days ('+x+'). Save anyway?','Expires soon','Save anyway',0))return false;
@@ -1882,7 +1967,7 @@ function lbRender(){
   const l=$('lbl'),d=$('lbd');if(!l)return;delete l.dataset.dirty;
   l.innerHTML=LB.length?`<table><thead><tr><th>Date</th><th>Patient</th><th>Test</th><th>Result</th><th></th></tr></thead><tbody>${LB.map(r=>`<tr><td>${E(r.d)}</td><td>${E(r.pname)}</td><td>${E(r.test)}</td><td><input id="lr-${r.id}" placeholder="Result" style="min-width:180px"><div id="lc-${r.id}" style="margin-top:6px"></div></td><td style="white-space:nowrap">${labAtt()?`<input id="lf-${r.id}" type="file" accept="image/*,application/pdf" multiple hidden onchange="lbPick('${r.id}',this)">`:''}${labAtt()?`<button class="bt g" onclick="$('lf-${r.id}').click()">Attach</button> `:''}<button class="bt" id="ls-${r.id}" onclick="lbSave('${r.id}')">Save result</button></td></tr>`).join('')}</tbody></table><div class="er2" id="lbe"></div>`:'<p style="color:var(--mu)">No requests waiting.</p>';
   d.innerHTML=LD.length?`<table><thead><tr><th>Patient</th><th>Test</th><th>Result</th></tr></thead><tbody>${LD.map(r=>`<tr><td>${E(r.pname)}</td><td>${E(r.test)}</td><td>${E(r.result||'')}${lbFilesBtn(r)}</td></tr>`).join('')}</tbody></table>`:'<p style="color:var(--mu)">None yet.</p>';
-  Object.keys(LBF).forEach(lbChips)
+  Object.keys(LBF).forEach(lbChips);labApply()
 }
 async function loadLab(){
   try{
@@ -2698,7 +2783,7 @@ function vlRender(){
 }
 function vxIn(k){
   const n=VXS.find(x=>x[0]===k)[1],v=VS[k];
-  fmShow('Receive vaccine: '+n,v?bUse(v)+' doses on hand now.':'This vaccine is not tracked yet. Receiving doses starts tracking it.',`<div class="fm"><div><label>Doses received</label><input id="vzq" type="number" min="1" step="1"></div><div><label>Date received</label><input id="vzd" type="date" value="${today()}" max="${today()}"></div><div><label>Lot number (optional)</label><input id="vzl" maxlength="40" autocomplete="off"></div><div><label>Expiry date (optional)</label><input id="vzx" type="date" data-fut="1"></div><div><label>Source</label><select id="vzs"><option>DOH</option><option>LGU</option><option>Other</option></select></div><div><label>Low-stock level (doses)</label><input id="vzo" type="number" min="0" value="${v&&typeof v.low==='number'?v.low:20}"></div></div><div class="er2" id="vze"></div>`,'Save',"vxInSave('"+k+"')")
+  fmShow('Receive vaccine: '+n,v?bUse(v)+' doses on hand now.':'This vaccine is not tracked yet. Receiving doses starts tracking it.',`<div class="fm"><div><label>Doses received</label><input id="vzq" type="number" min="1" step="1"></div><div><label>Date received</label><input id="vzd" type="date" value="${today()}" max="${today()}"></div><div><label>Lot number (optional)</label><input id="vzl" maxlength="40" autocomplete="off"></div><div><label>Expiry date</label><input id="vzx" type="date" data-fut="1"></div><div><label>Source</label><select id="vzs"><option>DOH</option><option>LGU</option><option>Other</option></select></div><div><label>Low-stock level (doses)</label><input id="vzo" type="number" min="0" value="${v&&typeof v.low==='number'?v.low:20}"></div></div><div class="er2" id="vze"></div>`,'Save',"vxInSave('"+k+"')")
 }
 async function vxInSave(k){
   const n=VXS.find(x=>x[0]===k)[1],er=$('vze'),q=Number($('vzq').value),d=$('vzd').value,x=$('vzx').value,lot=$('vzl').value.trim(),src=$('vzs').value,lo=$('vzo').value===''?20:Number($('vzo').value);
@@ -2802,9 +2887,9 @@ setInterval(()=>{
   if(left>60000||left<=0){if(w)w.remove();return}
   const sec=Math.ceil(left/1000);
   if(!w){w=document.createElement('div');w.id='idw';w.setAttribute('role','alert');w.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;background:#7a4a00;color:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.3);display:flex;gap:14px;align-items:center;max-width:92vw';document.body.appendChild(w)}
-  w.innerHTML='<span>You will be signed out in <b>'+sec+'</b> second'+(sec===1?'':'s')+' because of inactivity. Unsaved entries will be lost.</span><button type="button" class="bt" style="white-space:nowrap">Stay signed in</button>'
+  w.innerHTML='<span>You will be signed out in <b>'+sec+'</b> second'+(sec===1?'':'s')+' because of inactivity. What you typed stays on this computer; sign in again to continue.</span><button type="button" class="bt" style="white-space:nowrap">Stay signed in</button>'
 },1000);
-setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');msg='Signed out after '+im+' minutes of inactivity.';signOut(auth)}},15000);
+setInterval(async()=>{const im=idleMin();if(U&&im>0&&Date.now()-t>im*60000){await lg('Signed out (inactivity)');{const kept=dGet()||dRegGet()||fmGet()||labGet();msg='Signed out after '+im+' minutes of inactivity.'+(kept?' What you were typing is kept on this computer. Sign in again to continue.':'');KEEPD=true}signOut(auth)}},15000);
 /* ---------- Date picker (replaces the browser's own) ---------- */
 const DPMN=['January','February','March','April','May','June','July','August','September','October','November','December'];
 let DPS=null;
@@ -2863,5 +2948,6 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{ntMute,ntToggle,ntGo,setTab,setReasons,RSDEF,invTab,invSetK,invSq,invSetT,invSetR,invQuick,invPrintStock,invCsvStock,invPrintRo,invCsvRo,invPrintHist,invCsvHist,invPrintSum,invCsvSum,callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,setReasonRole,rOpen,rSave,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{ntMute,ntToggle,ntGo,setTab,setReasons,RSDEF,invTab,invSetK,invSq,invSetT,invSetR,invQuick,invPrintStock,invCsvStock,invPrintRo,invCsvRo,invPrintHist,invCsvHist,invPrintSum,invCsvSum,callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,setReasonRole,rOpen,rSave,qClose,backupAll,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+['stAdd','siOpen','pnVisit','pnForm','vxIn'].forEach(fmWrap);
 </script></body></html>
