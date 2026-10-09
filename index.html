@@ -147,8 +147,8 @@ function loadP(){
 }
 onAuthStateChanged(auth,async u=>{
   if(setting)return;
-  if(!u){U=null;try{mode=(await getDoc(doc(db,'meta','setup'))).exists()?'login':'setup'}catch(e){mode='login'}return R()}
-  try{const d=await getDoc(doc(db,'users',u.uid));if(d.exists()&&d.data().active!==false){U={uid:u.uid,...d.data()};try{S=(await getDoc(doc(db,'meta','settings'))).data()||{}}catch(e){S={}}mode='app';pg='dash';msg='';t=Date.now();await loadP().catch(()=>{})}else mode='orphan'}catch(e){mode='orphan'}
+  if(!u){U=null;try{Object.keys(sessionStorage).filter(k=>k.startsWith('rhuDraft:')).forEach(k=>sessionStorage.removeItem(k))}catch(e){}try{mode=(await getDoc(doc(db,'meta','setup'))).exists()?'login':'setup'}catch(e){mode='login'}return R()}
+  try{const d=await getDoc(doc(db,'users',u.uid));if(d.exists()&&d.data().active!==false){U={uid:u.uid,...d.data()};try{S=(await getDoc(doc(db,'meta','settings'))).data()||{}}catch(e){S={}}mode='app';pg='dash';msg='';t=Date.now();await loadP().catch(()=>{});{const dd=dGet();if(dd&&dd.open&&dd.day===today()&&CROLES.includes(U.role)&&P.find(x=>x.id===dd.cp)){cp=dd.cp;cq=dd.cq||null;pg='consult';RXL=[]}}}else mode='orphan'}catch(e){mode='orphan'}
   R();
 });
 let PXN=0,PXU=null;
@@ -310,6 +310,10 @@ function lvWatch(){
   // Pharmacist: stock changes
   lvOn('st',r==='pharmacist'?'1':'',()=>onSnapshot(collection(db,'stock'),sn=>{
     SK={};sn.docs.forEach(d=>{SK[d.id]=d.data()});if(pg==='pharm'&&!lvBusy($('stl'))&&!lvBusy($('phl')))phRender()},()=>{}));
+  // Doctor / midwife: live pharmacy stock list, so a medicine the pharmacy just added appears in the prescription list without a refresh
+  lvOn('rk',clin?'1':'',()=>onSnapshot(collection(db,'stock'),sn=>{
+    RSK={};sn.docs.forEach(d=>{RSK[d.id]=d.data()});
+    try{const dl=$('rml');if(dl)dl.innerHTML=Object.values(RSK).map(v=>`<option value="${E(v.name)}">`).join('');if($('rmw'))rxWarn();rxPaint()}catch(e){}},()=>{}));
   // Doctor / midwife with a patient open: lab results and pharmacy flags
   lvOn('lh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'labs'),where('pid','==',viewP)),()=>{if(f){f=false;return}if(pg==='prof'&&pid===viewP)loadLabH(viewP)},()=>{})});
   lvOn('vh',viewP,()=>{let f=true;return onSnapshot(query(collection(db,'visits'),where('pid','==',viewP)),()=>{if(f){f=false;return}lvDefer('vh',()=>{if(pg==='prof'&&pid===viewP)view(viewP,1,1)})},()=>{})});
@@ -329,7 +333,7 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='inv')loadInv();if(k==='nt')loadNt();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){dOpen(false);RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='inv')loadInv();if(k==='nt')loadNt();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -1386,7 +1390,7 @@ async function releaseQ(id){
   if(!await sConfirm(o?x.name+' is being seen by '+(x.byName||'another staff member')+'. Return to the waiting list anyway?':'Return '+x.name+' to the waiting list?','Return to waiting list?','Return',0))return;
   try{await updateDoc(doc(db,'queue',id),{status:'waiting',by:null,byName:null,room:null,called:false});syncDisp(x,{status:'waiting',room:null});await lg('Returned to waiting '+id)}
   catch(e){sAlert('Could not update the queue ('+(e.code||e.message)+').');return}
-  await fetchQ();if(cq===id){cp=null;cq=null;R();scrollTo(0,0)}else refreshQ()
+  await fetchQ();{const dd=dGet();if(dd&&dd.cq===id)dClear()}if(cq===id){cp=null;cq=null;R();scrollTo(0,0)}else refreshQ()
 }
 /* ---------- Consultation ---------- */
 function consList(){
@@ -1413,7 +1417,7 @@ function rxListHtml(){
 }
 // Keep the "Send patient to" tick boxes in step with the lab request and the prescription, until the doctor changes a box by hand.
 function snSync(){[['lab',()=>($('lt')&&$('lt').value.split(',').some(t=>t.trim()))],['pharmacy',()=>RXL.length>0]].forEach(([k,f])=>{const el=$('sn-'+k);if(el&&!el.dataset.t)el.checked=!!f()})}
-const rxPaint=()=>{const l=$('rxs');if(l)l.innerHTML=rxListHtml();snSync()};
+const rxPaint=()=>{const l=$('rxs');if(l)l.innerHTML=rxListHtml();snSync();dSave()};
 function rxOpen(k){
   const i=k==null?{}:RXL[k],f=(id,l,ph,v,t)=>`<div><label>${l}</label><input id="${id}" ${t||''} placeholder="${ph}" value="${E(v||'')}" autocomplete="off"></div>`;
   fmShow(k==null?'Add medicine':'Edit medicine','',`<div class="fm" style="grid-template-columns:1fr">${f('rm1','Medicine','e.g. Paracetamol',i.drug,'list="rml" oninput="rxWarn()"')}<div id="rmw" style="margin-top:-6px"></div><datalist id="rml">${RSK?Object.values(RSK).map(v=>`<option value="${E(v.name)}">`).join(''):''}</datalist>${f('rm2','Dose','e.g. 500 mg',i.dose)}${f('rm3','Frequency','e.g. 3 times a day',i.freq)}${f('rm4','Duration (optional)','e.g. 7 days',i.dur)}${f('rm5','Qty (optional)','e.g. 21',i.qty,'type="number" min="1" oninput="rxWarn()"')}</div><div class="er2" id="rme"></div>`,k==null?'Add':'Save',`rxSave(${k==null?-1:k})`);
@@ -1434,7 +1438,7 @@ const rmRx=k=>{RXL.splice(k,1);rxPaint()};
 function consForm(){
   const p=P.find(x=>x.id===cp),qv=((Q.find(e=>e.id===cq)||{}).vitals)||{},VK={v1:'bps',v2:'bpd',v3:'t',v4:'pr',v5:'rr',v6:'o2',v7:'wt',v8:'ht'},f=(id,l,ph)=>`<div><label>${l}</label><input id="${id}" type="number" step="any" inputmode="decimal" placeholder="${ph}" value="${qv[VK[id]]??''}"></div>`;
   return `<button class="bt g" onclick="cancelC()">Back</button><div class="cd" style="margin-top:12px"><h2 style="margin:0">${E(pn(p))}</h2><div style="color:var(--mu)">${p.id} | ${age(p.dob)} | ${p.sex==='M'?'Male':'Female'} | ${E(p.pu+', '+p.br)}</div></div>
-${ahCard(p,true)}<div id="pnban"></div>${(setTimeout(()=>pnBanner(p.id),0),'')}
+${ahCard(p,true)}<div id="pnban"></div>${(setTimeout(()=>pnBanner(p.id),0),'')}${(setTimeout(dRestore,0),'')}
 <div class="cd"><h3 style="margin-top:0">Vitals</h3><div class="fm">${f('v1','BP systolic (mmHg)','120')}${f('v2','BP diastolic (mmHg)','80')}${f('v3','Temperature (°C)','36.5')}${f('v4','Pulse (bpm)','80')}${f('v5','Respiratory rate (/min)','18')}${f('v6','SpO2 (%)','98')}${f('v7','Weight (kg)','')}${f('v8','Height (cm)','')}</div></div>
 <div class="cd"><h3 style="margin-top:0">Consultation</h3><label>Chief complaint</label><textarea id="cc" rows="2"></textarea><label style="margin-top:10px">Diagnosis</label><textarea id="dx" rows="2"></textarea><label style="margin-top:10px">Treatment / notes (optional)</label><textarea id="tx" rows="3"></textarea></div>
 <div class="cd"><h3 style="margin-top:0">Lab tests (optional)</h3><input id="lt" list="ltl" oninput="snSync()" onchange="snSync()" placeholder="e.g. CBC, Urinalysis (separate with commas)"><datalist id="ltl">${labList().map(t=>`<option value="${E(t)}">`).join('')}</datalist></div>
@@ -1443,6 +1447,32 @@ ${ahCard(p,true)}<div id="pnban"></div>${(setTimeout(()=>pnBanner(p.id),0),'')}
 <div class="cd"><label style="display:flex;gap:8px;align-items:center"><input id="rf" type="checkbox" style="width:auto" onchange="$('rfb').style.display=this.checked?'grid':'none'"><span>Refer this patient to another facility</span></label><div class="fm" id="rfb" style="display:none;margin-top:10px"><div><label>Refer to</label><input id="rf1" placeholder="e.g. Provincial Hospital"></div><div><label>Reason</label><input id="rf2"></div><div><label>Urgency</label><select id="rf3"><option>Routine</option><option>Urgent</option><option>Emergency</option></select></div></div></div>
 <div class="cd"><h3 style="margin-top:0">Send patient to</h3><p style="color:var(--mu);margin-top:0">Shown on the waiting-area display. Laboratory and Pharmacy are ticked automatically when you add a lab test or a prescription. You can change them. Laboratory runs at the same time as the other stations, so the patient does not wait for lab results before going to the Pharmacy. Leave all unticked and the patient is done.</p><div style="display:flex;gap:18px;flex-wrap:wrap">${[['lab','Laboratory'],['imm','Immunization'],['pharmacy','Pharmacy']].map(([k,l])=>`<label style="display:flex;gap:8px;align-items:center"><input id="sn-${k}" type="checkbox" style="width:auto" onchange="this.dataset.t=1"><span>${l}</span></label>`).join('')}</div></div>
 <div class="er2" id="ce"></div><div style="display:flex;gap:10px"><button class="bt" id="cs2" onclick="saveC()">Save consultation</button><button class="bt g" onclick="cancelC()">Back</button>${cq?`<button class="bt g" onclick="recallQ('${cq}',this)">Call again</button><button class="bt g" onclick="releaseQ('${cq}')">Return to waiting list</button>`:''}</div>`}
+/* Draft: keeps what the doctor typed in an open consultation, so a refresh does not lose it. Stored in this browser tab only and cleared on sign-out. */
+const DKF=['v1','v2','v3','v4','v5','v6','v7','v8','cc','dx','tx','lt','fu1','fu2','rf1','rf2','rf3'],DKC=['rf','sn-lab','sn-imm','sn-pharmacy'];
+const dKey=()=>U?'rhuDraft:'+U.uid:'';
+function dGet(){try{const k=dKey();return k?JSON.parse(sessionStorage.getItem(k)||'null'):null}catch(e){return null}}
+function dPut(o){try{const k=dKey();if(!k)return;if(o)sessionStorage.setItem(k,JSON.stringify(o));else sessionStorage.removeItem(k)}catch(e){}}
+const dClear=()=>dPut(null);
+function dOpen(on){const d=dGet();if(d&&d.open!==on){d.open=on;dPut(d)}}
+function dSave(){
+  if(!U||mode!=='app'||pg!=='consult'||!cp||!$('cc'))return;
+  const f={},c={};DKF.forEach(i=>{const e=$(i);if(e)f[i]=e.value});DKC.forEach(i=>{const e=$(i);if(e)c[i]=[e.checked,e.dataset.t||'']});
+  dPut({cp,cq,day:today(),open:true,f,c,rx:RXL.map(i=>({...i})),at:Date.now()})
+}
+function dRestore(){
+  if(!U||pg!=='consult'||!cp||!$('cc'))return;
+  const d=dGet();
+  if(d&&d.cp===cp&&d.day===today()){
+    Object.entries(d.f||{}).forEach(([i,v])=>{const e=$(i);if(e&&v!=='')e.value=v});
+    Object.entries(d.c||{}).forEach(([i,a])=>{const e=$(i);if(e){e.checked=!!a[0];if(a[1])e.dataset.t=a[1]}});
+    if(!RXL.length&&Array.isArray(d.rx))RXL=d.rx;
+    const rf=$('rf'),rb=$('rfb');if(rf&&rb)rb.style.display=rf.checked?'grid':'none'
+  }
+  rxPaint();dSave()
+}
+let DT=null;
+['input','change','click'].forEach(ev=>document.addEventListener(ev,()=>{if(pg==='consult'&&cp){clearTimeout(DT);DT=setTimeout(dSave,300)}},true));
+addEventListener('beforeunload',dSave);addEventListener('pagehide',dSave);
 function cancelC(){go('consult')}
 async function saveC(){
   const e=t=>{$('ce').textContent=t},g=i=>$(i).value.trim(),p=P.find(x=>x.id===cp);
@@ -1494,7 +1524,7 @@ async function saveC(){
           b.set(doc(db,'queueDisplay',qr.id),{day:today(),num,status:'waiting',room:null,station:main[0],route:rest,routedAt:serverTimestamp()},{merge:true})}
         if(par)labQ({},num)}
     }
-    await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));cp=null;cq=null;if(awaiting)sAlert('Saved. The prescription was sent to the doctor for approval before it goes to the pharmacy.');else sDone('The consultation was saved.'+(route.length?' The patient was sent to '+(par?main.map(k=>STN[k]).join(', then ')+' and Laboratory (at the same time)':route.map(k=>STN[k]).join(', then '))+'.':''),'Consultation saved');view(p.id,1)
+    await b.commit();await lg('Consultation '+p.id+(ref?' (referral)':''));dClear();cp=null;cq=null;if(awaiting)sAlert('Saved. The prescription was sent to the doctor for approval before it goes to the pharmacy.');else sDone('The consultation was saved.'+(route.length?' The patient was sent to '+(par?main.map(k=>STN[k]).join(', then ')+' and Laboratory (at the same time)':route.map(k=>STN[k]).join(', then '))+'.':''),'Consultation saved');view(p.id,1)
   }catch(x){$('cs2').disabled=false;e(x.code==='permission-denied'?'You do not have permission to save consultations.':'Could not save. Check your connection and try again.')}
 }
 /* ---------- Pharmacy ---------- */
@@ -1585,14 +1615,14 @@ function fmShow(t,sub,body,ok,fn){
 }
 function stAdd(){
   sio=null;sed='';
-  fmShow('Add medicine','If the medicine is already in the list, the quantity is added as a new batch.',`<div class="fm"><div><label>Medicine</label><input id="sn" autocomplete="off"></div><div><label>Quantity received</label><input id="sq" type="number" min="0" step="1"></div><div><label>Date received</label><input id="sd" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date (optional)</label><input id="sx" type="date"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div>`,'Save stock','stSave()')
+  fmShow('Add medicine','If the medicine is already in the list, the quantity is added as a new batch.',`<div class="fm"><div><label>Medicine</label><input id="sn" autocomplete="off"></div><div><label>Quantity received</label><input id="sq" type="number" min="0" step="1"></div><div><label>Date received</label><input id="sd" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date (optional)</label><input id="sx" type="date" data-fut="1"></div><div><label>Low-stock level</label><input id="sl" type="number" min="0" value="10"></div></div><div class="er2" id="se"></div>`,'Save stock','stSave()')
 }
 function siOpen(k){sed='';sio=k;siRender()}
 function siClose(){sio=null;fmClose()}
 function siRender(){
   if(!sio||!SK[sio]){fmClose();return}
   const v=SK[sio];
-  fmShow('Stock in: '+v.name,'Now '+bUse(v)+' on hand.',`<div class="fm"><div><label>Quantity received</label><input id="siq" type="number" min="1" step="1" oninput="siSum()"></div><div><label>Date received</label><input id="sid" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date of this batch (optional)</label><input id="six" type="date" oninput="siSum()"></div><div><label>Source</label><select id="sis"><option>Purchased</option><option>DOH or LGU</option><option>Donation</option></select></div></div><div id="sisum" style="color:var(--mu);font-size:14px;margin-top:8px"></div><div class="er2" id="sie"></div>`,'Save stock in','siSave()')
+  fmShow('Stock in: '+v.name,'Now '+bUse(v)+' on hand.',`<div class="fm"><div><label>Quantity received</label><input id="siq" type="number" min="1" step="1" oninput="siSum()"></div><div><label>Date received</label><input id="sid" type="date" value="${today()}" max="${today()}"></div><div><label>Expiry date of this batch (optional)</label><input id="six" type="date" data-fut="1" oninput="siSum()"></div><div><label>Source</label><select id="sis"><option>Purchased</option><option>DOH or LGU</option><option>Donation</option></select></div></div><div id="sisum" style="color:var(--mu);font-size:14px;margin-top:8px"></div><div class="er2" id="sie"></div>`,'Save stock in','siSave()')
 }
 function siSum(){const el=$('sisum'),v=SK[sio],n=Number($('siq').value);if(el&&v)el.textContent=Number.isInteger(n)&&n>0?'After saving: '+(bUse(v)+(($('six').value&&$('six').value<today())?0:n))+' on hand':''}
 async function siSave(){
@@ -1730,7 +1760,7 @@ function seClose(){sed='';fmClose()}
 function seRender(){
   if(!sed||!SK[sed]){fmClose();return}
   const v=SK[sed],bs=bSort(bList(v)),t=today();
-  fmShow('Edit: '+v.name,'',`<div class="fm"><div><label>Low-stock level</label><input id="sel" type="number" min="0" value="${typeof v.low==='number'?v.low:10}"></div></div>`+(bs.length?`<div class="ov" style="margin-top:12px"><table><thead><tr><th>Received</th><th>Source</th><th>Quantity</th><th>Expiry</th></tr></thead><tbody>${bs.map((b,i)=>`<tr><td>${b.d?E(b.d):'-'}</td><td>${E(b.src||'-')}</td><td>${b.qty}</td><td><input id="sex${i}" type="date" value="${E(b.exp||'')}">${b.exp&&b.exp<t?' <span class="tg er">Expired</span>':''}</td></tr>`).join('')}</tbody></table></div><p style="color:var(--mu);font-size:13px">To change a quantity (expired, damaged, lost or a count correction), close this window and use Adjust. That keeps a record in the stock log.</p>`:'<p style="color:var(--mu)">No batches on hand.</p>')+`<div class="er2" id="see"></div>`,'Save changes','seSave()')
+  fmShow('Edit: '+v.name,'',`<div class="fm"><div><label>Low-stock level</label><input id="sel" type="number" min="0" value="${typeof v.low==='number'?v.low:10}"></div></div>`+(bs.length?`<div class="ov" style="margin-top:12px"><table><thead><tr><th>Received</th><th>Source</th><th>Quantity</th><th>Expiry</th></tr></thead><tbody>${bs.map((b,i)=>`<tr><td>${b.d?E(b.d):'-'}</td><td>${E(b.src||'-')}</td><td>${b.qty}</td><td><input id="sex${i}" type="date" data-fut="1" value="${E(b.exp||'')}">${b.exp&&b.exp<t?' <span class="tg er">Expired</span>':''}</td></tr>`).join('')}</tbody></table></div><p style="color:var(--mu);font-size:13px">To change a quantity (expired, damaged, lost or a count correction), close this window and use Adjust. That keeps a record in the stock log.</p>`:'<p style="color:var(--mu)">No batches on hand.</p>')+`<div class="er2" id="see"></div>`,'Save changes','seSave()')
 }
 async function seSave(){
   const k=sed,v=SK[k],er=$('see');if(!v)return;
@@ -2612,7 +2642,7 @@ function vlRender(){
 }
 function vxIn(k){
   const n=VXS.find(x=>x[0]===k)[1],v=VS[k];
-  fmShow('Receive vaccine: '+n,v?bUse(v)+' doses on hand now.':'This vaccine is not tracked yet. Receiving doses starts tracking it.',`<div class="fm"><div><label>Doses received</label><input id="vzq" type="number" min="1" step="1"></div><div><label>Date received</label><input id="vzd" type="date" value="${today()}" max="${today()}"></div><div><label>Lot number (optional)</label><input id="vzl" maxlength="40" autocomplete="off"></div><div><label>Expiry date (optional)</label><input id="vzx" type="date"></div><div><label>Source</label><select id="vzs"><option>DOH</option><option>LGU</option><option>Other</option></select></div><div><label>Low-stock level (doses)</label><input id="vzo" type="number" min="0" value="${v&&typeof v.low==='number'?v.low:20}"></div></div><div class="er2" id="vze"></div>`,'Save',"vxInSave('"+k+"')")
+  fmShow('Receive vaccine: '+n,v?bUse(v)+' doses on hand now.':'This vaccine is not tracked yet. Receiving doses starts tracking it.',`<div class="fm"><div><label>Doses received</label><input id="vzq" type="number" min="1" step="1"></div><div><label>Date received</label><input id="vzd" type="date" value="${today()}" max="${today()}"></div><div><label>Lot number (optional)</label><input id="vzl" maxlength="40" autocomplete="off"></div><div><label>Expiry date (optional)</label><input id="vzx" type="date" data-fut="1"></div><div><label>Source</label><select id="vzs"><option>DOH</option><option>LGU</option><option>Other</option></select></div><div><label>Low-stock level (doses)</label><input id="vzo" type="number" min="0" value="${v&&typeof v.low==='number'?v.low:20}"></div></div><div class="er2" id="vze"></div>`,'Save',"vxInSave('"+k+"')")
 }
 async function vxInSave(k){
   const n=VXS.find(x=>x[0]===k)[1],er=$('vze'),q=Number($('vzq').value),d=$('vzd').value,x=$('vzx').value,lot=$('vzl').value.trim(),src=$('vzs').value,lo=$('vzo').value===''?20:Number($('vzo').value);
@@ -2718,10 +2748,10 @@ function dpPlace(){
 function dpDraw(){
   const o=document.getElementById('dpp');if(!o||!DPS)return;
   const {y,m,mn,mx,el}=DPS,ty=new Date().getFullYear(),td=today();
-  const y0=mn?+mn.slice(0,4):ty-110,y1=mx?+mx.slice(0,4):(mn?ty+10:ty),yrs=[];
+  const fut=el.dataset.fut==='1',y0=mn?+mn.slice(0,4):(fut?ty-1:ty-110),y1=mx?+mx.slice(0,4):(fut?ty+15:(mn?ty+10:ty)),yrs=[];
   for(let k=y0;k<=y1;k++)yrs.push(k);
   if(!yrs.includes(y))yrs.push(y);
-  yrs.sort((a,b)=>mn?a-b:b-a);
+  yrs.sort((a,b)=>(mn||fut)?a-b:b-a);
   const sel=dpPar(el.value),selIso=sel?dpIso(sel):'',first=new Date(y,m,1).getDay(),n=new Date(y,m+1,0).getDate(),tOff=(mn&&td<mn)||(mx&&td>mx);
   let g='';for(let i=0;i<first;i++)g+='<span></span>';
   for(let d=1;d<=n;d++){const iso=dpIso(new Date(y,m,d)),off=(mn&&iso<mn)||(mx&&iso>mx);g+=`<button type="button" class="${iso===td?'tdy ':''}${iso===selIso?'sel':''}" data-d="${iso}" ${off?'disabled':''}>${d}</button>`}
