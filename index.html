@@ -101,7 +101,7 @@ const IMR=['doctor','midwife','bhw','admin','developer'];
 const PNR=['doctor','midwife','bhw','developer'];
 // Inventory: read-only view of medicine and vaccine stock (pharmacists see medicines only).
 const INVR=['pharmacist','doctor','midwife','admin','developer'];
-const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['mc','My consultations',0,['doctor','midwife','developer']],['fu','Follow-ups',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pn','Prenatal',0,PNR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['inv','Inventory',0,INVR],['rp','Reports & Data',0,['doctor','midwife','developer','admin','frontdesk']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk'],1],['audit','Audit log',0,['admin','developer'],1],['ann','Announcements',0,[]],['users','Users',0,['admin','developer']],['dev','Developer',0,['developer'],1]];
+const NAV=[['dash','Dashboard'],['patients','Patients'],['hh','Households'],['queue','Queue',0,QROLES],['consult','Consultation',0,CROLES],['appr','Rx approvals',0,['doctor']],['ref','Referrals',0,['doctor','midwife','developer']],['mc','My consultations',0,['doctor','midwife','developer']],['fu','Follow-ups',0,['doctor','midwife','developer']],['imm','Immunization',0,IMR],['pn','Prenatal',0,PNR],['pharm','Pharmacy',0,['pharmacist']],['lab','Lab',0,['medtech']],['inv','Inventory',0,INVR],['rp','Reports & Data',0,['doctor','midwife','developer','admin','frontdesk']],['io','Import / Export',0,['developer','admin','doctor','midwife','frontdesk'],1],['audit','Audit log',0,['admin','developer'],1],['ann','Announcements',0,[]],['users','Users',0,['admin','developer']],['set','Settings',0,['admin','developer']],['dev','Developer',0,['developer'],1]];
 const NAVSEC={patients:'Clinical',rp:'Records',ann:'Admin',users:'Admin'};
 const tabsBar=l=>{l=l.filter(x=>x[2]);return l.length<2?'':`<div class="dt" style="margin:0 0 14px">${l.map(([k,t])=>`<button class="bt${pg===k?'':' g'}" onclick="go('${k}')">${t}</button>`).join('')}</div>`};
 const dataTabs=()=>tabsBar([['rp','Reports',RPR.includes(U.role)],['io','Import / Export',canReg()||isAdm()],['audit','Audit log',isAdm()]]);
@@ -270,6 +270,17 @@ function lvWatch(){
   lvQ('p-pn',ok&&(pg==='pn'||pg==='fu')&&PNR.includes(r)?pg:'',()=>collection(db,'prenatal'),()=>lvDefer('pn',()=>{if(pg==='pn'||pg==='fu')loadPn()}));
   lvQ('p-iv',ok&&pg==='inv'&&INVR.includes(r)?'1':'',()=>collection(db,'stock'),()=>lvDefer('iv',()=>{if(pg==='inv')loadInv()}));
   lvQ('p-ivv',ok&&pg==='inv'&&INVR.includes(r)&&r!=='pharmacist'?'1':'',()=>collection(db,'vxstock'),()=>lvDefer('iv',()=>{if(pg==='inv')loadInv()}));
+  // Notifications bell: reload the list when anything it counts changes
+  const ntR=()=>lvDefer('nt',loadNt,1500),ntOn=ok&&U&&mode==='app';
+  lvQ('n-st',ntOn&&INVR.includes(r)?'1':'',()=>collection(db,'stock'),ntR);
+  lvQ('n-vx',ntOn&&INVR.includes(r)&&r!=='pharmacist'?'1':'',()=>collection(db,'vxstock'),ntR);
+  lvQ('n-ap',ntOn&&r==='doctor'?'1':'',()=>query(collection(db,'prescriptions'),where('status','==','awaiting')),ntR);
+  lvQ('n-rx',ntOn&&r==='pharmacist'?'1':'',()=>query(collection(db,'prescriptions'),where('status','==','pending')),ntR);
+  lvQ('n-lb',ntOn&&lRoles().includes(r)?'1':'',()=>query(collection(db,'labs'),where('status','==','pending')),ntR);
+  lvQ('n-fu',ntOn&&RPR.includes(r)?'1':'',()=>query(collection(db,'visits'),where('fuOpen','==',true)),ntR);
+  lvQ('n-rf',ntOn&&RPR.includes(r)?'1':'',()=>query(collection(db,'visits'),where('refSt','==','sent')),ntR);
+  lvQ('n-pn',ntOn&&PNR.includes(r)?'1':'',()=>collection(db,'prenatal'),ntR);
+  if(ntOn&&NT.key!==ntKey()&&!NT.busy)loadNt();
   lvQ('p-mc',ok&&pg==='mc'&&RPR.includes(r)?td:'',()=>query(collection(db,'visits'),where('d','==',td)),()=>lvDefer('mc',()=>{if(pg==='mc'&&MC.to>=today())loadMc()}));
   // Settings and the signed-in account
   const sn0=o=>JSON.stringify(Object.keys(o||{}).filter(k=>k!=='at'&&k!=='by').sort().map(k=>[k,o[k]]));
@@ -309,7 +320,7 @@ async function doSetup(){
   catch(x){setting=false;e.textContent=x.code==='auth/email-already-in-use'?'That email is already registered.':'Setup failed ('+(x.code||x.message)+').'}
 }
 async function out(){await lg('Signed out');await signOut(auth)}
-function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='inv')loadInv();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
+function go(k,keep){RXL=[];dmClose();if(!keep)bk=[];pg=k;q='';cp=null;cq=null;if(k!=='reg')regHH='';R();scrollTo(0,0);if(k==='users')loadUsers();fmClose();if(k==='pharm'){stq='';stf='all';sio=null;sed='';loadPh()}if(k==='appr')loadAppr();if(k==='lab')loadLab();if(k==='imm')loadIm();if(k==='rp')rpInit();if(k==='ref')loadRef();if(k==='fu'){loadFu();loadPn()}if(k==='pn')loadPn();if(k==='inv')loadInv();if(k==='nt')loadNt();if(k==='mc'){MC.r='week';MC.q='';MC.doc='';[MC.from,MC.to]=mcRange('week');loadMc()}if(k==='audit')loadAudit();if(k==='queue'||k==='consult')fetchQ().then(refreshQ)}
 const rxApprove=()=>Array.isArray(S.rxApprove)?S.rxApprove:[];
 const rxExempt=()=>Array.isArray(S.rxExempt)?S.rxExempt:[];
 const needApproval=items=>U.role!=='doctor'&&rxApprove().includes(U.role)&&items.some(i=>!rxExempt().some(x=>x&&i.drug.toLowerCase().includes(x.toLowerCase())));
@@ -450,8 +461,8 @@ function shell(){
   let lastSec='';
   const vis=n=>!n[4]&&(n[0]==='lab'?lRoles().includes(U.role):(!n[3]||n[3].includes(U.role)||(n[0]==='queue'&&(canVitals()||bhwF()))||(n[0]==='ann'&&canAnn())));
   const nav=NAV.filter(vis).map(n=>{let h='';if(NAVSEC[n[0]]&&NAVSEC[n[0]]!==lastSec){lastSec=NAVSEC[n[0]];h=`<div class="nsh">${lastSec}</div>`}const tgt=n[0]==='rp'?dataEntry():n[0],lbl=n[0]==='rp'&&!RPR.includes(U.role)&&!isAdm()?'Import / Export':n[1];return h+`<button class="nv ${cur===n[0]?'on':''}" onclick="go('${tgt}')">${lbl}${n[0]==='pharm'?pxBadge():''}${sqBadge(n[0])}</button>`}).join('');
-  return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
-function page(){if((['users','audit'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||(pg==='mc'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&!lRoles().includes(U.role))||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')||(pg==='fu'&&!RPR.includes(U.role))||(pg==='pn'&&!PNR.includes(U.role))||(pg==='inv'&&!INVR.includes(U.role))))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp,mc:mcPg,fu:fup,pn:pnp,inv:invp}[pg]||dash)()}
+  return `<div class="app"><nav class="sb" id="sb"><div class="bd">${lh().logo?`<img src="${E(lh().logo)}" alt="">`:''}<h1>${E(lh().name)}</h1><button class="sbc" aria-label="Close menu" onclick="$('sb').classList.remove('open')">&times;</button></div>${nav}</nav><div class="sbx" onclick="$('sb').classList.remove('open')"></div><div class="mn"><div class="tb"><button class="bt g hm" onclick="$('sb').classList.toggle('open')">Menu${pxBadge()}</button><div><b>${E(U.name)}</b><br><span style="color:var(--mu);font-size:13px">${E(RN[U.role]||U.role)}</span></div>${(U.real||U.role)==='developer'?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--mu)">View as<select onchange="viewAs(this.value)" style="width:auto">${ROLES.map(([k,t])=>`<option value="${k}" ${U.role===k?'selected':''}>${t}${k==='developer'?' (me)':''}</option>`).join('')}</select></label>`:''}<button class="bt g" aria-label="Notifications" title="Notifications" onclick="go('nt')" style="display:inline-flex;align-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span id="ntb">${ntBadge()}</span></button><button class="bt g" onclick="out()">Sign out</button></div><div class="ct">${U.real?`<div class="cd" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px"><span>Previewing as <b>${E(RN[U.role])}</b>. Screens change, but saving still uses your developer permissions.</span><button class="bt g" onclick="viewAs('developer')">Back to developer</button></div>`:''}${page()}</div></div></div>`}
+function page(){if((['users','audit','set'].includes(pg)&&!isAdm())||(pg==='io'&&!(canReg()||isAdm()))||(pg==='rp'&&!RPR.includes(U.role))||(pg==='ref'&&!RPR.includes(U.role))||(pg==='mc'&&!RPR.includes(U.role))||((pg==='reg'&&!canReg())||(pg==='edit'&&!canEdit())||(pg==='queue'&&!QROLES.includes(U.role)&&!canVitals()&&!bhwF())||(pg==='consult'&&!CROLES.includes(U.role))||(pg==='pharm'&&U.role!=='pharmacist')||(pg==='dev'&&U.role!=='developer')||(pg==='ann'&&!canAnn())||(pg==='lab'&&!lRoles().includes(U.role))||(pg==='imm'&&!IMR.includes(U.role))||(pg==='appr'&&U.role!=='doctor')||(pg==='fu'&&!RPR.includes(U.role))||(pg==='pn'&&!PNR.includes(U.role))||(pg==='inv'&&!INVR.includes(U.role))))pg='dash';return({dash,patients:pats,prof,reg,edit:ed,users:usr,audit:aud,hh:hhs,hhd,queue:qpg,consult:cons,pharm:phg,lab:lbg,imm:imc,ann:annPg,dev:dvp,appr:apg,io:iop,rp:rpg,ref:rfp,mc:mcPg,fu:fup,pn:pnp,inv:invp,nt:ntp,set:setPg}[pg]||dash)()}
 const pn=p=>p.ln+', '+p.fn+(p.mn?' '+p.mn:'');
 const ageY=d=>{const b=new Date(d),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
 const DASH={developer:['pat','hh','today','brg'],admin:['pat','hh','today','brg'],doctor:['dvt','dlr','u5','sr'],midwife:['pat','hh','u5','today'],frontdesk:['today','pat','hh'],bhw:['hh','pat','u5','sr'],pharmacist:['pat'],medtech:['pat']};
@@ -1013,7 +1024,7 @@ const regFields=hm=>{const hs=[...new Set(P.map(x=>x.hh))];return `<div class="f
 function reg(){const hm=P.find(x=>x.hh===regHH)||{};return `<h2 style="margin-top:0">Register patient</h2><div class="cd">${regFields(hm)}<div class="er2" id="fe"></div><div style="display:flex;gap:10px;margin-top:14px"><button class="bt" id="sv" onclick="save()">Save patient</button><button class="bt" id="sv2" onclick="save(true)">Register and add to queue</button><button class="bt g" onclick="go('patients')">Cancel</button></div></div>`}
 function qNew(){
   const t=(($('qsrch')||{}).value||'').trim(),m=t.split(','),ln=m[0].trim(),fn=(m[1]||'').trim();
-  fmShow('New patient','Registers the patient and adds them to today\'s queue',regFields({})+'<label style="margin-top:10px">Reason for visit (optional)</label><input id="rq" placeholder="e.g. Check-up" autocomplete="off"><div class="er2" id="fe"></div>','Register and add to queue','save(true)');
+  fmShow('New patient','Registers the patient and adds them to today\'s queue',regFields({})+'<label style="margin-top:10px">Reason for visit (optional)</label><input id="rq" list="rsl" placeholder="e.g. Check-up" autocomplete="off">'+rsDl()+'<div class="er2" id="fe"></div>','Register and add to queue','save(true)');
   if(ln&&!/\d/.test(ln)){$('f2').value=ln;if(fn)$('f1').value=fn}
   $('f1').focus()
 }
@@ -1086,7 +1097,7 @@ async function setSound(v,el){
   catch(x){if(el)el.checked=!v;if(er)er.textContent='Could not save. Check your connection.'}
 }
 const roomsCard=()=>`<div class="cd"><h3 style="margin-top:0">Consultation rooms</h3><p style="color:var(--mu);margin-top:0">How many consultation rooms the health center uses. Doctors and midwives choose their room before starting a consultation, and the waiting-area display announces it.</p><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="rmn" type="number" min="1" max="20" value="${rooms()}" style="width:90px"><button class="bt" onclick="setRooms()">Save</button></div><div class="er2" id="rme"></div></div>`;
-const usr=()=>`<h2 style="margin-top:0">Users</h2>${userTabs()}${U.role==='admin'?roomsCard()+soundCard():''}<div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Last name</label><input id="u1a"></div><div><label>First name</label><input id="u1b"></div><div><label>Middle name (optional)</label><input id="u1c"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>PRC license no. (optional)</label><input id="u5"></div><div><label>Role</label><select id="u4">${ROLES.filter(r=>r[0]!=='developer'||U.role==='developer').map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd"><h3 style="margin-top:0">Demo data (for testing only)</h3><p style="color:var(--mu);margin-top:0">Creates 6 demo staff accounts (doctor, midwife, pharmacist, medtech, BHW, front desk) and 20 made-up patients in 7 households. Emails look like <b>demo.doctor@example.com</b>. Do not use real patient data here.</p><div class="fm"><div><label>Password for the demo accounts (8+ characters)</label><input id="dp" type="text" autocomplete="off"></div></div><div class="er2" id="de"></div><button class="bt" id="db" style="margin-top:12px" onclick="loadDemo()">Load demo data</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
+const usr=()=>`<h2 style="margin-top:0">Users</h2>${userTabs()}${U.role==='admin'?'<div class="cd" style="font-size:14px">Rooms, sound, letterhead and lists are now in <a href="#" onclick="go(\'set\');return false">Settings</a>.</div>':''}<div class="cd"><h3 style="margin-top:0">Add staff account</h3><div class="fm"><div><label>Last name</label><input id="u1a"></div><div><label>First name</label><input id="u1b"></div><div><label>Middle name (optional)</label><input id="u1c"></div><div><label>Email</label><input id="u2" type="email"></div><div><label>Temporary password (8+ characters)</label><input id="u3" type="text"></div><div><label>PRC license no. (optional)</label><input id="u5"></div><div><label>Role</label><select id="u4">${ROLES.filter(r=>r[0]!=='developer'||U.role==='developer').map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><div class="er2" id="ue"></div><button class="bt" id="ub" style="margin-top:12px" onclick="addStaff()">Create account</button></div><div class="cd"><h3 style="margin-top:0">Demo data (for testing only)</h3><p style="color:var(--mu);margin-top:0">Creates 6 demo staff accounts (doctor, midwife, pharmacist, medtech, BHW, front desk) and 20 made-up patients in 7 households. Emails look like <b>demo.doctor@example.com</b>. Do not use real patient data here.</p><div class="fm"><div><label>Password for the demo accounts (8+ characters)</label><input id="dp" type="text" autocomplete="off"></div></div><div class="er2" id="de"></div><button class="bt" id="db" style="margin-top:12px" onclick="loadDemo()">Load demo data</button></div><div class="cd ov"><div id="ul">Loading...</div></div>`;
 const ULM={};
 async function editLic(id){
   const u=ULM[id]||{},v=await sPrompt('License number','PRC license number for '+(u.name||'this user')+' (leave empty to remove)',u.lic||'','Save');if(v===null)return;
@@ -1236,7 +1247,7 @@ function qSearch(v){
   // Match from the start of the name as it is displayed ("Last, First Middle"), so "sa" finds Santos but not Rosa. The patient ID can still be matched anywhere.
   const nm=x=>x.toLowerCase().replace(/,/g,' ').replace(/\s+/g,' ').trim(),q2=nm(s);
   const l=P.filter(p=>nm(pn(p)).startsWith(q2)||p.id.toLowerCase().includes(s)).slice(0,6);
-  r.innerHTML=l.length?`<div class="ov"><table><tbody>${l.map(p=>`<tr><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td><td><select id="sv-${p.id}">${['consult','imm','lab','pharmacy'].map(k=>`<option value="${k}">For ${STN[k]}</option>`).join('')}</select></td><td><input id="rs-${p.id}" placeholder="Reason (e.g. check-up)" style="min-width:150px"></td><td><button class="bt" onclick="qAskV('${p.id}')">Add</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">No match.</p>'+(canReg()?'<button class="bt" onclick="qNew()">Register new patient</button>':'')}
+  r.innerHTML=l.length?`<div class="ov"><table><tbody>${l.map(p=>`<tr><td>${p.id}</td><td>${E(pn(p))}</td><td>${age(p.dob)} / ${p.sex}</td><td><select id="sv-${p.id}">${['consult','imm','lab','pharmacy'].map(k=>`<option value="${k}">For ${STN[k]}</option>`).join('')}</select></td><td><input id="rs-${p.id}" list="rsl" placeholder="Reason (e.g. check-up)" style="min-width:150px">${rsDl()}</td><td><button class="bt" onclick="qAskV('${p.id}')">Add</button></td></tr>`).join('')}</tbody></table></div>`:'<p style="color:var(--mu)">No match.</p>'+(canReg()?'<button class="bt" onclick="qNew()">Register new patient</button>':'')}
 async function qAdd(id,r,v){
   const el=$('rs-'+id),reason=((r!==undefined?r:(el?el.value:''))||'').trim()||'Check-up',p=P.find(x=>x.id===id),er=$('qe'),say=m=>{if(er)er.textContent=m;else sAlert(m)};
   await fetchQ();
@@ -2258,6 +2269,78 @@ function invSumRows(){return invSummary().map(o=>[o.name,o.kind,o.inn,o.out,o.ad
 function invPrintSum(){const r=invSumRows();if(!r.length)return sAlert('There is nothing to print.');printList('Stock summary | '+invPer(),['Item','Type','Received','Used','Adjusted','On hand now'],r);lg('Printed stock summary ('+r.length+')')}
 function invCsvSum(){ioDl('stock-summary-'+INVF+'-to-'+INVTo+'.csv',[['Item','Type','Received','Used','Adjusted','On hand now']].concat(invSumRows()));lg('Downloaded stock summary CSV')}
 
+/* ---------- Notifications: one bell for everything that needs attention (what shows depends on the role) ---------- */
+let NT={key:'',items:null,busy:false};
+const ntKey=()=>U?U.role+'|'+U.uid:'';
+const ntItems=()=>NT.key===ntKey()?NT.items:null;
+function ntBuild(t){
+  const r=U.role,it=[],td=today(),pl=(n,w)=>n+' '+w+(n===1?'':'s');
+  const nm=(a,f)=>a.slice(0,3).map(f).join(', ')+(a.length>3?' and '+(a.length-3)+' more':'');
+  const lowN=v=>typeof v.low==='number'?v.low:10;
+  const stk=(a,kind)=>{
+    if(!a)return;
+    const low=a.filter(v=>bUse(v)<=lowN(v)).sort((x,y)=>bUse(x)-bUse(y)),exp=a.filter(v=>{const g=stTags(v);return g.includes('Expired')||g.includes('Expires soon')});
+    if(low.length)it.push({c:low.some(v=>bUse(v)<=0)?'er':'wa',t:kind+': low or out of stock',d:nm(low,v=>(v.name||'')+' ('+bUse(v)+' left)'),go:'inv'});
+    if(exp.length)it.push({c:exp.some(v=>stTags(v).includes('Expired'))?'er':'wa',t:kind+': expired or expiring soon',d:nm(exp,v=>(v.name||'')+' ('+stTags(v).filter(g=>g!=='Low').join(', ').toLowerCase()+')'),go:'inv'})
+  };
+  if(t.ap>0)it.push({c:'wa',t:'Prescriptions to approve',d:pl(t.ap,'prescription')+' waiting for your approval',go:'appr'});
+  if(t.rx>0)it.push({c:'wa',t:'Prescriptions to dispense',d:pl(t.rx,'prescription')+' waiting to be dispensed',go:'pharm'});
+  if(t.lb>0)it.push({c:'wa',t:'Lab requests',d:pl(t.lb,'request')+' waiting for results',go:'lab'});
+  if(t.rf&&t.rf.length){const old=t.rf.filter(v=>rfDays(v.refAt||v.d)>=RFW).length;it.push({c:old?'er':'wa',t:'Referrals sent',d:pl(t.rf.length,'referral')+' not yet received'+(old?', '+old+' waiting '+RFW+' days or more':''),go:'ref'})}
+  const fu=(t.fu||[]).filter(v=>v.fu&&v.fu<=td).map(v=>v.fu),pn=(t.pn||[]).filter(x=>x.nv&&x.nv<=td).map(x=>x.nv),dd=fu.concat(pn);
+  if(dd.length){const ov=dd.filter(d=>d<td).length,to=dd.length-ov;it.push({c:ov?'er':'wa',t:'Follow-ups and check-ups',d:(ov?ov+' overdue':'')+(ov&&to?', ':'')+(to?to+' due today':''),go:RPR.includes(r)?'fu':'pn'})}
+  stk(t.m&&Object.values(t.m),'Medicines');stk(t.v&&Object.values(t.v),'Vaccines');
+  return it.sort((a,b)=>(a.c==='er'?0:1)-(b.c==='er'?0:1))
+}
+async function loadNt(){
+  if(!U||mode!=='app')return;
+  if(NT.busy){NT.again=true;return}
+  const r=U.role,k=ntKey(),t={},j=[],run=(n,f)=>f().then(v=>{t[n]=v}).catch(()=>{}),g=n=>getDocs(collection(db,n)),q=(n,...c)=>getDocs(query(collection(db,n),...c));
+  NT.busy=true;
+  if(INVR.includes(r))j.push(run('m',async()=>{const o={};(await g('stock')).docs.forEach(d=>{o[d.id]=d.data()});return o}));
+  if(INVR.includes(r)&&r!=='pharmacist')j.push(run('v',async()=>{const o={};(await g('vxstock')).docs.forEach(d=>{o[d.id]=d.data()});return o}));
+  if(r==='doctor')j.push(run('ap',async()=>(await q('prescriptions',where('status','==','awaiting'))).size));
+  if(r==='pharmacist')j.push(run('rx',async()=>(await q('prescriptions',where('status','==','pending'))).size));
+  if(lRoles().includes(r))j.push(run('lb',async()=>(await q('labs',where('status','==','pending'))).size));
+  if(RPR.includes(r)){
+    j.push(run('fu',async()=>(await q('visits',where('fuOpen','==',true))).docs.map(d=>d.data())));
+    j.push(run('rf',async()=>(await q('visits',where('refSt','==','sent'))).docs.map(d=>d.data())))
+  }
+  if(PNR.includes(r))j.push(run('pn',async()=>(await g('prenatal')).docs.map(d=>d.data()).filter(x=>x.status==='active')));
+  await Promise.all(j);NT.busy=false;
+  if(NT.again){NT.again=false;loadNt();return}
+  if(!U||ntKey()!==k)return;
+  NT.key=k;NT.items=ntBuild(t);ntPaint()
+}
+function ntBadge(){
+  const l=ntItems();if(!l||!l.length)return '';
+  return `<span class="nbd${l.some(x=>x.c==='er')?'':' sqb'}" style="margin-left:6px">${l.length}</span>`
+}
+function ntPaint(){const b=$('ntb');if(b)b.innerHTML=ntBadge();if(pg==='nt')lvScroll(R)}
+function ntp(){
+  const h='<h2 style="margin-top:0">Notifications</h2><p style="color:var(--mu);margin-top:-6px">Everything that needs attention for your role. This list updates by itself. Red means urgent: overdue, expired or out of stock.</p>',l=ntItems();
+  if(l===null)return h+'<div class="cd">Loading...</div>';
+  return h+(l.length?l.map(x=>`<div class="cd" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-left:5px solid ${x.c==='er'?'var(--er)':'var(--wa)'}"><div><b>${E(x.t)}</b><div style="color:var(--mu);font-size:14px">${E(x.d)}</div></div><button class="bt g" onclick="go('${x.go}')">Open</button></div>`).join(''):'<div class="cd" style="color:var(--ok)">Nothing needs attention right now.</div>')
+}
+
+/* ---------- Settings page (admin and developer): clinic details and lists the health center can change without the developer ---------- */
+const SET_T=[['lh','Clinic details'],['pl','Barangays'],['rm','Rooms'],['snd','Sound'],['lab','Lab tests'],['rs','Visit reasons']];
+let setCur='lh';
+const RSDEF=['Check-up','Fever','Cough and colds','Prenatal check-up','Immunization','Dressing / wound care','Follow-up','Medical certificate'];
+const rsList=()=>Array.isArray(S.visitReasons)?S.visitReasons:RSDEF;
+const rsDl=()=>`<datalist id="rsl">${rsList().map(x=>`<option value="${E(x)}">`).join('')}</datalist>`;
+function setTab(k){setCur=k;document.querySelectorAll('.stp').forEach(e=>e.style.display=e.dataset.t===k?'block':'none');document.querySelectorAll('.stt button').forEach(b=>b.className='bt'+(b.dataset.t===k?'':' g'))}
+const labTestsCard=()=>`<div class="cd"><h3 style="margin-top:0">Lab tests offered</h3><p style="color:var(--mu);margin-top:0;font-size:14px">One test per line. These appear as suggestions when a doctor requests a lab test. Applies the next time each person logs in.</p><textarea id="lbt" rows="8">${E(labList().join('\n'))}</textarea><div class="er2" id="lte"></div><button class="bt" style="margin-top:10px" onclick="setLabTests()">Save list</button></div>`;
+const reasonsCard=()=>`<div class="cd"><h3 style="margin-top:0">Visit reasons</h3><p style="color:var(--mu);margin-top:0;font-size:14px">One reason per line. These show as suggestions in the "Reason for visit" box when a patient is added to the queue. Staff can still type anything else.</p><textarea id="rsv" rows="8">${E(rsList().join('\n'))}</textarea><div class="er2" id="rse"></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="bt" onclick="setReasons()">Save list</button><button class="bt g" onclick="$('rsv').value=RSDEF.join('\\n')">Use the default list</button></div><p style="color:var(--mu);font-size:13px;margin:10px 0 0">The vaccine list follows the DOH EPI schedule built into the app, because the due dates and the vaccine stock depend on it. It is not changed here.</p></div>`;
+async function setReasons(){
+  const er=$('rse'),l=[...new Set($('rsv').value.split('\n').map(x=>x.trim().slice(0,60)).filter(Boolean))].slice(0,60);
+  er.textContent='';
+  try{await setDoc(doc(db,'meta','settings'),{visitReasons:l,by:U.name,at:serverTimestamp()},{merge:true});S.visitReasons=l;await lg('Visit reasons updated ('+l.length+')');sDone('Visit reasons saved.')}
+  catch(x){er.textContent=x.code==='permission-denied'?'You do not have permission. Publish the latest firestore.rules first.':'Could not save the list. Check your connection.'}
+}
+const setPg=()=>`<h2 style="margin-top:0">Settings</h2><p style="color:var(--mu);margin-top:-6px">Clinic details and lists that the health center can change without the developer. Permissions and roles stay with the developer.</p><div class="dt stt">${SET_T.map(([k,t])=>`<button class="bt${setCur===k?'':' g'}" data-t="${k}" onclick="setTab('${k}')">${t}</button>`).join('')}</div>`
+  +[['lh',lhCard],['pl',placesCard],['rm',roomsCard],['snd',soundCard],['lab',labTestsCard],['rs',reasonsCard]].map(([k,f])=>`<div class="stp" data-t="${k}" style="display:${setCur===k?'block':'none'}">${f()}</div>`).join('');
+
 /* ---------- Prenatal ---------- */
 // One document per pregnancy in "prenatal"; every prenatal visit is a document in "prenatalVisits".
 const PNRISK=['Previous Cesarean section','Previous miscarriage or stillbirth','Twin or multiple pregnancy','Anemia','Diabetes','Hypertension or pre-eclampsia','Bleeding in this pregnancy'];
@@ -2617,5 +2700,5 @@ document.addEventListener('change',e=>{
 });
 addEventListener('keydown',e=>{if(e.key==='Escape'&&DPS){dpClose();e.stopImmediatePropagation()}},true);
 addEventListener('resize',dpPlace);addEventListener('scroll',dpPlace,true);
-Object.assign(window,{invTab,invSetK,invSq,invSetT,invSetR,invQuick,invPrintStock,invCsvStock,invPrintRo,invCsvRo,invPrintHist,invCsvHist,invPrintSum,invCsvSum,callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
+Object.assign(window,{setTab,setReasons,RSDEF,invTab,invSetK,invSq,invSetT,invSetR,invQuick,invPrintStock,invCsvStock,invPrintRo,invCsvRo,invPrintHist,invCsvHist,invPrintSum,invCsvSum,callQ,oxOpen,oxPick,oxSave,setLabAttach,setLabRole,lbPick,lbRm,lbView,lbVX,stCall,stDone,stBack,snSync,phIn,rfSetF,rfSq,rfSet,rfRet,mcSetR,mcApply,mcSq,mcDoc,mcCsv,rxDspOpen,rxDspChg,rxDspGo,rxWarn,qNew,rxOpen,rxSave,vxIn,vxInSave,vxAdj,vaChg,vxAdjSave,fuQuick,fuDone,fuAll,fuSetF,fuSetT,fuSetB,fuSq,fuPrint,pnSetF,pnSetB,pnSq,pnPrint,pnPick,pnFind,pnForm,pnEdd,pnSave,pnVisit,pnNv,pnVisitSave,pnClose,pnCloseSave,pnBanner,rmRx,rpGo,rpPreset,rpPrint,rpCsv,ioFile,ioShow,ioRun,ioTemplate,ioExport,goBack,dmOpen,dmMed,dmClose,dmGo,stSearch,stFlt,siOpen,siClose,siSum,siSave,saOpen,saChg,saSave,slF,slCsv,ahOpen,ahSave,dxPer,dxPick,pSort,addDev,removeDev,plSum,dvTab,annDuChange,$,rows,go,out,doLogin,doSetup,view,save,addStaff,setActive,loadDemo,setPower,setIdle,viewAs,imSet,imGive,setLabTests,lbSave,setVitalsRole,dispense,stSave,stAdd,fmClose,stFill,seClose,seSave,vOpen,vSave,removeUser,editP,saveEdit,delP,sq,openHH,addMember,qAdd,qAskV,qVGo,qVX,qAddP,qSearch,qCancel,startQ,startC,releaseQ,brChg,savePlaces,plRow,apApprove,apReject,saveRxApprove,setRxRole,editLic,lhPick,lhNoLogo,lhSave,printRx,certOpen,certGo,setAnnRole,setSound,postAnn,clearAnn,recallQ,setMyRoom,setRooms,cSearch,rmRx,saveC,cancelC});
 </script></body></html>
