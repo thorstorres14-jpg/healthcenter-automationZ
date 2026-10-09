@@ -21,7 +21,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid #14807f55;border-color
 .nv{display:flex;justify-content:space-between;padding:9px 12px;border-radius:8px;cursor:pointer;color:var(--nt);border:0;background:none;text-align:left;width:100%}
 .nsh{font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.6;margin:12px 12px 4px}.nv.on{background:var(--na);color:#fff}.nv.dis{opacity:.45;cursor:default}.nv small{font-size:11px}.nbd{display:inline-block;min-width:20px;padding:1px 6px;border-radius:99px;background:#e5484d;color:#fff;font-size:12px;font-weight:600;line-height:18px;text-align:center}.hm .nbd{margin-left:6px}.nbd.sqb{background:#d97706;margin-left:6px}.sqt{position:fixed;right:16px;bottom:16px;z-index:60;max-width:340px;background:#12324a;color:#fff;border-left:6px solid #f59e0b;border-radius:12px;padding:12px 16px;box-shadow:0 6px 20px rgba(0,0,0,.28);cursor:pointer;font-size:15px;line-height:1.35}.sqt b{display:block;font-size:16px}
 .mn{flex:1;min-width:0}
-.tb{display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--cd);border-bottom:1px solid var(--bd);justify-content:space-between}
+.tb{display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--cd);border-bottom:1px solid var(--bd);justify-content:space-between;position:sticky;top:0;z-index:20}
 .ntw{position:relative;display:inline-block}.ntd{position:absolute;right:0;top:calc(100% + 8px);width:360px;max-width:calc(100vw - 24px);max-height:70vh;overflow:auto;background:var(--cd);border:1px solid var(--bd);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:40;text-align:left}.ntd .nth{padding:12px 14px;font-weight:600;border-bottom:1px solid var(--bd)}.ntd .nte{padding:16px 14px;color:var(--mu)}.nti{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--bd);border-left:4px solid var(--wa);padding:11px 14px;cursor:pointer;color:inherit;font:inherit}.nti.er{border-left-color:var(--er)}.nti:hover{background:rgba(0,0,0,.05)}.nti b{display:block}.nti small{display:block;color:var(--mu);font-size:13px;margin-top:2px}.ntd .nti:last-child{border-bottom:0}@media(max-width:600px){.ntd{position:fixed;left:12px;right:12px;top:64px;width:auto}}
 .ct{padding:20px;max-width:1100px}
 .cd{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px}
@@ -66,7 +66,7 @@ label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
 .lg{max-width:440px;margin:0 auto;padding:24px 14px}
 .hm{display:none}
 .sbc,.sbx{display:none}
-@media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;height:auto;width:75%;z-index:5;display:none;overflow-y:auto}.sb.open{display:flex}.sb.open~.sbx{display:block;position:fixed;top:0;right:0;bottom:0;left:0;z-index:4;background:rgba(0,0,0,.45)}.sbc{display:inline-block;margin-left:auto;flex:none;background:transparent;border:0;color:#fff;font-size:28px;line-height:1;padding:4px 8px;cursor:pointer}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px}}
+@media(max-width:800px){.sb{position:fixed;top:0;left:0;bottom:0;height:auto;width:75%;z-index:5;display:none;overflow-y:auto}.sb.open{display:flex}.sb.open~.sbx{display:block;position:fixed;top:0;right:0;bottom:0;left:0;z-index:4;background:rgba(0,0,0,.45)}.sbc{display:inline-block;margin-left:auto;flex:none;background:transparent;border:0;color:#fff;font-size:28px;line-height:1;padding:4px 8px;cursor:pointer}.hm{display:inline-block}.ct{padding:14px}.tb{padding:10px 14px;z-index:3}}
 input[type=date]{cursor:pointer;padding-right:34px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235b6b7a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M16 3v4M8 3v4M3 11h18'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:16px}
 input[type=date]::-webkit-calendar-picker-indicator{display:none}
 .dpp{position:fixed;z-index:100000;width:288px;background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
@@ -96,7 +96,7 @@ const $=i=>document.getElementById(i);
 const E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ROLES=[['developer','Developer'],['admin','Admin'],['doctor','Doctor (MHO)'],['midwife','Midwife / Nurse'],['pharmacist','Pharmacist'],['medtech','Medical technologist'],['bhw','BHW'],['frontdesk','Front desk']];
 const RN=Object.fromEntries(ROLES),REG=['midwife','frontdesk','doctor'],LV={doctor:'full',midwife:'full',pharmacist:'rx'},IDLE=600000;
-const QROLES=['frontdesk','midwife','doctor','admin','developer'],CROLES=['doctor','midwife'];
+const QROLES=['frontdesk','admin','developer'],CROLES=['doctor','midwife'];
 const IMR=['doctor','midwife','bhw','admin','developer'];
 // Prenatal list: clinical staff write, BHWs and the developer may read it.
 const PNR=['doctor','midwife','bhw','developer'];
@@ -169,7 +169,7 @@ function pxWatch(){
 let QU=null,QUd='';
 function qWatch(){
   // Live queue: the queue screens update by themselves when someone adds or changes a patient.
-  const on=!!U&&mode==='app'&&(dqOn()||stOn());
+  const on=!!U&&mode==='app'&&(dqOn()||stOn()||CROLES.includes(U.role));
   if(!on){if(QU){QU();QU=null;QUd=''}SQs=null;return}
   if(QU&&QUd===today())return;
   if(QU){QU();QU=null}
@@ -181,12 +181,15 @@ const SQN={pharm:'pharmacy',lab:'lab',imm:'imm'};
 let SQs=null,SQac=null,SQt=null,SQt0='',SQlast=0,NTlast=0;
 const myStn=()=>U?['pharmacy','lab','imm'].filter(k=>SROLE[k].includes(U.role)):[];
 const sqWaiting=()=>Q.filter(x=>myStn().includes(x.station)&&x.status==='waiting');
-function sqBadge(nk){const k=SQN[nk];if(!k||!myStn().includes(k))return '';const n=Q.filter(x=>x.station===k&&x.status==='waiting').length;return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting">${n>99?'99+':n}</span>`:''}
+// Patients waiting for consultation: doctors and midwives see it on Consultation, front desk and others on Queue.
+const wcN=()=>Q.filter(x=>isC(x)&&x.status==='waiting').length;
+const wcFor=nk=>!!U&&(nk==='consult'&&CROLES.includes(U.role)||nk==='queue'&&!CROLES.includes(U.role)&&dqOn());
+function sqBadge(nk){if(wcFor(nk)){const n=wcN();return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting">${n>99?'99+':n}</span>`:''}const k=SQN[nk];if(!k||!myStn().includes(k))return '';const n=Q.filter(x=>x.station===k&&x.status==='waiting').length;return n>0?`<span class="nbd sqb" aria-label="${n} patients waiting">${n>99?'99+':n}</span>`:''}
 function sqPaint(){
   document.querySelectorAll('.sqb').forEach(e=>e.remove());
   document.querySelectorAll('.sb .nv').forEach(b=>{const m=(b.getAttribute('onclick')||'').match(/go\('(\w+)'\)/),ks=b.dataset.g?b.dataset.g.split(','):m?[m[1]]:[];ks.forEach(k=>b.insertAdjacentHTML('beforeend',sqBadge(k)))});
   document.querySelectorAll('.gtab').forEach(b=>b.insertAdjacentHTML('beforeend',sqBadge(b.dataset.k)));
-  const tot=sqWaiting().length,mb=document.querySelector('.tb .hm');
+  const tot=sqWaiting().length+(U&&(CROLES.includes(U.role)||dqOn())?wcN():0),mb=document.querySelector('.tb .hm');
   if(mb&&tot)mb.insertAdjacentHTML('beforeend',`<span class="nbd sqb" aria-label="${tot} patients waiting">${tot>99?'99+':tot}</span>`);
   if(!SQt0)SQt0=document.title.replace(/^\(\d+\) /,'');
   document.title=(tot?'('+tot+') ':'')+SQt0
@@ -200,25 +203,27 @@ function sqBeep(){
   }catch(e){}
 }
 function sqToast(list){
-  const x=list[0],k=x.station,more=list.length>1?` (+${list.length-1} more)`:'';
+  const x=list[0],k=x.station||'consult',more=list.length>1?` (+${list.length-1} more)`:'';
   clearTimeout(SQt);const o=document.getElementById('sqt');if(o)o.remove();
   const d=document.createElement('div');d.id='sqt';d.className='sqt';d.setAttribute('role','status');
   d.innerHTML=`<b>New patient for ${E(STN[k]||k)}${more}</b>${qn(x.num)} ${E(x.name||'')}`;
-  d.onclick=()=>{d.remove();const pgk=Object.keys(SQN).find(a=>SQN[a]===k);if(pgk)go(pgk)};
+  d.onclick=()=>{d.remove();const pgk=Object.keys(SQN).find(a=>SQN[a]===k)||(k==='consult'?'consult':'');if(pgk)go(pgk)};
   document.body.appendChild(d);SQt=setTimeout(()=>{d.remove()},8000)
 }
 function sqCheck(){
-  if(!U||mode!=='app'||!myStn().length){SQs=null;return}
-  const cur=sqWaiting(),fresh=SQs?cur.filter(x=>!SQs.has(x.id)):[];
+  if(!U||mode!=='app'||(!myStn().length&&!wcFor('consult')&&!wcFor('queue'))){SQs=null;return}
+  const cur=sqWaiting().concat(wcFor('consult')||wcFor('queue')?Q.filter(x=>isC(x)&&x.status==='waiting'):[]),fresh=SQs?cur.filter(x=>!SQs.has(x.id)):[];
   SQs=new Set(cur.map(x=>x.id));
   sqPaint();
   // Only the dedicated station roles (pharmacist, med tech) get the sound and pop-up. Doctor and midwife only see the badge.
-  if(fresh.length&&stOn()){sqBeep();sqToast(fresh)}
+  // Sound and pop-up: station roles for their station, doctors and midwives for patients waiting for consultation. Front desk only sees the badge.
+  const al=fresh.filter(x=>stOn()||(CROLES.includes(U.role)&&isC(x)));
+  if(al.length){sqBeep();sqToast(al)}
 }
 function qLive(){
   const busy=el=>{const a=document.activeElement;return !!a&&el.contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)};
   try{
-    dqRender();sqCheck();
+    dqRender();sqCheck();ntPaint();
     if(pg==='queue'){const a=$('qt');if(a&&!vq&&!busy(a))a.innerHTML=qTable()}
     if(pg==='consult'&&!cp){const c=$('cl');if(c&&!busy(c))c.innerHTML=consList()}
     ['pharmacy','lab','imm'].forEach(k=>{const e=$('sq-'+k);if(e&&!busy(e))e.innerHTML=stList(k)});
@@ -2289,7 +2294,14 @@ function invCsvSum(){ioDl('stock-summary-'+INVF+'-to-'+INVTo+'.csv',[['Item','Ty
 /* ---------- Notifications: one bell for everything that needs attention (what shows depends on the role) ---------- */
 let NT={key:'',items:null,busy:false};
 const ntKey=()=>U?U.role+'|'+U.uid:'';
-const ntItems=()=>NT.key===ntKey()?NT.items:null;
+// Live items from the queue (no extra reads): patients waiting for consultation or in the queue.
+function ntLive(){
+  const n=U&&mode==='app'?wcN():0;if(n<1)return [];
+  const d=n+(n===1?' patient is':' patients are')+' waiting';
+  if(CROLES.includes(U.role))return [{c:'wa',t:'Patients waiting for consultation',d,go:'consult'}];
+  return dqOn()?[{c:'wa',t:'Patients in the queue',d,go:'queue'}]:[]
+}
+const ntItems=()=>NT.key===ntKey()?ntLive().concat(NT.items||[]):null;
 function ntBuild(t){
   const r=U.role,it=[],td=today(),pl=(n,w)=>n+' '+w+(n===1?'':'s');
   const nm=(a,f)=>a.slice(0,3).map(f).join(', ')+(a.length>3?' and '+(a.length-3)+' more':'');
